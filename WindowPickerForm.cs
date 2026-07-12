@@ -26,11 +26,28 @@ namespace WindowTinter
             Cursor = Cursors.Cross;
         }
 
+        /// <summary>
+        /// 查找鼠标位置下的目标窗口。先临时隐藏自身，否则 WindowFromPoint
+        /// 永远返回这个全屏 TopMost 拾取层而非下面的窗口。
+        /// </summary>
+        private IntPtr WindowAtPoint(Point pt)
+        {
+            Native.ShowWindow(Handle, Native.SW_HIDE);
+            IntPtr h = Native.WindowFromPoint(pt);
+            Native.ShowWindow(Handle, Native.SW_SHOWNOACTIVATE);
+
+            // WindowFromPoint 可能返回子窗口（按钮/面板等），取其顶层窗口
+            if (h != IntPtr.Zero)
+                h = Native.GetAncestor(h, Native.GA_ROOT);
+
+            return h;
+        }
+
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
             var pt = PointToScreen(e.Location);
-            IntPtr h = Native.WindowFromPoint(pt);
+            IntPtr h = WindowAtPoint(pt);
             if (h != IntPtr.Zero && h != Handle)
             {
                 Native.RECT r;
@@ -54,7 +71,7 @@ namespace WindowTinter
         protected override void OnMouseClick(MouseEventArgs e)
         {
             var pt = PointToScreen(e.Location);
-            IntPtr h = Native.WindowFromPoint(pt);
+            IntPtr h = WindowAtPoint(pt);
             if (h != IntPtr.Zero && h != Handle) SelectedHandle = h;
             DialogResult = DialogResult.OK;
             Close();
