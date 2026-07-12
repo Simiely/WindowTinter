@@ -10,7 +10,7 @@ namespace WindowTinter
     /// </summary>
     internal class Settings
     {
-        public string TargetProcessName { get; set; } = "BaiduNetdisk.exe";
+        public string TargetProcessName { get; set; } = "BaiduNetdiskUnite.exe";
         public string Mode { get; set; } = "Mask"; // "Mask" 或 "Invert"
         public int Alpha { get; set; } = 115;       // 0-255，约 45% 不透明黑
         public bool Enabled { get; set; } = true;
