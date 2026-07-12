@@ -161,11 +161,13 @@ namespace WindowTinter
             return list;
         }
 
-        /// <summary>按进程名（忽略大小写）查找第一个可见窗口。</summary>
+        /// <summary>按进程名（忽略大小写）查找第一个可见窗口。传入 "foo" 或 "foo.exe" 均可。</summary>
         public static IntPtr FindByProcessName(string processName)
         {
             if (string.IsNullOrWhiteSpace(processName)) return IntPtr.Zero;
+            // Process.ProcessName 不含 .exe 后缀，这里统一去掉以便比较
             string target = processName.ToLowerInvariant();
+            if (target.EndsWith(".exe")) target = target.Substring(0, target.Length - 4);
             IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, lparam) =>
             {
@@ -182,6 +184,29 @@ namespace WindowTinter
                     }
                 }
                 catch { }
+                return true;
+            }, IntPtr.Zero);
+            return found;
+        }
+
+        /// <summary>按窗口标题（忽略大小写、包含匹配）查找第一个可见窗口。</summary>
+        public static IntPtr FindByWindowTitle(string titleKeyword)
+        {
+            if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
+            string kw = titleKeyword.ToLowerInvariant();
+            IntPtr found = IntPtr.Zero;
+            Native.EnumWindows((hwnd, lparam) =>
+            {
+                if (!Native.IsWindowVisible(hwnd)) return true;
+                int len = Native.GetWindowTextLength(hwnd);
+                if (len == 0) return true;
+                var sb = new StringBuilder(len + 1);
+                Native.GetWindowText(hwnd, sb, len + 1);
+                if (sb.ToString().ToLowerInvariant().Contains(kw))
+                {
+                    found = hwnd;
+                    return false;
+                }
                 return true;
             }, IntPtr.Zero);
             return found;
