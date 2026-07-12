@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <AssemblyName>WindowTinter</AssemblyName>
+    <RootNamespace>WindowTinter</RootNamespace>
+    <AssemblyTitle>WindowTinter</AssemblyTitle>
+    <Description>给任意窗口（含百度网盘）叠加深色蒙版或真·反色的常驻小工具</Description>
+  </PropertyGroup>
+</Project>
