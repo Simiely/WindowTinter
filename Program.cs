@@ -217,7 +217,8 @@ namespace WindowTinter
         private void PickWindow()
         {
             using var picker = new WindowPickerForm();
-            if (picker.ShowDialog(this) == DialogResult.OK && picker.SelectedHandle != IntPtr.Zero)
+            // 不传隐藏的主控窗体作 owner —— 隐藏 owner 会导致对话框无法正确激活置前。
+            if (picker.ShowDialog() == DialogResult.OK && picker.SelectedHandle != IntPtr.Zero)
             {
                 _tracker.TargetHandle = picker.SelectedHandle;
                 // 记下进程名以便下次自动绑定
