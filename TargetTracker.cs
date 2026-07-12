@@ -161,7 +161,21 @@ namespace WindowTinter
             return list;
         }
 
-        /// <summary>按进程名（忽略大小写）查找第一个可见窗口。传入 "foo" 或 "foo.exe" 均可。</summary>
+        /// <summary>
+        /// 是否为「可作为蒙版目标」的窗口：可见、未最小化、且尺寸不小于阈值
+        /// （排除百度网盘那种 10x10 占位窗体等无意义的极小窗口）。
+        /// </summary>
+        public const int MIN_TARGET_SIZE = 100; // 单边小于此像素数视为「占位小窗」，跳过
+
+        public static bool IsAcceptableTarget(IntPtr hwnd)
+        {
+            if (!Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd)) return false;
+            Native.RECT r;
+            if (!Native.GetWindowRect(hwnd, out r)) return false;
+            return r.Width >= MIN_TARGET_SIZE && r.Height >= MIN_TARGET_SIZE;
+        }
+
+        /// <summary>按进程名（忽略大小写）查找第一个可见窗口。传入 "foo" 或 "foo.exe" 均可。会跳过极小占位窗口。</summary>
         public static IntPtr FindByProcessName(string processName)
         {
             if (string.IsNullOrWhiteSpace(processName)) return IntPtr.Zero;
@@ -171,7 +185,7 @@ namespace WindowTinter
             IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, lparam) =>
             {
-                if (!Native.IsWindowVisible(hwnd)) return true;
+                if (!IsAcceptableTarget(hwnd)) return true; // 跳过极小/不可见窗口，继续枚举
                 uint pid;
                 Native.GetWindowThreadProcessId(hwnd, out pid);
                 try
@@ -180,7 +194,7 @@ namespace WindowTinter
                     if (p.ProcessName != null && p.ProcessName.ToLowerInvariant() == target)
                     {
                         found = hwnd;
-                        return false; // 停止枚举
+                        return false; // 命中，停止枚举
                     }
                 }
                 catch { }
@@ -189,7 +203,7 @@ namespace WindowTinter
             return found;
         }
 
-        /// <summary>按窗口标题（忽略大小写、包含匹配）查找第一个可见窗口。</summary>
+        /// <summary>按窗口标题（忽略大小写、包含匹配）查找第一个可作为目标的窗口。会跳过极小占位窗口。</summary>
         public static IntPtr FindByWindowTitle(string titleKeyword)
         {
             if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
@@ -197,7 +211,7 @@ namespace WindowTinter
             IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, lparam) =>
             {
-                if (!Native.IsWindowVisible(hwnd)) return true;
+                if (!IsAcceptableTarget(hwnd)) return true; // 跳过极小/不可见窗口，继续枚举
                 int len = Native.GetWindowTextLength(hwnd);
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
