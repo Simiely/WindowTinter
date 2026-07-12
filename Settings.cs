@@ -13,8 +13,6 @@ namespace WindowTinter
         public string TargetProcessName { get; set; } = "BaiduNetdisk.exe";
         public string Mode { get; set; } = "Mask"; // "Mask" 或 "Invert"
         public int Alpha { get; set; } = 115;       // 0-255，约 45% 不透明黑
-        public uint HotkeyModifiers { get; set; } = Native.MOD_CONTROL | Native.MOD_ALT;
-        public uint HotkeyVk { get; set; } = 0x44;  // 'D'
         public bool Enabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
 

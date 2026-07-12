@@ -29,17 +29,11 @@ namespace WindowTinter
         public const int LWA_COLORKEY = 0x1;
 
         // ---- 消息 ----
-        public const int WM_HOTKEY = 0x0312;
 
-        // ---- 热键修饰符 ----
-        public const uint MOD_ALT = 0x1;
-        public const uint MOD_CONTROL = 0x2;
-        public const uint MOD_SHIFT = 0x4;
-        public const uint MOD_WIN = 0x8;
-
-        // ---- 窗口样式（创建放大镜用）----
+        // ---- 窗口样式（创建放大镜/分层窗口用）----
         public const uint WS_CHILD = 0x40000000;
         public const uint WS_VISIBLE = 0x10000000;
+        public const uint WS_POPUP = 0x80000000;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
@@ -108,19 +102,67 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
-        // ---- user32：热键 ----
-        [DllImport("user32.dll")]
-        public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-        [DllImport("user32.dll")]
-        public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
         // ---- user32：拾取窗口 ----
         [DllImport("user32.dll")]
         public static extern IntPtr WindowFromPoint(Point point);
 
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out Point lpPoint);
+
+        // ---- user32：Z 序遍历（遮挡检测用）----
+        public const uint GW_HWNDNEXT = 2;   // 返回 Z 序中更靠后（下方）的窗口
+        public const uint GW_HWNDPREV = 3;   // 返回 Z 序中更靠前（上方）的窗口
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+        // ---- GDI：区域（HRGN）裁剪，用于让蒙版只盖目标可见区域 ----
+        public const int RGN_AND = 1;
+        public const int RGN_OR = 2;
+        public const int RGN_XOR = 3;
+        public const int RGN_DIFF = 4;   // 差集：从区域中挖掉另一区域
+        public const int RGN_COPY = 5;
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
+
+        [DllImport("gdi32.dll")]
+        public static extern int CombineRgn(IntPtr hrgnDest, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int fnCombineMode);
+
+        [DllImport("gdi32.dll")]
+        public static extern int OffsetRgn(IntPtr hrgn, int nXOffset, int nYOffset);
+
+        [DllImport("gdi32.dll")]
+        public static extern int GetRgnBox(IntPtr hrgn, out RECT lprc);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr hObject);
+
+        [DllImport("user32.dll")]
+        public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
+
+        // ---- user32：WinEvent 钩子（事件驱动更新，替代高频轮询）----
+        public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+        public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+
+        public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B; // 窗口移动/缩放
+        public const uint EVENT_OBJECT_HIDE = 0x8004;
+        public const uint EVENT_OBJECT_SHOW = 0x8006;
+        public const uint EVENT_OBJECT_DESTROY = 0x8001;
+        public const uint EVENT_OBJECT_ZORDERCHANGES = 0x8012;  // Z 序变化（遮挡可能变）
+        public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;     // 前台窗口切换
+
+        public delegate void WinEventProc(
+            IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetWinEventHook(
+            uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
+            WinEventProc pfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
         // ---- user32：创建窗口（放大镜宿主/控件）----
         [DllImport("user32.dll", SetLastError = true)]
