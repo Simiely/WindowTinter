@@ -20,7 +20,10 @@ namespace WindowTinter
             TopMost = true;
             ShowInTaskbar = false;
             BackColor = Color.Fuchsia;
-            TransparencyKey = Color.Fuchsia;
+            // 注意：不能用 TransparencyKey —— 那会让整个表单对鼠标点击「透明穿透」，
+            // 导致 OnMouseClick/OnMouseMove 收不到事件、永远选不中窗口。
+            // 这里仅靠 Opacity=0.3 做半透明拾取遮罩（同时是「拾取中」的视觉提示），
+            // 表单本身照常接收鼠标事件。
             Opacity = 0.3;
             DoubleBuffered = true;
             Cursor = Cursors.Cross;
