@@ -109,6 +109,17 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out Point lpPoint);
 
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        public const int SW_HIDE = 0;
+        public const int SW_SHOWNOACTIVATE = 4;
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+        public const uint GA_ROOT = 2;
+
         // ---- user32：Z 序遍历（遮挡检测用）----
         public const uint GW_HWNDNEXT = 2;   // 返回 Z 序中更靠后（下方）的窗口
         public const uint GW_HWNDPREV = 3;   // 返回 Z 序中更靠前（上方）的窗口
