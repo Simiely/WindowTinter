@@ -114,6 +114,10 @@ namespace WindowTinter
 
         public const int SW_HIDE = 0;
         public const int SW_SHOWNOACTIVATE = 4;
+        public const int SW_SHOW = 5;
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [DllImport("user32.dll")]
         public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
