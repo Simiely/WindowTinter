@@ -6,7 +6,7 @@ using System.Windows.Forms;
 namespace WindowTinter
 {
     /// <summary>
-    /// 主控制器：隐藏窗体 + 托盘图标 + 模式切换 + 目标跟踪。
+    /// 主控制器：隐藏窗体 + 托盘图标 + 全局热键 + 模式切换 + 目标跟踪。
     /// </summary>
     internal class MainForm : Form
     {
@@ -159,10 +159,8 @@ namespace WindowTinter
             _menu.Items.Clear();
             _menu.Items.Add(_settings.Enabled ? "停用 (隐藏覆盖)" : "启用覆盖", null, (s, e) => ToggleEnabled());
             _menu.Items.Add("── 模式 ──").Enabled = false;
-            var miMask = (ToolStripMenuItem)_menu.Items.Add("深色蒙版", null, (s, e) => SetMode("Mask"));
-            miMask.Checked = _settings.Mode == "Mask";
-            var miInvert = (ToolStripMenuItem)_menu.Items.Add("真·反色 (实验)", null, (s, e) => SetMode("Invert"));
-            miInvert.Checked = _settings.Mode == "Invert";
+            ((ToolStripMenuItem)_menu.Items.Add("深色蒙版", null, (s, e) => SetMode("Mask"))).Checked = _settings.Mode == "Mask";
+            ((ToolStripMenuItem)_menu.Items.Add("真·反色 (实验)", null, (s, e) => SetMode("Invert"))).Checked = _settings.Mode == "Invert";
             _menu.Items.Add("── 透明度 ──").Enabled = false;
             _menu.Items.Add("调暗一点 (-)", null, (s, e) => ChangeAlpha(-20));
             _menu.Items.Add("调亮一点 (+)", null, (s, e) => ChangeAlpha(+20));
@@ -171,14 +169,13 @@ namespace WindowTinter
             _menu.Items.Add("选择窗口 (点击拾取)...", null, (s, e) => PickWindow());
             _menu.Items.Add("重新绑定百度网盘", null, (s, e) => BindBaidu());
             _menu.Items.Add($"当前目标: {(_tracker.TargetHandle != IntPtr.Zero ? "已绑定" : "未绑定")}");
-            var miAutostart = (ToolStripMenuItem)_menu.Items.Add("开机自启", null, (s, e) =>
+            ((ToolStripMenuItem)_menu.Items.Add("开机自启", null, (s, e) =>
             {
                 _settings.StartWithWindows = !_settings.StartWithWindows;
                 _settings.ApplyStartWithWindows();
                 _settings.Save();
                 RefreshMenu();
-            });
-            miAutostart.Checked = _settings.StartWithWindows;
+            })).Checked = _settings.StartWithWindows;
             _menu.Items.Add("退出", null, (s, e) => Quit());
         }
 
@@ -235,11 +232,24 @@ namespace WindowTinter
 
         private void BindBaidu()
         {
-            var h = TargetTracker.FindByProcessName("BaiduNetdisk.exe");
+            // 百度网盘不同版本进程名不同，逐个尝试
+            string[] baiduProcessNames = { "BaiduNetdiskUnite.exe", "BaiduNetdisk.exe" };
+            IntPtr h = IntPtr.Zero;
+            string matchedName = "";
+            foreach (var name in baiduProcessNames)
+            {
+                h = TargetTracker.FindByProcessName(name);
+                if (h != IntPtr.Zero) { matchedName = name; break; }
+            }
+
+            // 进程名没找到？按窗口标题兜底
+            if (h == IntPtr.Zero)
+                h = TargetTracker.FindByWindowTitle("百度网盘");
+
             if (h != IntPtr.Zero)
             {
                 _tracker.TargetHandle = h;
-                _settings.TargetProcessName = "BaiduNetdisk.exe";
+                _settings.TargetProcessName = string.IsNullOrEmpty(matchedName) ? "BaiduNetdiskUnite.exe" : matchedName;
                 _settings.Save();
             }
             else
