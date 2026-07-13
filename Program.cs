@@ -90,6 +90,9 @@ namespace WindowTinter
                     if (!_settings.Enabled || !visible) { mask.Hide(); return; }
                     if (_settings.Mode == "Invert") return;
 
+                    // 目标不是前台窗口时隐藏蒙版，避免遮挡上层窗口
+                    if (Native.GetForegroundWindow() != tracker.TargetHandle) { mask.Hide(); return; }
+
                     mask.Alpha = (byte)_settings.Alpha;
 mask.AlignTo(r);
                 }
