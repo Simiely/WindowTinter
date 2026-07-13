@@ -114,14 +114,9 @@ namespace WindowTinter
             UpdateUI();
         }
 
-        private void OnShown(object _, EventArgs __)
+        private void OnShown(object sender, EventArgs e)
         {
-            foreach (var e in _entries) e.Tracker.RefreshNow();
-            // 推迟一帧再显示：确保 MaskOverlay 句柄完全初始化后 UpdateLayeredWindow 才生效
-            BeginInvoke(new Action(() =>
-            {
-                foreach (var e in _entries) ApplyMaskNow(e);
-            }));
+            foreach (var e2 in _entries) e2.Tracker.RefreshNow();
         }
 
         // ════════════════════════════════════════════════════════════
@@ -146,26 +141,30 @@ namespace WindowTinter
             {
                 try
                 {
-                    if (!_settings.Enabled || !visible) { mask.Hide(); return; }
-                    if (tracker.TargetHandle == IntPtr.Zero || !Native.IsWindowVisible(tracker.TargetHandle) || Native.IsIconic(tracker.TargetHandle)) { mask.Hide(); return; }
-                    byte alpha = (byte)(_settings.Alpha * 255 / 100);
-                    // 前台用 TOPMOST 盖一切，后台插目标上方只盖目标及以下
-                    var insertAfter = Native.GetForegroundWindow() == tracker.TargetHandle ? Native.HWND_TOPMOST : tracker.TargetHandle;
-                    mask.AlignTo(r, alpha, insertAfter);
+                    if (!ShouldShowMask(tracker.TargetHandle)) { mask.Hide(); return; }
+                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
+                    mask.AlignTo(r);
                 }
-                catch (Exception ex) { DebugLog.Error("OnUpdate", ex); }
+                catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
             };
 
             return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
+        }
+
+        /// <summary>判断是否应该对指定目标显示蒙版。</summary>
+        private bool ShouldShowMask(IntPtr targetHandle)
+        {
+            if (!_settings.Enabled) return false;
+            if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
+            return Native.GetForegroundWindow() == targetHandle;
         }
 
         /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
         private void ApplyMaskNow(TargetEntry e)
         {
             if (!TryGetTargetRect(e, out Native.RECT r)) return;
-            byte alpha = (byte)(_settings.Alpha * 255 / 100);
-            var insertAfter = Native.GetForegroundWindow() == e.Tracker.TargetHandle ? Native.HWND_TOPMOST : e.Tracker.TargetHandle;
-            e.Mask.AlignTo(r, alpha, insertAfter);
+            e.Mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
+            e.Mask.AlignTo(r);
         }
 
         private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
