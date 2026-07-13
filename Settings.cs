@@ -24,6 +24,7 @@ namespace WindowTinter
         public int Alpha { get; set; } = 75;
         public bool Enabled { get; set; } = false;
         public bool StartWithWindows { get; set; } = false;
+        public bool MinimizeToTray { get; set; } = true;
         public bool DebugEnabled { get; set; } = true;
 
         // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）

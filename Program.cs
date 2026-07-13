@@ -31,6 +31,7 @@ namespace WindowTinter
         private TrackBar _tbAlpha;
         private Label _lblAlpha;
         private CheckBox _chkStartup;
+        private CheckBox _chkMinimizeTray;
         private bool _reallyQuit;
 
         public MainForm()
@@ -223,16 +224,17 @@ mask.AlignTo(r, tracker.TargetHandle);
             // ── 系统 ──
             var rowY = y + 2;
             _chkStartup = new CheckBox { Text = "开机自启", Location = new Point(pad + 4, rowY), AutoSize = true, Checked = _settings.StartWithWindows };
-            _chkStartup.CheckedChanged += (s, ev) => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); };
+            _chkStartup.CheckedChanged += (s1, ev) => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); };
             Controls.Add(_chkStartup);
-            rowY += 30;
+
+            _chkMinimizeTray = new CheckBox { Text = "关闭窗口时最小化到托盘（不勾选则直接退出）", Location = new Point(pad + 4, rowY + 24), AutoSize = true, Checked = _settings.MinimizeToTray };
+            _chkMinimizeTray.CheckedChanged += (s1, ev) => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); };
+            Controls.Add(_chkMinimizeTray);
+            rowY += 54;
 
             Controls.Add(MakeButton("📂 配置文件夹", pad, rowY, 120, OpenConfigFolder));
             Controls.Add(MakeButton("📋 查看日志", 134, rowY, 100, OpenLog));
             Controls.Add(MakeButton("ℹ 关于", 240, rowY, 70, ShowAbout));
-
-            var hint = new Label { Text = "关闭窗口将最小化到系统托盘", Location = new Point(pad, rowY + 36), AutoSize = true, ForeColor = Color.Gray };
-            Controls.Add(hint);
 
             // 恢复已有条目的 UI
             for (int i = 0; i < _entries.Count; i++)
@@ -292,6 +294,7 @@ mask.AlignTo(r, tracker.TargetHandle);
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
             _chkStartup.Checked = _settings.StartWithWindows;
+            _chkMinimizeTray.Checked = _settings.MinimizeToTray;
             RefreshTrayMenu();
         }
 
@@ -317,7 +320,7 @@ mask.AlignTo(r, tracker.TargetHandle);
         }
 
         private void ToggleWindow() { if (Visible) Hide(); else { Show(); WindowState = FormWindowState.Normal; BringToFront(); Activate(); } }
-        private void OnFormClosing(object sender, FormClosingEventArgs e) { if (!_reallyQuit) { e.Cancel = true; Hide(); } }
+        private void OnFormClosing(object sender, FormClosingEventArgs e) { if (!_reallyQuit && _settings.MinimizeToTray) { e.Cancel = true; Hide(); } }
 
         // ── 核心操作 ──────────────────────────────────────────────
 
