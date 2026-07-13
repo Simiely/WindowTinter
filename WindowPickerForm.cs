@@ -1,129 +1,184 @@
 using System;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WindowTinter
 {
     /// <summary>
-    /// 点击拾取窗口：覆盖「整个虚拟桌面」（所有显示器）的半透明捕获层，
-    /// 鼠标移动时高亮其下的窗口，单击即选定（排除自身）。
+    /// Spy++ 风格窗口拾取器：小浮窗 + 拖拽准星 + GDI 反转边框高亮。
+    /// 用户从准星图标拖拽到目标窗口，松手即选定。不遮挡屏幕，比全屏遮罩更优雅。
+    ///
+    /// 原理：
+    /// 1. 显示一个小浮窗，含准星图标和提示文字
+    /// 2. 鼠标按下准星区域 → SetCapture，进入拖拽状态，光标变十字
+    /// 3. 拖拽时 WindowFromPoint 实时获取鼠标下方窗口
+    /// 4. 用 GetWindowDC + PatBlt(DSTINVERT) 在目标窗口上画反转边框（不破坏原内容）
+    /// 5. 松手 → ReleaseCapture，清除高亮，返回句柄
     /// </summary>
     internal class WindowPickerForm : Form
     {
         public IntPtr SelectedHandle { get; private set; } = IntPtr.Zero;
-        private Native.RECT _highlight;
-        private const string Hint = "移动鼠标高亮窗口，单击选定  ·  Esc 取消";
+
+        private bool _dragging;
+        private IntPtr _lastHighlighted = IntPtr.Zero;
+        private Native.RECT _lastRect;
+
+        // 用于 GDI 反转边框绘制
+        private const int R2_NOT = 6; // R2_NOT 绘制模式：反转目标像素
 
         public WindowPickerForm()
         {
-            FormBorderStyle = FormBorderStyle.None;
-            StartPosition = FormStartPosition.Manual;
-            // 关键修复①：覆盖所有显示器（虚拟桌面），而不是仅主屏。
-            // Maximized 的无边框窗体只盖主显示器，鼠标移到副屏就没有遮罩、光标不变。
-            Bounds = SystemInformation.VirtualScreen;
-            TopMost = true;
-            ShowInTaskbar = false;
-            BackColor = Color.Black;
-            // 暗色半透明遮罩：既是「拾取中」的视觉提示，又照常接收鼠标事件
-            // （不能用 TransparencyKey —— 会让整个表单对点击穿透，永远选不中）。
-            Opacity = 0.30;
-            DoubleBuffered = true;
-            Cursor = Cursors.Cross;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterScreen;
+            Text = "选择窗口";
+            ClientSize = new Size(360, 120);
+            MaximizeBox = false;
+            MinimizeBox = false;
             KeyPreview = true;
-        }
-
-        protected override void OnShown(EventArgs e)
-        {
-            base.OnShown(e);
-            // 关键修复②：强制置前并激活，确保遮罩压在所有 topmost 窗口之上、
-            // 能第一时间收到鼠标/键盘（否则被百度网盘等 topmost 窗口盖住）。
             TopMost = true;
-            BringToFront();
-            Activate();
-            Native.SetForegroundWindow(Handle);
-            Focus();
-            Cursor = Cursors.Cross;
         }
 
-        // 关键修复③：分层窗口（Opacity）下 WinForms 的 Cursor 属性偶发不生效，
-        // 这里拦 WM_SETCURSOR 强制十字光标兜底。
-        protected override void WndProc(ref Message m)
+        protected override void OnLoad(EventArgs e)
         {
-            const int WM_SETCURSOR = 0x0020;
-            if (m.Msg == WM_SETCURSOR)
+            base.OnLoad(e);
+
+            // 准星图标（用 Label 模拟，鼠标按下即开始拖拽）
+            var crosshair = new Label
             {
-                Cursor.Current = Cursors.Cross;
-                m.Result = (IntPtr)1;
-                return;
-            }
-            base.WndProc(ref m);
+                Text = "⊕",
+                Font = new Font("Segoe UI", 28f),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(64, 64),
+                Location = new Point(16, 28),
+                Cursor = Cursors.Cross,
+                BackColor = Color.FromArgb(240, 240, 240)
+            };
+            crosshair.MouseDown += (s, ev) => StartDrag(ev);
+            crosshair.MouseMove += (s, ev) => OnDragMove(ev);
+            crosshair.MouseUp += (s, ev) => EndDrag(ev);
+            Controls.Add(crosshair);
+
+            // 提示文字
+            var hint = new Label
+            {
+                Text = "按住 ⊕ 拖到目标窗口\n松手即选定\n\nEsc 取消",
+                Font = new Font("Microsoft YaHei UI", 10f),
+                AutoSize = false,
+                Size = new Size(260, 80),
+                Location = new Point(96, 24),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            Controls.Add(hint);
         }
 
-        /// <summary>
-        /// 查找鼠标位置下的目标窗口。先临时隐藏自身，否则 WindowFromPoint
-        /// 永远返回这个全屏 TopMost 拾取层而非下面的窗口，再恢复置顶。
-        /// </summary>
-        private IntPtr WindowAtPoint(Point ptScreen)
+        private void StartDrag(MouseEventArgs e)
         {
-            Native.ShowWindow(Handle, Native.SW_HIDE);
-            IntPtr h = Native.WindowFromPoint(ptScreen);
-            Native.ShowWindow(Handle, Native.SW_SHOWNOACTIVATE);
-            Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0,
-                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            if (e.Button != MouseButtons.Left) return;
+            _dragging = true;
+            Cursor.Current = Cursors.Cross;
+            Native.SetCapture(Handle);
+        }
 
-            // WindowFromPoint 可能返回子窗口（按钮/面板等），取其顶层窗口
+        private void OnDragMove(MouseEventArgs e)
+        {
+            if (!_dragging) return;
+
+            Point pt = Control.MousePosition;
+            IntPtr h = Native.WindowFromPoint(pt);
+
+            // 取顶层窗口（WindowFromPoint 可能返回子窗口）
             if (h != IntPtr.Zero)
                 h = Native.GetAncestor(h, Native.GA_ROOT);
 
-            return h;
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            // 用屏幕坐标（多屏虚拟桌面下 e.Location 会带负偏移，直接取 MousePosition 更稳）
-            IntPtr h = WindowAtPoint(Control.MousePosition);
-            if (h != IntPtr.Zero && h != Handle)
+            // 排除自身
+            if (h == Handle || h == IntPtr.Zero)
             {
-                Native.RECT r;
-                if (Native.GetWindowRect(h, out r)) _highlight = r;
-            }
-            Invalidate();
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-
-            // 高亮框：屏幕坐标 → 客户区坐标（兼容虚拟桌面负偏移）
-            if (_highlight.Width > 0)
-            {
-                var tl = PointToClient(new Point(_highlight.Left, _highlight.Top));
-                var r = new Rectangle(tl.X, tl.Y, _highlight.Width, _highlight.Height);
-                using var pen = new Pen(Color.Red, 3);
-                e.Graphics.DrawRectangle(pen, r);
+                ClearHighlight();
+                return;
             }
 
-            // 顶部操作提示（画在主显示器区域内，便于看到）
-            using var font = new Font("Microsoft YaHei UI", 12f, FontStyle.Bold);
-            var size = e.Graphics.MeasureString(Hint, font);
-            var primary = Screen.PrimaryScreen.Bounds;
-            // primary 是屏幕坐标，换算到客户区
-            var pTopLeft = PointToClient(new Point(primary.Left, primary.Top));
-            float x = pTopLeft.X + (primary.Width - size.Width) / 2f;
-            float y = pTopLeft.Y + 60f;
-            using var bg = new SolidBrush(Color.FromArgb(180, 0, 0, 0));
-            e.Graphics.FillRectangle(bg, x - 16, y - 8, size.Width + 32, size.Height + 16);
-            e.Graphics.DrawString(Hint, font, Brushes.White, x, y);
+            if (h != _lastHighlighted)
+            {
+                ClearHighlight();
+                _lastHighlighted = h;
+                if (Native.GetWindowRect(h, out _lastRect))
+                    DrawHighlightBorder(h, _lastRect);
+            }
         }
 
-        protected override void OnMouseClick(MouseEventArgs e)
+        private void EndDrag(MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left) return;
-            IntPtr h = WindowAtPoint(Control.MousePosition);
-            if (h != IntPtr.Zero && h != Handle) SelectedHandle = h;
-            DialogResult = DialogResult.OK;
+            if (!_dragging) return;
+            _dragging = false;
+            Native.ReleaseCapture();
+            ClearHighlight();
+
+            if (_lastHighlighted != IntPtr.Zero && _lastHighlighted != Handle)
+            {
+                SelectedHandle = _lastHighlighted;
+                DialogResult = DialogResult.OK;
+            }
+            else
+            {
+                DialogResult = DialogResult.Cancel;
+            }
             Close();
+        }
+
+        /// <summary>在目标窗口上画反转边框（用 DSTINVERT/PatBlt，不破坏原内容）。</summary>
+        private void DrawHighlightBorder(IntPtr hwnd, Native.RECT r)
+        {
+            IntPtr hdc = Native.GetWindowDC(hwnd);
+            if (hdc == IntPtr.Zero) return;
+            try
+            {
+                int bw = 3;
+                // 上
+                Native.PatBlt(hdc, 0, 0, r.Width, bw, Native.DSTINVERT);
+                // 下
+                Native.PatBlt(hdc, 0, r.Height - bw, r.Width, bw, Native.DSTINVERT);
+                // 左
+                Native.PatBlt(hdc, 0, 0, bw, r.Height, Native.DSTINVERT);
+                // 右
+                Native.PatBlt(hdc, r.Width - bw, 0, bw, r.Height, Native.DSTINVERT);
+            }
+            finally
+            {
+                Native.ReleaseDC(hwnd, hdc);
+            }
+        }
+
+        /// <summary>清除上一个窗口的高亮边框（再画一次反转即恢复）。</summary>
+        private void ClearHighlight()
+        {
+            if (_lastHighlighted != IntPtr.Zero && Native.IsWindow(_lastHighlighted))
+            {
+                DrawHighlightBorder(_lastHighlighted, _lastRect);
+            }
+            _lastHighlighted = IntPtr.Zero;
+        }
+
+        // 拖拽过程中鼠标可能在控件外，需要拦截窗口级消息
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEMOVE = 0x0200;
+            const int WM_LBUTTONUP = 0x0202;
+
+            if (_dragging)
+            {
+                if (m.Msg == WM_MOUSEMOVE)
+                {
+                    OnDragMove(null);
+                    return;
+                }
+                if (m.Msg == WM_LBUTTONUP)
+                {
+                    EndDrag(null);
+                    return;
+                }
+            }
+            base.WndProc(ref m);
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -131,9 +186,16 @@ namespace WindowTinter
             base.OnKeyDown(e);
             if (e.KeyCode == Keys.Escape)
             {
+                if (_dragging) { _dragging = false; Native.ReleaseCapture(); ClearHighlight(); }
                 DialogResult = DialogResult.Cancel;
                 Close();
             }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            ClearHighlight(); // 确保关闭时清除高亮
+            base.OnFormClosing(e);
         }
     }
 }

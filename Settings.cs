@@ -6,18 +6,22 @@ using Microsoft.Win32;
 namespace WindowTinter
 {
     /// <summary>
-    /// 持久化设置。目标窗口用"进程名"保存（hwnd 跨进程/重启不稳定），启动时按进程名重新查找。
+    /// 持久化设置。目标窗口用「进程名 + 标题」保存（hwnd 跨进程/重启不稳定），启动时重新查找。
     /// </summary>
     internal class Settings
     {
-        public string TargetProcessName { get; set; } = "BaiduNetdiskUnite.exe";
+        public string TargetProcessName { get; set; } = "";
+        public string TargetWindowTitle { get; set; } = "";
         public string Mode { get; set; } = "Mask"; // "Mask" 或 "Invert"
-        public int Alpha { get; set; } = 115;       // 0-255，约 45% 不透明黑
-        public bool Enabled { get; set; } = true;
+        public int Alpha { get; set; } = 75;        // 0-255，约 29% 不透明黑
+        public bool Enabled { get; set; } = false;  // 默认不启用，需先选窗口
         public bool StartWithWindows { get; set; } = false;
+        public bool DebugEnabled { get; set; } = true;
 
-        private static string FilePath =>
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter", "settings.json");
+        private static string AppDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
+
+        private static string FilePath => Path.Combine(AppDir, "settings.json");
 
         public static Settings Load()
         {
@@ -37,8 +41,7 @@ namespace WindowTinter
         {
             try
             {
-                var dir = Path.GetDirectoryName(FilePath);
-                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                if (!Directory.Exists(AppDir)) Directory.CreateDirectory(AppDir);
                 File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
             }
             catch { /* 忽略保存失败 */ }

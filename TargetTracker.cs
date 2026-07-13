@@ -226,6 +226,58 @@ namespace WindowTinter
             return found;
         }
 
+        /// <summary>
+        /// 按标题+进程名双匹配查找窗口。优先精确匹配，标题匹配失败再退到仅进程名。
+        /// 传入空字符串表示该字段不参与匹配。
+        /// </summary>
+        public static IntPtr FindByTitleAndProcess(string title, string processName)
+        {
+            // 先尝试标题+进程名同时匹配
+            if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(processName))
+            {
+                string proc = processName.ToLowerInvariant();
+                if (proc.EndsWith(".exe")) proc = proc.Substring(0, proc.Length - 4);
+                string kw = title.ToLowerInvariant();
+                IntPtr found = IntPtr.Zero;
+                Native.EnumWindows((hwnd, lparam) =>
+                {
+                    if (!IsAcceptableTarget(hwnd)) return true;
+                    int len = Native.GetWindowTextLength(hwnd);
+                    if (len == 0) return true;
+                    var sb = new StringBuilder(len + 1);
+                    Native.GetWindowText(hwnd, sb, len + 1);
+                    if (!sb.ToString().ToLowerInvariant().Contains(kw)) return true;
+                    uint pid;
+                    Native.GetWindowThreadProcessId(hwnd, out pid);
+                    try
+                    {
+                        var p = Process.GetProcessById((int)pid);
+                        if (p.ProcessName != null && p.ProcessName.ToLowerInvariant() == proc)
+                        {
+                            found = hwnd;
+                            return false;
+                        }
+                    }
+                    catch { }
+                    return true;
+                }, IntPtr.Zero);
+                if (found != IntPtr.Zero) return found;
+            }
+
+            // 退到仅标题
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                var h = FindByWindowTitle(title);
+                if (h != IntPtr.Zero) return h;
+            }
+
+            // 退到仅进程名
+            if (!string.IsNullOrWhiteSpace(processName))
+                return FindByProcessName(processName);
+
+            return IntPtr.Zero;
+        }
+
         private static bool EnumVisible(IntPtr hwnd, IntPtr lparam) => true;
 
         public void Dispose() => _timer.Dispose();

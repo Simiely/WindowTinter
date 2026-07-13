@@ -7,6 +7,7 @@
     <AssemblyName>WindowTinter</AssemblyName>
     <RootNamespace>WindowTinter</RootNamespace>
     <AssemblyTitle>WindowTinter</AssemblyTitle>
-    <Description>给任意窗口（含百度网盘）叠加深色蒙版或真·反色的常驻小工具</Description>
+    <Description>给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 </Project>

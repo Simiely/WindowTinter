@@ -1,50 +1,47 @@
 using System;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Windows.Forms;
 
 namespace WindowTinter
 {
     /// <summary>
-    /// 深色蒙版层：一个无边框、置顶、分层、鼠标穿透的半透明黑色窗口，
-    /// 精准盖在目标窗口的「可见区域」之上，跟随其位置/尺寸，整体压暗。
+    /// 深色蒙版层：无边框、置顶、分层、鼠标穿透的半透明黑色窗口。
     ///
-    /// 改进：用 SetWindowRgn 把蒙版裁成目标窗口未被遮挡的可见区域，
-    /// 因此盖在百度网盘上面的其他窗口不会被压暗。蒙版接管传入 HRGN 的所有权。
+    /// 黑屏修复：用 UpdateLayeredWindow + BLENDFUNCTION 替代 SetLayeredWindowAttributes。
+    /// UpdateLayeredWindow 直接将 bitmap 作为窗口内容交给 DWM 合成器，
+    /// 绕过 WinForms 绘制管线，确保 alpha 混合在所有 DWM 配置下都正确。
+    /// 区域裁剪仍用 SetWindowRgn（只盖目标窗口的可见部分）。
     /// </summary>
     internal class MaskOverlay : Form
     {
-        private byte _alpha = 115;
-        private IntPtr _hrgn = IntPtr.Zero; // 当前生效的区域（本类负责释放）
+        private byte _alpha = 75;
+        private IntPtr _hrgn = IntPtr.Zero;
 
         public MaskOverlay()
         {
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
-            BackColor = Color.Black;
             TopMost = true;
-            Enabled = false; // 不接收输入
+            Enabled = false;
+        }
+
+        /// <summary>在创建窗口时就声明分层+穿透+置顶，确保首帧即正确合成。</summary>
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT | Native.WS_EX_TOPMOST;
+                return cp;
+            }
         }
 
         /// <summary>不透明度（0-255）。值越大越暗。</summary>
         public byte Alpha
         {
             get => _alpha;
-            set
-            {
-                _alpha = value;
-                if (IsHandleCreated)
-                    Native.SetLayeredWindowAttributes(Handle, 0, _alpha, Native.LWA_ALPHA);
-            }
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            // 加 WS_EX_LAYERED（分层/半透明）+ WS_EX_TRANSPARENT（鼠标穿透到下层窗口）
-            int ex = Native.GetWindowLong(Handle, Native.GWL_EXSTYLE);
-            ex |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
-            Native.SetWindowLong(Handle, Native.GWL_EXSTYLE, ex);
-            Native.SetLayeredWindowAttributes(Handle, 0, _alpha, Native.LWA_ALPHA);
+            set => _alpha = value;
         }
 
         /// <summary>
@@ -52,26 +49,79 @@ namespace WindowTinter
         /// </summary>
         public void AlignTo(Native.RECT r, IntPtr hrgn)
         {
-            Native.SetWindowPos(
-                Handle, Native.HWND_TOPMOST,
-                r.Left, r.Top, r.Width, r.Height,
-                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
-
-            if (hrgn == IntPtr.Zero)
+            int w = r.Width, h = r.Height;
+            if (w <= 0 || h <= 0)
             {
-                // 无区域：恢复整窗（无裁剪），并释放旧区域
-                if (_hrgn != IntPtr.Zero) { Native.DeleteObject(_hrgn); _hrgn = IntPtr.Zero; }
-                Native.SetWindowRgn(Handle, IntPtr.Zero, true);
+                Hide();
+                if (hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
                 return;
             }
 
-            // 区域是屏幕坐标，SetWindowRgn 需要相对窗口左上角的坐标
-            Native.OffsetRgn(hrgn, -r.Left, -r.Top);
-            Native.SetWindowRgn(Handle, hrgn, true);
+            // 定位并显示窗口
+            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
+                r.Left, r.Top, w, h, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 
-            // 接管所有权：释放上一次的旧区域
-            if (_hrgn != IntPtr.Zero) Native.DeleteObject(_hrgn);
-            _hrgn = hrgn;
+            // 区域裁剪：只盖目标窗口的可见区域
+            if (hrgn == IntPtr.Zero)
+            {
+                if (_hrgn != IntPtr.Zero) { Native.DeleteObject(_hrgn); _hrgn = IntPtr.Zero; }
+                Native.SetWindowRgn(Handle, IntPtr.Zero, true);
+            }
+            else
+            {
+                Native.OffsetRgn(hrgn, -r.Left, -r.Top);
+                Native.SetWindowRgn(Handle, hrgn, true);
+                if (_hrgn != IntPtr.Zero) Native.DeleteObject(_hrgn);
+                _hrgn = hrgn;
+            }
+
+            // 用 UpdateLayeredWindow 渲染：bitmap 填纯黑，SourceConstantAlpha 控制透明度
+            RenderLayered(r.Left, r.Top, w, h);
+        }
+
+        /// <summary>创建纯黑 bitmap，通过 UpdateLayeredWindow 交给 DWM 合成。</summary>
+        private void RenderLayered(int x, int y, int w, int h)
+        {
+            // 创建纯黑 bitmap（不需要 alpha 通道，由 SourceConstantAlpha 控制透明度）
+            using var bmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Black);
+            }
+
+            IntPtr hdcScreen = Native.GetDC(IntPtr.Zero);
+            if (hdcScreen == IntPtr.Zero) return;
+
+            IntPtr hdcMem = Native.CreateCompatibleDC(hdcScreen);
+            if (hdcMem == IntPtr.Zero) { Native.ReleaseDC(IntPtr.Zero, hdcScreen); return; }
+
+            IntPtr hBmp = bmp.GetHbitmap();
+            IntPtr hOld = Native.SelectObject(hdcMem, hBmp);
+
+            try
+            {
+                var ptDst = new Point(x, y);
+                var ptSrc = new Point(0, 0);
+                var sz = new Size(w, h);
+                var blend = new Native.BLENDFUNCTION
+                {
+                    BlendOp = 0,                  // AC_SRC_OVER
+                    BlendFlags = 0,
+                    SourceConstantAlpha = _alpha, // 整窗 alpha
+                    AlphaFormat = 0               // 无逐像素 alpha
+                };
+
+                Native.UpdateLayeredWindow(Handle, hdcScreen,
+                    ref ptDst, ref sz, hdcMem, ref ptSrc,
+                    0, ref blend, Native.ULW_ALPHA);
+            }
+            finally
+            {
+                Native.SelectObject(hdcMem, hOld);
+                Native.DeleteObject(hBmp);
+                Native.DeleteDC(hdcMem);
+                Native.ReleaseDC(IntPtr.Zero, hdcScreen);
+            }
         }
 
         public new void Hide()

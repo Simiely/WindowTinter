@@ -102,6 +102,58 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
+        // ---- user32：UpdateLayeredWindow（逐像素 alpha 合成，修复黑屏）----
+        public const uint ULW_ALPHA = 0x00000002;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BLENDFUNCTION
+        {
+            public byte BlendOp;        // AC_SRC_OVER = 0
+            public byte BlendFlags;     // 必须为 0
+            public byte SourceConstantAlpha; // 0-255，整窗 alpha
+            public byte AlphaFormat;    // AC_SRC_ALPHA = 1
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool UpdateLayeredWindow(
+            IntPtr hWnd, IntPtr hdcDst,
+            ref Point pptDst, ref Size psize,
+            IntPtr hdcSrc, ref Point pptSrc,
+            uint crKey, ref BLENDFUNCTION pblend, uint dwFlags);
+
+        // ---- gdi32：DC / 位图管理 ----
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteDC(IntPtr hdc);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetDC(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+        // ---- user32：鼠标捕获（拾取器拖拽用）----
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetCapture(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool ReleaseCapture();
+
+        // ---- user32：窗口 DC（拾取器高亮边框用）----
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetWindowDC(IntPtr hWnd);
+
+        // ---- gdi32：PatBlt（反转绘制，拾取器高亮边框）----
+        public const uint DSTINVERT = 0x00550009;
+
+        [DllImport("gdi32.dll")]
+        public static extern bool PatBlt(IntPtr hdc, int nXLeft, int nYLeft, int nWidth, int nHeight, uint dwRop);
+
         // ---- user32：拾取窗口 ----
         [DllImport("user32.dll")]
         public static extern IntPtr WindowFromPoint(Point point);
