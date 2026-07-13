@@ -7,7 +7,7 @@ namespace WindowTinter
 {
     /// <summary>
     /// 深色蒙版层：用 UpdateLayeredWindow + BLENDFUNCTION 直接将纯黑 bitmap 交给 DWM 合成。
-    /// 覆盖目标窗口整个矩形区域，不做区域裁剪——简单可靠，绝不产生透明洞。
+    /// TOPMOST 确保蒙版始终在目标窗口上方。
     /// </summary>
     internal class MaskOverlay : Form
     {
@@ -37,14 +37,12 @@ namespace WindowTinter
             set => _alpha = value;
         }
 
-        /// <summary>把蒙版覆盖到目标窗口正上方（插入 targetHandle 之后，而非 TOPMOST）。</summary>
-        public void AlignTo(Native.RECT r, IntPtr targetHandle)
+        public void AlignTo(Native.RECT r)
         {
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            // 插入到目标窗口正上方：目标之上的其他窗口不受影响
-            Native.SetWindowPos(Handle, targetHandle,
+            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 
