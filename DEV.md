@@ -214,6 +214,7 @@ BeginInvoke(new Action(() =>
 - [ ] WinForms `Timer` 是否为类字段（防 GC）
 - [ ] `SetWindowLong` 改 `WS_EX_LAYERED` 后是否有 `InvalidateRect` 刷新
 - [ ] 退出时是否恢复目标窗口透明度（`FormClosed` 比 `FormClosing` 更可靠）
+- [ ] 拾取窗 `WindowFromPoint` 前是否用 `Enabled=false` 而非 `ShowWindow(HIDE)`（避免 DWM 闪烁）
 
 ---
 
@@ -233,6 +234,36 @@ BeginInvoke(new Action(() =>
 ## 12. 移除 Debug 日志
 
 v2.6 正式发布版移除了 `DebugLog.cs` 及所有调用点、`Settings.DebugEnabled`、UI 中"查看日志"按钮。程序回归纯功能，零日志输出，减少约 40 行代码和一个源文件。
+
+---
+
+## 13. 窗口拾取器闪烁修复
+
+### 现象
+点击"+ 添加窗口"后，全屏和任务栏出现快速闪烁。
+
+### 根因
+每次鼠标移动都执行 `ShowWindow(SW_HIDE)` + `ShowWindow(SW_SHOWNOACTIVATE)`，DWM 对每次显隐产生过渡动画，高频率形成闪烁。
+
+### 修复
+`WindowFromPoint` 的 [MSDN 文档](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-windowfrompoint) 明确写：**忽略已禁用（WS_DISABLED）的窗口**。用 `Enabled = false` 临时禁用拾取窗，效果等价，零闪烁：
+
+```csharp
+// 旧：DWM 显隐动画 → 闪烁
+Native.ShowWindow(Handle, SW_HIDE);
+IntPtr h = Native.WindowFromPoint(pt);
+Native.ShowWindow(Handle, SW_SHOWNOACTIVATE);
+
+// 新：WS_DISABLED 零视觉变化
+Enabled = false;
+IntPtr h = Native.WindowFromPoint(pt);
+Enabled = true;
+```
+
+**教训**：任何时候需要让 `WindowFromPoint` 忽略自己的窗口，优先用 `WS_DISABLED`（`Enabled = false`），不要用 `ShowWindow` 显隐。后者触发整个 DWM 合成管线，性能差且视觉干扰严重。
+
+### 右键取消 + 操作提示
+拾取窗 `Opacity=0.01` 导致子控件完全不可见。用独立 `TopMost` 浮层窗口显示操作提示（"左键选择 / 右键或 Esc 取消"），拾取窗关闭时随同销毁。
 
 ---
 

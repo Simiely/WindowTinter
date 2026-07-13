@@ -21,7 +21,7 @@
 ## 使用
 
 1. 下载 [Release](https://github.com/Simiely/WindowTinter/releases) 中 `WindowTinter-v2.6.zip`，解压运行 `WindowTinter.exe`
-2. 点击 **"+ 添加窗口"** → 十字光标拾取任意窗口
+2. 点击 **"+ 添加窗口"** → 十字光标拾取（左键选择 / 右键或 Esc 取消）
 3. 勾选 **"启用覆盖"** → 点击目标窗口变暗，切走变半透明
 4. 拖动两个滑块实时调节透明度
 5. 关闭设置窗口 → 最小化到托盘继续监控
