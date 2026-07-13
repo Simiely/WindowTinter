@@ -126,9 +126,8 @@ namespace WindowTinter
             t.Start();
         }
 
-        /// <summary>点击 WindowTinter 自身时，WINEVENT_SKIPOWNPROCESS 会跳过前台事件，
-        /// 通过 Activated 事件补发 RefreshForeground，让目标切到透明状态。
-        /// BeginInvoke 异步化避免 SetTargetAlpha 跨进程阻塞 UI 线程。</summary>
+        /// <summary>点击 WindowTinter 自身时 WINEVENT_SKIPOWNPROCESS 跳过前台事件，
+        /// 通过 Activated 事件补发 RefreshForeground 让目标切到透明状态。</summary>
         private bool _inActivated;
         private void OnActivated(object _, EventArgs __)
         {
@@ -209,6 +208,7 @@ namespace WindowTinter
                     {
                         Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
                         Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
+                        Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                     }
                 }
                 else
@@ -216,6 +216,7 @@ namespace WindowTinter
                     if (!hasLayered)
                         Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
                     Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                    Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                 }
             }
             catch { }
@@ -225,15 +226,6 @@ namespace WindowTinter
         private void ApplyMaskNow(TargetEntry e)
         {
             e.Tracker.RefreshForeground();
-        }
-
-        private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
-        {
-            r = default;
-            if (e.Tracker.TargetHandle == IntPtr.Zero || !Native.IsWindow(e.Tracker.TargetHandle)) return false;
-            if (!Native.IsWindowVisible(e.Tracker.TargetHandle) || Native.IsIconic(e.Tracker.TargetHandle)) return false;
-            Native.GetWindowRect(e.Tracker.TargetHandle, out r);
-            return r.Width > 0 && r.Height > 0;
         }
 
         private void TryBindTarget(TargetInfo info)
@@ -626,7 +618,7 @@ namespace WindowTinter
         {
             _winEventProc = WinEventProcCallback;
             _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_DESTROY,
+                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_LOCATIONCHANGE,
                 IntPtr.Zero, _winEventProc, 0, 0,
                 Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
         }

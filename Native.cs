@@ -250,6 +250,9 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool DestroyWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll")]
+        public static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
+
         // ---- Magnification.dll ----
         [DllImport("Magnification.dll")]
         public static extern bool MagInitialize();

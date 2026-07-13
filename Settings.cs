@@ -20,7 +20,7 @@ namespace WindowTinter
     internal class Settings
     {
         public List<TargetInfo> Targets { get; set; } = new();
-        public int Alpha { get; set; } = 75;           // 蒙版透明度 (0-100)
+        public int Alpha { get; set; } = 75;           // 蒙版透明度, JSON 保持 "Alpha" 兼容旧配置
         public int BackgroundAlpha { get; set; } = 50;  // 后台窗口透明度 (0-100)
         public bool Enabled { get; set; } = false;
         public bool StartWithWindows { get; set; } = false;
@@ -48,6 +48,7 @@ namespace WindowTinter
 
             s ??= new Settings();
 
+            // 旧字段 "Mode" 已删除，JSON 反序列化时自动忽略（System.Text.Json 默认行为）
             // 迁移旧 Alpha 格式（0-255 → 0-100）
             if (s.Alpha > 100) s.Alpha = s.Alpha * 100 / 255;
 
