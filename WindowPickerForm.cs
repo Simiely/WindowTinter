@@ -39,10 +39,10 @@ namespace WindowTinter
         private IntPtr GetWindowAtCursor()
         {
             Point pt = Control.MousePosition;
-            // 临时隐藏自身，否则 WindowFromPoint 永远返回这个全屏拾取层
-            Native.ShowWindow(Handle, Native.SW_HIDE);
+            // WindowFromPoint 忽略 WS_DISABLED 窗口，用 Enabled 临时禁用自身替代 show/hide——无 DWM 动画闪烁
+            Enabled = false;
             IntPtr h = Native.WindowFromPoint(pt);
-            Native.ShowWindow(Handle, Native.SW_SHOWNOACTIVATE);
+            Enabled = true;
 
             // 取顶层窗口（排除子窗口）
             if (h != IntPtr.Zero && h != Handle)
