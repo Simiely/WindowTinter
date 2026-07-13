@@ -43,8 +43,11 @@ namespace WindowTinter
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            // 用 UpdateLayeredWindow 渲染：bitmap 填纯黑，SourceConstantAlpha 控制透明度
-            // UpdateLayeredWindow 自己处理定位，不需要 SetWindowPos + SetWindowRgn
+            // 先定位并显示窗口，再 UpdateLayeredWindow 渲染内容
+            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
+                r.Left, r.Top, w, h,
+                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+
             RenderLayered(r.Left, r.Top, w, h);
         }
 

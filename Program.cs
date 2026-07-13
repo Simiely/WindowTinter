@@ -48,7 +48,7 @@ namespace WindowTinter
             _refreshAction = () => _tracker.RefreshNow();
 
             Text = "WindowTinter";
-            ClientSize = new Size(460, 460);
+            ClientSize = new Size(470, 530);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -93,14 +93,14 @@ namespace WindowTinter
             int pad = 8;
 
             // ── 状态 ──
-            var gbStatus = new GroupBox { Text = "状态", Location = new Point(pad, y), Size = new Size(388, 50) };
+            var gbStatus = new GroupBox { Text = "状态", Location = new Point(pad, y), Size = new Size(438, 50) };
             _lblStatus = new Label { Location = new Point(pad, 20), AutoSize = true, Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold) };
             gbStatus.Controls.Add(_lblStatus);
             Controls.Add(gbStatus);
             y += 56;
 
             // ── 目标窗口 ──
-            var gbTarget = new GroupBox { Text = "目标窗口", Location = new Point(pad, y), Size = new Size(388, 80) };
+            var gbTarget = new GroupBox { Text = "目标窗口", Location = new Point(pad, y), Size = new Size(438, 80) };
             _lblTarget = new Label { Location = new Point(pad, 22), AutoSize = true, Text = "未绑定" };
             gbTarget.Controls.Add(_lblTarget);
             _btnPickWindow = new Button { Text = "⊕ 选择窗口", Location = new Point(pad, 44), Size = new Size(90, 26) };
@@ -126,7 +126,7 @@ namespace WindowTinter
             y += 28;
 
             // ── 模式 ──
-            var gbMode = new GroupBox { Text = "模式", Location = new Point(pad, y), Size = new Size(388, 50) };
+            var gbMode = new GroupBox { Text = "模式", Location = new Point(pad, y), Size = new Size(438, 50) };
             _rbMask = new RadioButton { Text = "深色蒙版", Location = new Point(pad, 20), AutoSize = true, Checked = _settings.Mode == "Mask" };
             _rbMask.CheckedChanged += (s, ev) => { if (_rbMask.Checked) SetMode("Mask"); };
             _rbInvert = new RadioButton { Text = "真·反色 (实验)", Location = new Point(200, 20), AutoSize = true, Checked = _settings.Mode == "Invert" };
@@ -137,31 +137,38 @@ namespace WindowTinter
             y += 56;
 
             // ── 透明度 ──
-            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(388, 82) };
+            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(438, 105) };
             _tbAlpha = new TrackBar
             {
-                Location = new Point(pad, 18), Size = new Size(280, 40),
+                Location = new Point(pad, 18), Size = new Size(340, 40),
                 Minimum = 10, Maximum = 255, Value = _settings.Alpha,
                 TickFrequency = 25, SmallChange = 10, LargeChange = 50
             };
             _tbAlpha.ValueChanged += (s, ev) => SetAlpha(_tbAlpha.Value);
             gbAlpha.Controls.Add(_tbAlpha);
-            _lblAlpha = new Label { Location = new Point(296, 22), AutoSize = true, Width = 60 };
+            _lblAlpha = new Label { Location = new Point(358, 24), AutoSize = false, Width = 60, TextAlign = ContentAlignment.MiddleRight };
             gbAlpha.Controls.Add(_lblAlpha);
 
-            // 预设按钮
-            var presets = new[] { ("轻", 50, 316, 48), ("中", 100, 350, 48), ("重", 150, 316, 48+24), ("极暗", 200, 350, 48+24) };
-            foreach (var (label, val, px, py) in presets)
+            // 预设按钮（一行四个，滑块下方）
+            var presetLabels = new[] { "轻 (50)", "中 (100)", "重 (150)", "极暗 (200)" };
+            var presetValues = new[] { 50, 100, 150, 200 };
+            for (int i = 0; i < 4; i++)
             {
-                var btn = new Button { Text = label, Size = new Size(30, 22), Location = new Point(px, py), FlatStyle = FlatStyle.Flat };
-                int v = val;
+                var btn = new Button
+                {
+                    Text = presetLabels[i],
+                    Size = new Size(95, 24),
+                    Location = new Point(pad + i * 102, 60),
+                    FlatStyle = FlatStyle.Flat
+                };
+                int v = presetValues[i];
                 btn.Click += (s, ev) => SetAlpha(v);
                 gbAlpha.Controls.Add(btn);
-                if (val == 50) _btnPreset50 = btn; else if (val == 100) _btnPreset100 = btn;
-                else if (val == 150) _btnPreset150 = btn; else _btnPreset200 = btn;
+                if (i == 0) _btnPreset50 = btn; else if (i == 1) _btnPreset100 = btn;
+                else if (i == 2) _btnPreset150 = btn; else _btnPreset200 = btn;
             }
             Controls.Add(gbAlpha);
-            y += 88;
+            y += 111;
 
             // ── 系统 ──
             var rowY = y + 2;
@@ -175,13 +182,13 @@ namespace WindowTinter
             Controls.Add(_chkStartup);
             rowY += 30;
 
-            _btnConfigFolder = new Button { Text = "📂 配置文件夹", Location = new Point(pad, rowY), Size = new Size(110, 28) };
+            _btnConfigFolder = new Button { Text = "📂 配置文件夹", Location = new Point(pad, rowY), Size = new Size(120, 30) };
             _btnConfigFolder.Click += (s, ev) => OpenConfigFolder();
             Controls.Add(_btnConfigFolder);
-            _btnViewLog = new Button { Text = "📋 查看日志", Location = new Point(122, rowY), Size = new Size(90, 28) };
+            _btnViewLog = new Button { Text = "📋 查看日志", Location = new Point(134, rowY), Size = new Size(100, 30) };
             _btnViewLog.Click += (s, ev) => OpenLog();
             Controls.Add(_btnViewLog);
-            _btnAbout = new Button { Text = "ℹ 关于", Location = new Point(220, rowY), Size = new Size(60, 28) };
+            _btnAbout = new Button { Text = "ℹ 关于", Location = new Point(240, rowY), Size = new Size(70, 30) };
             _btnAbout.Click += (s, ev) => ShowAbout();
             Controls.Add(_btnAbout);
             y += 64;
