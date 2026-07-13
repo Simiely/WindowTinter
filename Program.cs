@@ -117,10 +117,10 @@ namespace WindowTinter
         private void OnShown(object _, EventArgs __)
         {
             foreach (var e in _entries) e.Tracker.RefreshNow();
-            BeginInvoke(new Action(() =>
-            {
-                foreach (var e in _entries) ApplyMaskNow(e);
-            }));
+            // 用一次性定时器推迟 100ms，确保消息泵完整运转后 UpdateLayeredWindow 稳定
+            var t = new Timer { Interval = 100 };
+            t.Tick += (s, args) => { t.Stop(); t.Dispose(); foreach (var e in _entries) ApplyMaskNow(e); };
+            t.Start();
         }
 
         // ════════════════════════════════════════════════════════════
