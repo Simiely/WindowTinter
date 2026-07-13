@@ -279,29 +279,41 @@ namespace WindowTinter
         }
 
         /// <summary>
-        /// 检查目标窗口是否被其他可见窗口遮挡（重叠）。
-        /// 排除 OwnWindows（本程序自身的蒙版/反色窗口）。
+        /// 检查目标窗口是否被其他可见用户窗口显著遮挡（>25% 面积重叠）。
+        /// 排除 OwnWindows（本程序自身的蒙版）和系统级窗口（无标题、不可见、最小化）。
+        /// 仅用于后台目标：前台目标总是显示蒙版，不做此检查。
         /// </summary>
-        public static bool IsOccluded(IntPtr target, IntPtr[] ownWindows)
+        public static bool IsSignificantlyOccluded(IntPtr target, IntPtr[] ownWindows)
         {
             if (target == IntPtr.Zero || !Native.IsWindow(target)) return false;
 
             Native.RECT tr;
             Native.GetWindowRect(target, out tr);
-            if (tr.Width <= 0 || tr.Height <= 0) return false;
+            int targetArea = tr.Width * tr.Height;
+            if (targetArea <= 0) return false;
 
             var own = new HashSet<IntPtr>(ownWindows ?? Array.Empty<IntPtr>());
+            long totalOverlap = 0;
             IntPtr hw = target;
+
             while ((hw = Native.GetWindow(hw, Native.GW_HWNDPREV)) != IntPtr.Zero)
             {
                 if (own.Contains(hw)) continue;
                 if (!Native.IsWindowVisible(hw) || Native.IsIconic(hw)) continue;
+
+                // 跳过无标题的系统窗口（Shell、托盘等）
+                int titleLen = Native.GetWindowTextLength(hw);
+                if (titleLen == 0) continue;
+
                 Native.RECT or;
                 Native.GetWindowRect(hw, out or);
-                if (or.Left < tr.Right && or.Right > tr.Left && or.Top < tr.Bottom && or.Bottom > tr.Top)
-                    return true;
+                int overlapW = Math.Min(tr.Right, or.Right) - Math.Max(tr.Left, or.Left);
+                int overlapH = Math.Min(tr.Bottom, or.Bottom) - Math.Max(tr.Top, or.Top);
+                if (overlapW > 0 && overlapH > 0)
+                    totalOverlap += (long)overlapW * overlapH;
             }
-            return false;
+
+            return totalOverlap > targetArea * 0.25;
         }
 
         private static bool EnumVisible(IntPtr hwnd, IntPtr lparam) => true;
