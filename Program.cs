@@ -200,6 +200,7 @@ namespace WindowTinter
             try
             {
                 int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                if (!Native.IsWindow(hwnd)) return; // TOCTOU 守卫
                 bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
 
                 if (alpha >= 255)
@@ -466,6 +467,7 @@ namespace WindowTinter
             int sv = _settings.Alpha;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
+            if (_tbBgAlpha.Value != _settings.BackgroundAlpha) _tbBgAlpha.Value = _settings.BackgroundAlpha;
             _lblBgAlpha.Text = $"{_settings.BackgroundAlpha}%";
 
             _chkStartup.Checked = _settings.StartWithWindows;
@@ -659,6 +661,7 @@ namespace WindowTinter
             DebugLog.Info("WindowTinter 退出");
             _settings.Save();
             _reallyQuit = true;
+            _autoBindTimer?.Stop(); _autoBindTimer?.Dispose();
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
             foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Dispose(); e.Tracker.Dispose(); }
