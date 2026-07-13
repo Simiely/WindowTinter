@@ -54,8 +54,23 @@ namespace WindowTinter
             bool visible = Native.IsWindowVisible(TargetHandle) && !Native.IsIconic(TargetHandle);
             Native.GetWindowRect(TargetHandle, out Native.RECT r);
 
+            bool changed = !_hasLast
+                || r.Left != _lastRect.Left || r.Top != _lastRect.Top
+                || r.Right != _lastRect.Right || r.Bottom != _lastRect.Bottom
+                || visible != _lastVisible;
+
+            if (!changed) return;
+
             (_lastRect, _lastVisible, _hasLast) = (r, visible, true);
             OnUpdate?.Invoke(r, visible);
+        }
+
+        /// <summary>前台切换专用：无视 rect/visible 变更守卫，强制触发 OnUpdate。</summary>
+        public void RefreshForeground()
+        {
+            if (TargetHandle == IntPtr.Zero || !Native.IsWindow(TargetHandle)) return;
+            if (!_hasLast) return;
+            OnUpdate?.Invoke(_lastRect, _lastVisible);
         }
 
         // ── 静态查找方法 ──────────────────────────────────────────

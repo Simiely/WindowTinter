@@ -215,7 +215,7 @@ namespace WindowTinter
         /// <summary>触发刷新——走 OnUpdate 完整路径（前景蒙版/后台透明）。</summary>
         private void ApplyMaskNow(TargetEntry e)
         {
-            e.Tracker.RefreshNow();
+            e.Tracker.RefreshForeground();
         }
 
         private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
@@ -367,7 +367,7 @@ namespace WindowTinter
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
-                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = _tbBgAlpha.Value; foreach (var e in _entries) e.Tracker.RefreshNow(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
+                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = _tbBgAlpha.Value; foreach (var e in _entries) e.Tracker.RefreshForeground(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
                 gb.Controls.Add(_tbBgAlpha);
                 _lblBgAlpha = new Label { Location = new Point(376, 62), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
@@ -650,15 +650,32 @@ namespace WindowTinter
         {
             if (idObject != 0 || idChild != 0) return;
 
-            bool isGlobal = eventType is Native.EVENT_SYSTEM_FOREGROUND or Native.EVENT_OBJECT_ZORDERCHANGES;
-            bool isTarget = !isGlobal && _entries.Any(e => e.Tracker.TargetHandle == hwnd)
-                && eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
-                              or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY;
-
-            if (isGlobal || isTarget)
+            if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
             {
+                // 前台切换：强制刷新所有条目的蒙版/透明度状态
+                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshForeground(); })); }
+                catch { }
+                return;
+            }
+
+            if (eventType == Native.EVENT_OBJECT_ZORDERCHANGES)
+            {
+                // Z 序变化：全量轮询（带 rect 变更守卫，不改透明度，不会触发回环）
                 try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); })); }
-                catch { /* 窗口可能正在关闭 */ }
+                catch { }
+                return;
+            }
+
+            // 目标特定事件：仅处理匹配的 tracker
+            if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
+                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY)
+            {
+                var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == hwnd);
+                if (match != null)
+                {
+                    try { BeginInvoke(new Action(match.Tracker.RefreshNow)); }
+                    catch { }
+                }
             }
         }
 
