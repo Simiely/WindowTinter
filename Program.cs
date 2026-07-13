@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -199,7 +198,7 @@ namespace WindowTinter
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
         {
             if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
-            ThreadPool.QueueUserWorkItem(_ =>
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
