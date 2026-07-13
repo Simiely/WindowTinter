@@ -84,6 +84,9 @@ namespace WindowTinter
 
             _settings.ApplyStartWithWindows();
             UpdateUI();
+
+            // 窗口就绪后立即刷新一次蒙版（避免首次启动不显示）
+            BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); }));
         }
 
         // ════════════════════════════════════════════════════════════
