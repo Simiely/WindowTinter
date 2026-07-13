@@ -89,7 +89,6 @@ namespace WindowTinter
 
         private void OnShown(object sender, EventArgs e)
         {
-            // Shown 事件后表单完全可见，蒙版一定能渲染
             foreach (var e2 in _entries) e2.Tracker.RefreshNow();
         }
 
