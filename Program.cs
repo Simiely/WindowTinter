@@ -127,10 +127,18 @@ namespace WindowTinter
         }
 
         /// <summary>点击 WindowTinter 自身时，WINEVENT_SKIPOWNPROCESS 会跳过前台事件，
-        /// 通过 Activated 事件补发 RefreshForeground，让目标切到透明状态。</summary>
+        /// 通过 Activated 事件补发 RefreshForeground，让目标切到透明状态。
+        /// BeginInvoke 异步化避免 SetTargetAlpha 跨进程阻塞 UI 线程。</summary>
+        private bool _inActivated;
         private void OnActivated(object _, EventArgs __)
         {
-            foreach (var e in _entries) e.Tracker.RefreshForeground();
+            if (_inActivated) return;
+            _inActivated = true;
+            BeginInvoke(new Action(() =>
+            {
+                try { foreach (var e in _entries) e.Tracker.RefreshForeground(); }
+                finally { _inActivated = false; }
+            }));
         }
 
         // ════════════════════════════════════════════════════════════
@@ -151,7 +159,6 @@ namespace WindowTinter
             var tracker = new TargetTracker();
             var mask = new MaskOverlay();
 
-            bool _lastFg = false;
             byte _lastBgAlpha = 255;
 
             tracker.OnUpdate += (r, visible) =>
@@ -191,31 +198,30 @@ namespace WindowTinter
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
         {
             if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
-            try
+            ThreadPool.QueueUserWorkItem(_ =>
             {
-                int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-                bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
-
-                if (alpha >= 255)
+                try
                 {
-                    if (hasLayered)
+                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                    bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
+
+                    if (alpha >= 255)
                     {
-                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
-                        Native.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                            Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_FRAMECHANGED);
-                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
+                        if (hasLayered)
+                        {
+                            Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                            Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
+                        }
+                    }
+                    else
+                    {
+                        if (!hasLayered)
+                            Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
+                        Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
                     }
                 }
-                else
-                {
-                    if (!hasLayered)
-                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
-                    Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
-                    Native.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                        Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_FRAMECHANGED);
-                }
-            }
-            catch { }
+                catch { }
+            });
         }
 
         /// <summary>触发刷新——走 OnUpdate 完整路径（前景蒙版/后台透明）。</summary>
