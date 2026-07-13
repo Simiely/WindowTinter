@@ -343,6 +343,18 @@ namespace WindowTinter
             if (_settings.Enabled)
             {
                 foreach (var t in _settings.Targets) TryBindTarget(t);
+                // 立即刷新所有已绑定蒙版
+                foreach (var e in _entries)
+                {
+                    if (e.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(e.Tracker.TargetHandle)
+                        && Native.IsWindowVisible(e.Tracker.TargetHandle) && !Native.IsIconic(e.Tracker.TargetHandle)
+                        && !TargetTracker.IsOccluded(e.Tracker.TargetHandle, e.Tracker.OwnWindows))
+                    {
+                        Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
+                        e.Mask.Alpha = (byte)_settings.Alpha;
+                        e.Mask.AlignTo(r);
+                    }
+                }
             }
             else
             {
