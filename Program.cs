@@ -21,7 +21,6 @@ namespace WindowTinter
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
         private bool _reallyQuit;
-        private Timer _saveDebounce;
 
         // ── UI 控件 ────────────────────────────────────────────────
 
@@ -57,10 +56,6 @@ namespace WindowTinter
             BuildTray();
             BuildUI();
             InstallWinEventHook();
-
-            // 防抖保存：滑块停止 1 秒后自动保存
-            _saveDebounce = new Timer { Interval = 1000 };
-            _saveDebounce.Tick += (_, _) => { _saveDebounce.Stop(); _settings.Save(); };
 
             if (_settings.Enabled)
                 foreach (var t in _settings.Targets)
@@ -453,8 +448,6 @@ namespace WindowTinter
             _settings.Alpha = Math.Clamp(value, 0, 255);
             foreach (var e in _entries) ApplyMaskNow(e);
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
-            _saveDebounce.Stop();
-            _saveDebounce.Start();
         }
 
         private void PickWindow()
@@ -562,7 +555,6 @@ namespace WindowTinter
         private void Quit()
         {
             DebugLog.Info("WindowTinter 退出");
-            _saveDebounce?.Dispose();
             _settings.Save();
             _reallyQuit = true;
             _tray.Visible = false;

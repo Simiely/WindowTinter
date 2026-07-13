@@ -12,6 +12,8 @@ namespace WindowTinter
     internal class MaskOverlay : Form
     {
         private byte _alpha = 75;
+        private Bitmap _cachedBmp;
+        private int _cachedW, _cachedH;
 
         public MaskOverlay()
         {
@@ -51,9 +53,15 @@ namespace WindowTinter
 
         private void RenderLayered(int x, int y, int w, int h)
         {
-            using var bmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
-            using (var g = Graphics.FromImage(bmp))
-                g.Clear(Color.Black);
+            // 仅在尺寸变化时重建 bitmap，拖滑块时只复用
+            if (_cachedBmp == null || w != _cachedW || h != _cachedH)
+            {
+                _cachedBmp?.Dispose();
+                _cachedBmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
+                using (var g = Graphics.FromImage(_cachedBmp))
+                    g.Clear(Color.Black);
+                _cachedW = w; _cachedH = h;
+            }
 
             IntPtr hdcScreen = Native.GetDC(IntPtr.Zero);
             if (hdcScreen == IntPtr.Zero) return;
@@ -61,7 +69,7 @@ namespace WindowTinter
             IntPtr hdcMem = Native.CreateCompatibleDC(hdcScreen);
             if (hdcMem == IntPtr.Zero) { Native.ReleaseDC(IntPtr.Zero, hdcScreen); return; }
 
-            IntPtr hBmp = bmp.GetHbitmap();
+            IntPtr hBmp = _cachedBmp.GetHbitmap();
             IntPtr hOld = Native.SelectObject(hdcMem, hBmp);
 
             try
