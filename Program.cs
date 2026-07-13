@@ -378,8 +378,6 @@ mask.AlignTo(r);
                 }
             }
             _settings.Save();
-            int sv = _settings.Alpha * 100 / 255;
-            if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
         }
 
