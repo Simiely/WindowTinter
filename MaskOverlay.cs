@@ -19,7 +19,6 @@ namespace WindowTinter
         {
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
-            TopMost = true;
             Enabled = false;
         }
 
