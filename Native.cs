@@ -24,6 +24,8 @@ namespace WindowTinter
         public const uint SWP_NOACTIVATE = 0x0010;
         public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint SWP_HIDEWINDOW = 0x0080;
+        public const uint SWP_NOZORDER = 0x0004;
+        public const uint SWP_FRAMECHANGED = 0x0020;
 
         // ---- 分层窗口属性 ----
         public const int LWA_ALPHA = 0x2;

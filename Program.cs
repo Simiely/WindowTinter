@@ -175,33 +175,35 @@ namespace WindowTinter
             if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
             try
             {
+                int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
+
                 if (alpha >= 255)
                 {
-                    // 恢复不透明
-                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-                    if ((ex & Native.WS_EX_LAYERED) != 0)
+                    if (hasLayered)
                     {
                         Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                        Native.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                            Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_FRAMECHANGED);
                         Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
                     }
                 }
                 else
                 {
-                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-                    if ((ex & Native.WS_EX_LAYERED) == 0)
+                    if (!hasLayered)
                         Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
                     Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                    Native.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                        Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_FRAMECHANGED);
                 }
             }
             catch { }
         }
 
-        /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
+        /// <summary>触发刷新——走 OnUpdate 完整路径（前景蒙版/后台透明）。</summary>
         private void ApplyMaskNow(TargetEntry e)
         {
-            if (!TryGetTargetRect(e, out Native.RECT r)) return;
-            e.Mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-            e.Mask.AlignTo(r);
+            e.Tracker.RefreshNow();
         }
 
         private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
