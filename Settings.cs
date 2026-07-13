@@ -48,6 +48,9 @@ namespace WindowTinter
 
             s ??= new Settings();
 
+            // 迁移旧 Alpha 格式（0-255 → 0-100）
+            if (s.Alpha > 100) s.Alpha = s.Alpha * 100 / 255;
+
             // 迁移旧格式：单窗口 → 列表
             if (s.Targets.Count == 0 && !string.IsNullOrEmpty(s.TargetProcessName))
             {

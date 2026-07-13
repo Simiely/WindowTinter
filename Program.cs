@@ -109,7 +109,7 @@ namespace WindowTinter
                 try
                 {
                     if (!ShouldShowMask(tracker.TargetHandle)) { mask.Hide(); return; }
-                    mask.Alpha = (byte)_settings.Alpha;
+                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
                     mask.AlignTo(r);
                 }
                 catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
@@ -136,7 +136,7 @@ namespace WindowTinter
         private void ApplyMaskNow(TargetEntry e)
         {
             if (!TryGetTargetRect(e, out Native.RECT r)) return;
-            e.Mask.Alpha = (byte)_settings.Alpha;
+            e.Mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
             e.Mask.AlignTo(r);
         }
 
@@ -268,9 +268,9 @@ namespace WindowTinter
                     Location = new Point(pad, 18), Size = new Size(350, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
-                    Value = _settings.Alpha * 100 / 255
+                    Value = _settings.Alpha
                 };
-                _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value * 255 / 100);
+                _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
                 gb.Controls.Add(_tbAlpha);
 
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
@@ -390,7 +390,7 @@ namespace WindowTinter
             _rbMask.Checked = _settings.Mode == "Mask";
             _rbInvert.Checked = _settings.Mode == "Invert";
 
-            int sv = _settings.Alpha * 100 / 255;
+            int sv = _settings.Alpha;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
 
@@ -466,7 +466,7 @@ namespace WindowTinter
 
         private void SetAlpha(int value)
         {
-            _settings.Alpha = Math.Clamp(value, 0, 255);
+            _settings.Alpha = Math.Clamp(value, 0, 100);
             foreach (var e in _entries) ApplyMaskNow(e);
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
         }
