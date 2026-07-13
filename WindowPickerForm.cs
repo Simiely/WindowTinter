@@ -13,6 +13,7 @@ namespace WindowTinter
         public IntPtr SelectedHandle { get; private set; } = IntPtr.Zero;
         private Native.RECT _highlight;
         private IntPtr _lastHwnd = IntPtr.Zero;
+        private Form _hintForm;
 
         public WindowPickerForm()
         {
@@ -34,6 +35,43 @@ namespace WindowTinter
             BringToFront();
             Activate();
             Cursor.Current = Cursors.Cross;
+            ShowHint();
+        }
+
+        private void ShowHint()
+        {
+            _hintForm = new Form
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                ShowInTaskbar = false,
+                TopMost = true,
+                StartPosition = FormStartPosition.Manual,
+                Size = new Size(340, 64),
+                Location = new Point(
+                    (Screen.PrimaryScreen.Bounds.Width - 340) / 2,
+                    60),
+                BackColor = Color.FromArgb(220, 20, 20, 20),
+                ForeColor = Color.FromArgb(224, 224, 224),
+            };
+            var lbl = new Label
+            {
+                Text = "左键点击窗口选择    右键 / Esc 取消选择",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular)
+            };
+            _hintForm.Controls.Add(lbl);
+            _hintForm.Show();
+        }
+
+        private void HideHint()
+        {
+            if (_hintForm != null && !_hintForm.IsDisposed)
+            {
+                _hintForm.Close();
+                _hintForm.Dispose();
+                _hintForm = null;
+            }
         }
 
         private IntPtr GetWindowAtCursor()
@@ -68,6 +106,11 @@ namespace WindowTinter
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
+            if (e.Button == MouseButtons.Right)
+            {
+                CancelPicker();
+                return;
+            }
             if (e.Button != MouseButtons.Left) return;
             ClearHighlight();
             IntPtr h = GetWindowAtCursor();
@@ -78,22 +121,28 @@ namespace WindowTinter
             }
             else
                 DialogResult = DialogResult.Cancel;
+            HideHint();
             Close();
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)
-            {
-                ClearHighlight();
-                DialogResult = DialogResult.Cancel;
-                Close();
-            }
+                CancelPicker();
+        }
+
+        private void CancelPicker()
+        {
+            ClearHighlight();
+            DialogResult = DialogResult.Cancel;
+            HideHint();
+            Close();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             ClearHighlight();
+            HideHint();
             base.OnFormClosing(e);
         }
 
