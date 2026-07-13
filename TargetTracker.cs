@@ -121,8 +121,7 @@ namespace WindowTinter
         {
             if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
             string kw = titleKeyword.ToLowerInvariant();
-            IntPtr exact = IntPtr.Zero, contains = IntPtr.Zero;
-
+            IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, _) =>
             {
                 if (!IsAcceptableTarget(hwnd)) return true;
@@ -130,14 +129,10 @@ namespace WindowTinter
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                string title = sb.ToString().ToLowerInvariant();
-
-                if (title == kw) { exact = hwnd; return false; }          // 精确匹配，立即返回
-                if (contains == IntPtr.Zero && title.Contains(kw)) contains = hwnd; // 包含匹配备选
+                if (sb.ToString().ToLowerInvariant().Contains(kw)) { found = hwnd; return false; }
                 return true;
             }, IntPtr.Zero);
-
-            return exact != IntPtr.Zero ? exact : contains;
+            return found;
         }
 
         public static IntPtr FindByTitleAndProcess(string title, string processName)
@@ -147,8 +142,7 @@ namespace WindowTinter
                 string proc = processName.ToLowerInvariant();
                 if (proc.EndsWith(".exe")) proc = proc[..^4];
                 string kw = title.ToLowerInvariant();
-                IntPtr exact = IntPtr.Zero, contains = IntPtr.Zero;
-
+                IntPtr found = IntPtr.Zero;
                 Native.EnumWindows((hwnd, _) =>
                 {
                     if (!IsAcceptableTarget(hwnd)) return true;
@@ -156,22 +150,17 @@ namespace WindowTinter
                     if (len == 0) return true;
                     var sb = new StringBuilder(len + 1);
                     Native.GetWindowText(hwnd, sb, len + 1);
-                    string wt = sb.ToString().ToLowerInvariant();
-
+                    if (!sb.ToString().ToLowerInvariant().Contains(kw)) return true;
                     Native.GetWindowThreadProcessId(hwnd, out uint pid);
                     try
                     {
-                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() != proc) return true;
+                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() == proc)
+                        { found = hwnd; return false; }
                     }
-                    catch { return true; }
-
-                    if (wt == kw) { exact = hwnd; return false; }           // 精确 → 立即返回
-                    if (contains == IntPtr.Zero && wt.Contains(kw)) contains = hwnd;
+                    catch { }
                     return true;
                 }, IntPtr.Zero);
-
-                if (exact != IntPtr.Zero) return exact;
-                if (contains != IntPtr.Zero) return contains;
+                if (found != IntPtr.Zero) return found;
             }
             return !string.IsNullOrWhiteSpace(title) ? FindByWindowTitle(title)
                  : !string.IsNullOrWhiteSpace(processName) ? FindByProcessName(processName)
