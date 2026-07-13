@@ -69,6 +69,7 @@ namespace WindowTinter
             StartPosition = FormStartPosition.CenterScreen;
             Load += OnLoad;
             Shown += OnShown;
+            Activated += OnActivated;
             FormClosing += OnFormClosing;
         }
 
@@ -123,6 +124,13 @@ namespace WindowTinter
             var t = new Timer { Interval = 100 };
             t.Tick += (s, args) => { t.Stop(); t.Dispose(); foreach (var e in _entries) ApplyMaskNow(e); };
             t.Start();
+        }
+
+        /// <summary>点击 WindowTinter 自身时，WINEVENT_SKIPOWNPROCESS 会跳过前台事件，
+        /// 通过 Activated 事件补发 RefreshForeground，让目标切到透明状态。</summary>
+        private void OnActivated(object _, EventArgs __)
+        {
+            foreach (var e in _entries) e.Tracker.RefreshForeground();
         }
 
         // ════════════════════════════════════════════════════════════
