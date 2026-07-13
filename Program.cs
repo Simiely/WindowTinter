@@ -76,7 +76,6 @@ namespace WindowTinter
 
         private void OnLoad(object sender, EventArgs e)
         {
-            DebugLog.Info($"WindowTinter 启动 (Alpha={_settings.Alpha}, BgAlpha={_settings.BackgroundAlpha}, Enabled={_settings.Enabled}, Targets={_settings.Targets.Count})");
             BuildTray();
             BuildUI();
             InstallWinEventHook();
@@ -163,33 +162,29 @@ namespace WindowTinter
 
             tracker.OnUpdate += (r, visible) =>
             {
-                try
+                bool fg = Native.GetForegroundWindow() == tracker.TargetHandle;
+                if (!_settings.Enabled || !visible)
                 {
-                    bool fg = Native.GetForegroundWindow() == tracker.TargetHandle;
-                    if (!_settings.Enabled || !visible)
+                    mask.Hide();
+                    if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
+                    return;
+                }
+                if (fg)
+                {
+                    if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
+                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
+                    mask.AlignTo(r);
+                }
+                else
+                {
+                    mask.Hide();
+                    byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
+                    if (_lastBgAlpha != targetAlpha)
                     {
-                        mask.Hide();
-                        if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
-                        return;
-                    }
-                    if (fg)
-                    {
-                        if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
-                        mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-                        mask.AlignTo(r);
-                    }
-                    else
-                    {
-                        mask.Hide();
-                        byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
-                        if (_lastBgAlpha != targetAlpha)
-                        {
-                            SetTargetAlpha(tracker.TargetHandle, targetAlpha);
-                            _lastBgAlpha = targetAlpha;
-                        }
+                        SetTargetAlpha(tracker.TargetHandle, targetAlpha);
+                        _lastBgAlpha = targetAlpha;
                     }
                 }
-                catch (Exception ex) { DebugLog.Error("OnUpdate", ex); }
             };
 
             return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
@@ -244,7 +239,6 @@ namespace WindowTinter
             {
                 stale.Tracker.TargetHandle = h;
                 stale.Tracker.RefreshNow();
-                DebugLog.Info($"重新绑定窗口: {info}");
                 return;
             }
 
@@ -255,7 +249,6 @@ namespace WindowTinter
             _entries.Add(entry);
 
             AddTargetUI(entry);
-            DebugLog.Info($"已绑定窗口: {info}");
         }
 
         private void AddTargetUI(TargetEntry entry)
@@ -293,7 +286,6 @@ namespace WindowTinter
             _settings.Targets.Remove(entry.Info);
             _settings.Save();
             UpdateUI();
-            DebugLog.Info($"已移除窗口: {entry.Info}");
         }
 
         private void UnbindAll()
@@ -565,7 +557,6 @@ namespace WindowTinter
             }
 
             _settings.Targets.Add(info);
-            DebugLog.Info($"添加窗口: {info}");
 
             if (_settings.Enabled)
             {
@@ -581,24 +572,18 @@ namespace WindowTinter
             UnbindAll();
             foreach (var t in _settings.Targets) TryBindTarget(t);
             UpdateUI();
-            DebugLog.Info($"重新查找窗口: {_entries.Count}/{_settings.Targets.Count} 已绑定");
         }
 
         private void OpenConfigFolder()
         {
-            try { Process.Start("explorer.exe", Path.GetDirectoryName(Environment.ProcessPath)); }
-            catch (Exception ex) { DebugLog.Error("打开配置文件夹失败", ex); }
+            Process.Start("explorer.exe", Path.GetDirectoryName(Environment.ProcessPath));
         }
 
         private void OpenLog()
         {
-            try
-            {
-                var path = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "WindowTinter.debug.log");
-                if (File.Exists(path)) Process.Start("notepad.exe", path);
-                else MessageBox.Show("日志文件尚不存在。", "WindowTinter");
-            }
-            catch (Exception ex) { DebugLog.Error("打开日志失败", ex); }
+            var path = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "WindowTinter.debug.log");
+            if (File.Exists(path)) Process.Start("notepad.exe", path);
+            else MessageBox.Show("日志文件尚不存在。", "WindowTinter");
         }
 
         private void ShowAbout()
@@ -655,12 +640,10 @@ namespace WindowTinter
         private void SaveSettings()
         {
             _settings.Save();
-            DebugLog.Info("配置已手动保存");
         }
 
         private void Quit()
         {
-            DebugLog.Info("WindowTinter 退出");
             _settings.Save();
             _reallyQuit = true;
             _autoBindTimer?.Stop(); _autoBindTimer?.Dispose();
@@ -679,8 +662,6 @@ namespace WindowTinter
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
-            Application.ThreadException += (_, e) => DebugLog.Error("UI线程异常", e.Exception);
-            AppDomain.CurrentDomain.UnhandledException += (_, e) => DebugLog.Error("未处理异常", e.ExceptionObject as Exception);
             Application.Run(new MainForm());
         }
     }

@@ -213,6 +213,26 @@ BeginInvoke(new Action(() =>
 - [ ] Form.Handle 是否在首次使用前显式 `CreateHandle()`
 - [ ] WinForms `Timer` 是否为类字段（防 GC）
 - [ ] `SetWindowLong` 改 `WS_EX_LAYERED` 后是否有 `InvalidateRect` 刷新
+- [ ] 退出时是否恢复目标窗口透明度（`FormClosed` 比 `FormClosing` 更可靠）
+
+---
+
+## 11. 退出清理：FormClosed vs FormClosing
+
+### 现象
+关闭 WindowTinter 后，后台半透明的目标窗口未恢复全不透明。
+
+### 根因
+`Quit()` 方法包含所有清理逻辑（`SetTargetAlpha(255)` 等），但未被任何退出路径调用。托盘"退出"和点 × 都是设置 `_reallyQuit = true; Close()`，而 `OnFormClosing` 只检查最小化到托盘。
+
+### 修复
+将 `Quit()` 挂载到 `FormClosed` 事件——无论哪种退出方式，窗口关闭后必然触发。同时移除 `Quit()` 内冗余的 `Application.Exit()`（窗口已关闭，程序自然结束）。
+
+---
+
+## 12. 移除 Debug 日志
+
+v2.6 正式发布版移除了 `DebugLog.cs` 及所有调用点、`Settings.DebugEnabled`、UI 中"查看日志"按钮。程序回归纯功能，零日志输出，减少约 40 行代码和一个源文件。
 
 ---
 
