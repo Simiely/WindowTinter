@@ -46,9 +46,9 @@ namespace WindowTinter
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | (_visible ? 0 : Native.SWP_SHOWWINDOW));
 
-            // 1:1 变换
+            // 1:1 变换 + 源 = 目标屏幕坐标
             Native.MagSetWindowTransform(Handle, ref _transform);
-            Native.MagSetWindowSource(Handle, new Native.RECT { Left = 0, Top = 0, Right = w, Bottom = h });
+            Native.MagSetWindowSource(Handle, new Native.RECT { Left = r.Left, Top = r.Top, Right = r.Right, Bottom = r.Bottom });
 
             // 复用缓存的颜色矩阵数组
             for (int i = 0; i < 3; i++)
