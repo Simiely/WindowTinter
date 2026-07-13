@@ -44,6 +44,8 @@ namespace WindowTinter
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
+            if (!IsHandleCreated) CreateHandle();
+
             Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);

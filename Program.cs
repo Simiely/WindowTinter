@@ -154,12 +154,7 @@ namespace WindowTinter
         {
             if (!_settings.Enabled) return false;
             if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
-
-            // 前台 → 总是显示
-            if (Native.GetForegroundWindow() == targetHandle) return true;
-
-            // 后台 → 仅当不被显著遮挡时才显示
-            return !TargetTracker.IsSignificantlyOccluded(targetHandle, OwnHandles());
+            return Native.GetForegroundWindow() == targetHandle;
         }
 
         /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
