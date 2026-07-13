@@ -34,7 +34,6 @@ namespace WindowTinter
         // ── 核心状态 ──────────────────────────────────────────────
 
         private readonly Settings _settings;
-        private readonly InvertLens _invert;
         private readonly List<TargetEntry> _entries = new();
 
         private NotifyIcon _tray;
@@ -50,7 +49,6 @@ namespace WindowTinter
         private FlowLayoutPanel _pnlTargets;
         private Button _btnRefind;
         private CheckBox _chkEnabled;
-        private RadioButton _rbMask, _rbInvert;
         private TrackBar _tbAlpha;
         private Label _lblAlpha;
         private CheckBox _chkStartup;
@@ -61,7 +59,6 @@ namespace WindowTinter
         public MainForm()
         {
             _settings = Settings.Load();
-            _invert = new InvertLens();
 
             Text = "WindowTinter";
             ClientSize = new Size(470, 520);
@@ -157,7 +154,6 @@ namespace WindowTinter
         {
             if (!_settings.Enabled) return false;
             if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
-            if (_settings.Mode == "Invert") return false;
 
             // 前台 → 总是显示
             if (Native.GetForegroundWindow() == targetHandle) return true;
@@ -187,7 +183,6 @@ namespace WindowTinter
         {
             var own = new List<IntPtr>();
             foreach (var e in _entries) own.Add(e.Mask.Handle);
-            foreach (var h in _invert.OwnHandles) own.Add(h);
             return own.ToArray();
         }
 
@@ -270,7 +265,6 @@ namespace WindowTinter
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pnlTargets.Controls.Add(_btnRefind);
-            _invert.Hide();
         }
 
         // ════════════════════════════════════════════════════════════
@@ -300,14 +294,6 @@ namespace WindowTinter
 
             _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
             y += 28;
-
-            AddGroup("模式", pad, ref y, 50, GW, gb =>
-            {
-                _rbMask = AddRadio(gb, "深色蒙版", pad, 20, _settings.Mode == "Mask",
-                    () => SetMode("Mask"));
-                _rbInvert = AddRadio(gb, "真·反色 (实验，仅首个窗口)", 200, 20, _settings.Mode == "Invert",
-                    () => SetMode("Invert"));
-            });
 
             AddGroup("透明度", pad, ref y, 65, GW, gb =>
             {
@@ -436,8 +422,6 @@ namespace WindowTinter
                 : $"● 监控中 — {_entries.Count} 个窗口";
 
             _chkEnabled.Checked = _settings.Enabled;
-            _rbMask.Checked = _settings.Mode == "Mask";
-            _rbInvert.Checked = _settings.Mode == "Invert";
 
             int sv = _settings.Alpha;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
@@ -498,16 +482,7 @@ namespace WindowTinter
             else
             {
                 foreach (var e in _entries) e.Mask.Hide();
-                _invert.Hide();
             }
-            UpdateUI();
-        }
-
-        private void SetMode(string mode)
-        {
-            _settings.Mode = mode;
-            if (mode == "Invert") _invert.Start();
-            else _invert.Hide();
             UpdateUI();
         }
 
@@ -633,7 +608,6 @@ namespace WindowTinter
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
             foreach (var e in _entries) { e.Mask.Dispose(); e.Tracker.Dispose(); }
-            _invert.Dispose();
             Application.Exit();
         }
 
