@@ -637,16 +637,17 @@ namespace WindowTinter
                 return;
             }
 
-            // 目标特定事件：仅处理匹配的 tracker
+            // 目标特定事件：在 BeginInvoke 内读取 _entries，避免跨线程访问非安全集合
             if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
                                or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY)
             {
-                var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == hwnd);
-                if (match != null)
+                var targetHwnd = hwnd;
+                try { BeginInvoke(new Action(() =>
                 {
-                    try { BeginInvoke(new Action(match.Tracker.RefreshNow)); }
-                    catch { }
-                }
+                    var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
+                    if (match != null) match.Tracker.RefreshNow();
+                })); }
+                catch { }
             }
         }
 
