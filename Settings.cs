@@ -20,7 +20,6 @@ namespace WindowTinter
     internal class Settings
     {
         public List<TargetInfo> Targets { get; set; } = new();
-        public string Mode { get; set; } = "Mask";
         public int Alpha { get; set; } = 75;           // 蒙版透明度 (0-100)
         public int BackgroundAlpha { get; set; } = 50;  // 后台窗口透明度 (0-100)
         public bool Enabled { get; set; } = false;

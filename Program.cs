@@ -75,7 +75,7 @@ namespace WindowTinter
 
         private void OnLoad(object sender, EventArgs e)
         {
-            DebugLog.Info($"WindowTinter 启动 (Alpha={_settings.Alpha}, Mode={_settings.Mode}, Enabled={_settings.Enabled}, Targets={_settings.Targets.Count})");
+            DebugLog.Info($"WindowTinter 启动 (Alpha={_settings.Alpha}, BgAlpha={_settings.BackgroundAlpha}, Enabled={_settings.Enabled}, Targets={_settings.Targets.Count})");
             BuildTray();
             BuildUI();
             InstallWinEventHook();
@@ -198,30 +198,27 @@ namespace WindowTinter
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
         {
             if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
-            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            try
             {
-                try
-                {
-                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-                    bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
+                int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
 
-                    if (alpha >= 255)
+                if (alpha >= 255)
+                {
+                    if (hasLayered)
                     {
-                        if (hasLayered)
-                        {
-                            Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
-                            Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
-                        }
-                    }
-                    else
-                    {
-                        if (!hasLayered)
-                            Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
-                        Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
                     }
                 }
-                catch { }
-            });
+                else
+                {
+                    if (!hasLayered)
+                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
+                    Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                }
+            }
+            catch { }
         }
 
         /// <summary>触发刷新——走 OnUpdate 完整路径（前景蒙版/后台透明）。</summary>
@@ -237,19 +234,6 @@ namespace WindowTinter
             if (!Native.IsWindowVisible(e.Tracker.TargetHandle) || Native.IsIconic(e.Tracker.TargetHandle)) return false;
             Native.GetWindowRect(e.Tracker.TargetHandle, out r);
             return r.Width > 0 && r.Height > 0;
-        }
-
-        private IntPtr[] OwnHandles()
-        {
-            var own = new List<IntPtr>();
-            foreach (var e in _entries) own.Add(e.Mask.Handle);
-            return own.ToArray();
-        }
-
-        private void RefreshOwnWindows()
-        {
-            var own = OwnHandles();
-            foreach (var e in _entries) e.Tracker.OwnWindows = own;
         }
 
         private void TryBindTarget(TargetInfo info)
@@ -277,7 +261,6 @@ namespace WindowTinter
             _entries.Add(entry);
 
             AddTargetUI(entry);
-            RefreshOwnWindows();
             DebugLog.Info($"已绑定窗口: {info}");
         }
 
@@ -315,7 +298,6 @@ namespace WindowTinter
             entry.Mask.Dispose();
             _settings.Targets.Remove(entry.Info);
             _settings.Save();
-            RefreshOwnWindows();
             UpdateUI();
             DebugLog.Info($"已移除窗口: {entry.Info}");
         }
@@ -379,7 +361,7 @@ namespace WindowTinter
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
-                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = _tbBgAlpha.Value; foreach (var e in _entries) e.Tracker.RefreshForeground(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
+                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = Math.Clamp(_tbBgAlpha.Value, 0, 100); foreach (var e in _entries) e.Tracker.RefreshForeground(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
                 gb.Controls.Add(_tbBgAlpha);
                 _lblBgAlpha = new Label { Location = new Point(376, 62), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
@@ -441,14 +423,6 @@ namespace WindowTinter
             chk.CheckedChanged += (_, _) => onChange();
             parent.Controls.Add(chk);
             return chk;
-        }
-
-        private static RadioButton AddRadio(Control parent, string text, int x, int y, bool initial, Action onChange)
-        {
-            var rb = new RadioButton { Text = text, Location = new Point(x, y), AutoSize = true, Checked = initial };
-            rb.CheckedChanged += (_, _) => { if (rb.Checked) onChange(); };
-            parent.Controls.Add(rb);
-            return rb;
         }
 
         // ════════════════════════════════════════════════════════════
@@ -635,7 +609,7 @@ namespace WindowTinter
         private void ShowAbout()
         {
             MessageBox.Show(
-                "WindowTinter v2.3\n\n" +
+                "WindowTinter v2.6\n\n" +
                 "给任意窗口叠加深色半透明蒙版的常驻小工具。\n" +
                 "支持多窗口同时覆盖。\n\n" +
                 "• 配置: exe 同目录 WindowTinter.settings.json\n" +
@@ -652,7 +626,7 @@ namespace WindowTinter
         {
             _winEventProc = WinEventProcCallback;
             _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_ZORDERCHANGES,
+                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_DESTROY,
                 IntPtr.Zero, _winEventProc, 0, 0,
                 Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
         }
@@ -664,16 +638,7 @@ namespace WindowTinter
 
             if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
             {
-                // 前台切换：强制刷新所有条目的蒙版/透明度状态
                 try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshForeground(); })); }
-                catch { }
-                return;
-            }
-
-            if (eventType == Native.EVENT_OBJECT_ZORDERCHANGES)
-            {
-                // Z 序变化：全量轮询（带 rect 变更守卫，不改透明度，不会触发回环）
-                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); })); }
                 catch { }
                 return;
             }

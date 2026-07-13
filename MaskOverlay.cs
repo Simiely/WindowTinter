@@ -46,8 +46,6 @@ namespace WindowTinter
 
             if (!IsHandleCreated) CreateHandle();
 
-            if (!IsHandleCreated) CreateHandle();
-
             Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
