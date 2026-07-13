@@ -51,6 +51,8 @@ namespace WindowTinter
         private CheckBox _chkEnabled;
         private TrackBar _tbAlpha;
         private Label _lblAlpha;
+        private TrackBar _tbBgAlpha;
+        private Label _lblBgAlpha;
         private CheckBox _chkStartup;
         private CheckBox _chkMinimizeTray;
 
@@ -141,6 +143,9 @@ namespace WindowTinter
             var tracker = new TargetTracker();
             var mask = new MaskOverlay();
 
+            bool _lastFg = false;
+            byte _lastBgAlpha = 255;
+
             tracker.OnUpdate += (r, visible) =>
             {
                 try
@@ -149,22 +154,29 @@ namespace WindowTinter
                     if (!_settings.Enabled || !visible)
                     {
                         mask.Hide();
-                        SetTargetAlpha(tracker.TargetHandle, 255);
+                        if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
+                        _lastFg = false;
                         return;
                     }
                     if (fg)
                     {
-                        SetTargetAlpha(tracker.TargetHandle, 255);
+                        if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
                         mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
                         mask.AlignTo(r);
                     }
                     else
                     {
                         mask.Hide();
-                        SetTargetAlpha(tracker.TargetHandle, (byte)((100 - _settings.Alpha) * 255 / 100));
+                        byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
+                        if (!_lastFg || _lastBgAlpha != targetAlpha)
+                        {
+                            SetTargetAlpha(tracker.TargetHandle, targetAlpha);
+                            _lastBgAlpha = targetAlpha;
+                        }
                     }
+                    _lastFg = fg;
                 }
-                catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
+                catch (Exception ex) { DebugLog.Error("OnUpdate", ex); }
             };
 
             return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
@@ -332,20 +344,33 @@ namespace WindowTinter
             _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
             y += 28;
 
-            AddGroup("透明度", pad, ref y, 65, GW, gb =>
+            AddGroup("透明度", pad, ref y, 120, GW, gb =>
             {
+                gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 18), AutoSize = true });
                 _tbAlpha = new JumpTrackBar
                 {
-                    Location = new Point(pad, 18), Size = new Size(350, 40),
+                    Location = new Point(90, 16), Size = new Size(280, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.Alpha
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
                 gb.Controls.Add(_tbAlpha);
-
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
+
+                gb.Controls.Add(new Label { Text = "窗口 (后台):", Location = new Point(pad, 56), AutoSize = true });
+                _tbBgAlpha = new JumpTrackBar
+                {
+                    Location = new Point(90, 54), Size = new Size(280, 40),
+                    Minimum = 0, Maximum = 100, TickFrequency = 10,
+                    SmallChange = 5, LargeChange = 20,
+                    Value = _settings.BackgroundAlpha
+                };
+                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = _tbBgAlpha.Value; foreach (var e in _entries) e.Tracker.RefreshNow(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
+                gb.Controls.Add(_tbBgAlpha);
+                _lblBgAlpha = new Label { Location = new Point(376, 62), AutoSize = true };
+                gb.Controls.Add(_lblBgAlpha);
             });
 
             // 系统选项
@@ -463,6 +488,7 @@ namespace WindowTinter
             int sv = _settings.Alpha;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
+            _lblBgAlpha.Text = $"{_settings.BackgroundAlpha}%";
 
             _chkStartup.Checked = _settings.StartWithWindows;
             _chkMinimizeTray.Checked = _settings.MinimizeToTray;
