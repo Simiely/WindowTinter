@@ -154,6 +154,12 @@ namespace WindowTinter
         [DllImport("gdi32.dll")]
         public static extern bool PatBlt(IntPtr hdc, int nXLeft, int nYLeft, int nWidth, int nHeight, uint dwRop);
 
+        // ---- dwmapi：标题栏深色模式 (Windows 10 2004+) ----
+        public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int pvAttr, int cbAttr);
+
         // ---- user32：拾取窗口 ----
         [DllImport("user32.dll")]
         public static extern IntPtr WindowFromPoint(Point point);

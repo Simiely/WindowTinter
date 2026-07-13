@@ -194,6 +194,68 @@ namespace WindowTinter
                 ForeColor = Color.Gray
             };
             Controls.Add(hint);
+
+            ApplyDarkTheme();
+        }
+
+        /// <summary>深色主题：背景 #1E1E1E，文字 #E0E0E0，标题栏也暗。</summary>
+        private void ApplyDarkTheme()
+        {
+            var bg = Color.FromArgb(30, 30, 30);       // #1E1E1E
+            var fg = Color.FromArgb(224, 224, 224);    // #E0E0E0
+            var panelBg = Color.FromArgb(40, 40, 40);
+
+            BackColor = bg;
+            ForeColor = fg;
+
+            // 标题栏深色 (Win10 2004+)
+            if (IsHandleCreated)
+            {
+                int dark = 1;
+                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
+            }
+
+            ThemeAll(this, bg, fg, panelBg);
+        }
+
+        private static void ThemeAll(Control parent, Color bg, Color fg, Color panelBg)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                if (c is GroupBox || c is Panel)
+                {
+                    c.BackColor = panelBg;
+                    c.ForeColor = fg;
+                }
+                else if (c is Button btn)
+                {
+                    btn.BackColor = Color.FromArgb(60, 60, 60);
+                    btn.ForeColor = fg;
+                    btn.FlatStyle = FlatStyle.Flat;
+                    btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+                }
+                else if (c is CheckBox || c is RadioButton)
+                {
+                    c.BackColor = bg;
+                    c.ForeColor = fg;
+                }
+                else if (c is TrackBar)
+                {
+                    c.BackColor = panelBg;
+                }
+                else if (c is Label)
+                {
+                    c.BackColor = bg;
+                    c.ForeColor = c.ForeColor == Color.Gray ? Color.FromArgb(140, 140, 140) : fg;
+                }
+                else
+                {
+                    c.BackColor = bg;
+                    c.ForeColor = fg;
+                }
+
+                if (c.Controls.Count > 0) ThemeAll(c, bg, fg, panelBg);
+            }
         }
 
         private void UpdateUI()
