@@ -1,22 +1,34 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Microsoft.Win32;
 
 namespace WindowTinter
 {
+    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题重新查找）。</summary>
+    internal class TargetInfo
+    {
+        public string ProcessName { get; set; } = "";
+        public string WindowTitle { get; set; } = "";
+        public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
+    }
+
     /// <summary>
-    /// 持久化设置。目标窗口用「进程名 + 标题」保存（hwnd 跨进程/重启不稳定），启动时重新查找。
+    /// 持久化设置。支持多窗口目标列表。
     /// </summary>
     internal class Settings
     {
-        public string TargetProcessName { get; set; } = "";
-        public string TargetWindowTitle { get; set; } = "";
-        public string Mode { get; set; } = "Mask"; // "Mask" 或 "Invert"
-        public int Alpha { get; set; } = 75;        // 0-255，约 29% 不透明黑
-        public bool Enabled { get; set; } = false;  // 默认不启用，需先选窗口
+        public List<TargetInfo> Targets { get; set; } = new();
+        public string Mode { get; set; } = "Mask";
+        public int Alpha { get; set; } = 75;
+        public bool Enabled { get; set; } = false;
         public bool StartWithWindows { get; set; } = false;
         public bool DebugEnabled { get; set; } = true;
+
+        // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
+        public string TargetProcessName { get; set; } = "";
+        public string TargetWindowTitle { get; set; } = "";
 
         private static string AppDir =>
             Path.GetDirectoryName(Environment.ProcessPath);
@@ -25,16 +37,30 @@ namespace WindowTinter
 
         public static Settings Load()
         {
+            Settings s = null;
             try
             {
                 if (File.Exists(FilePath))
-                {
-                    var s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
-                    if (s != null) return s;
-                }
+                    s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
             }
             catch { /* 损坏则回退默认 */ }
-            return new Settings();
+
+            s ??= new Settings();
+
+            // 迁移旧格式：单窗口 → 列表
+            if (s.Targets.Count == 0 && !string.IsNullOrEmpty(s.TargetProcessName))
+            {
+                s.Targets.Add(new TargetInfo
+                {
+                    ProcessName = s.TargetProcessName,
+                    WindowTitle = s.TargetWindowTitle
+                });
+                s.TargetProcessName = "";
+                s.TargetWindowTitle = "";
+                s.Save();
+            }
+
+            return s;
         }
 
         public void Save()

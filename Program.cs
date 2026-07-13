@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -10,45 +11,35 @@ namespace WindowTinter
     internal class MainForm : Form
     {
         private readonly Settings _settings;
-        private readonly TargetTracker _tracker;
-        private readonly MaskOverlay _mask;
         private readonly InvertLens _invert;
+
+        // 多窗口支持：每个目标一个 tracker + mask
+        private readonly List<TargetEntry> _entries = new();
+
         private NotifyIcon _tray;
         private ContextMenuStrip _menu;
-
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
-        private readonly Action _refreshAction;
-        private string _targetDisplayName = "";
 
-        // 窗口 UI 控件
+        // UI 控件
         private Label _lblStatus;
-        private Label _lblTarget;
-        private Button _btnPickWindow;
+        private FlowLayoutPanel _pnlTargets;
+        private Button _btnAdd;
         private Button _btnRefind;
         private CheckBox _chkEnabled;
-        private RadioButton _rbMask;
-        private RadioButton _rbInvert;
+        private RadioButton _rbMask, _rbInvert;
         private TrackBar _tbAlpha;
         private Label _lblAlpha;
-        private Button _btnPreset50, _btnPreset100, _btnPreset150, _btnPreset200;
         private CheckBox _chkStartup;
-        private Button _btnConfigFolder;
-        private Button _btnViewLog;
-        private Button _btnAbout;
-
         private bool _reallyQuit;
 
         public MainForm()
         {
             _settings = Settings.Load();
-            _tracker = new TargetTracker();
-            _mask = new MaskOverlay();
             _invert = new InvertLens();
-            _refreshAction = () => _tracker.RefreshNow();
 
             Text = "WindowTinter";
-            ClientSize = new Size(470, 530);
+            ClientSize = new Size(470, 560);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -58,78 +49,160 @@ namespace WindowTinter
 
         private void OnLoad(object sender, EventArgs e)
         {
-            DebugLog.Info($"WindowTinter 启动 (Alpha={_settings.Alpha}, Mode={_settings.Mode}, Enabled={_settings.Enabled})");
+            DebugLog.Info($"WindowTinter 启动 (Alpha={_settings.Alpha}, Mode={_settings.Mode}, Enabled={_settings.Enabled}, Targets={_settings.Targets.Count})");
 
             BuildTray();
             BuildUI();
-            _tracker.OnUpdate += OnTargetUpdate;
+            InstallWinEventHook();
 
-            // 若已启用且有存储的目标，自动查找
-            if (_settings.Enabled && !string.IsNullOrEmpty(_settings.TargetProcessName))
+            // 从配置恢复所有目标
+            if (_settings.Enabled && _settings.Targets.Count > 0)
             {
-                DebugLog.Info($"自动查找目标窗口: title=\"{_settings.TargetWindowTitle}\", process={_settings.TargetProcessName}");
-                var h = TargetTracker.FindByTitleAndProcess(_settings.TargetWindowTitle, _settings.TargetProcessName);
-                _tracker.TargetHandle = h;
-                if (h != IntPtr.Zero)
-                    DebugLog.Info($"目标窗口已找到: hwnd={h}");
-                else
-                    DebugLog.Info("目标窗口未找到，将持续监听");
-                ApplyMode();
-                if (_settings.Mode == "Invert") _invert.Start();
+                foreach (var t in _settings.Targets)
+                    TryBindTarget(t);
             }
 
-            RefreshOwnWindows();
-            InstallWinEventHook();
-            _tracker.RefreshNow();
             _settings.ApplyStartWithWindows();
             UpdateUI();
         }
 
-        // ── Windows 设置界面 ────────────────────────────────────────────
+        // ── 目标条目 ──────────────────────────────────────────────
+
+        private class TargetEntry
+        {
+            public TargetInfo Info;
+            public TargetTracker Tracker;
+            public MaskOverlay Mask;
+            public Panel UIPanel;
+            public Label Label;
+        }
+
+        private TargetEntry CreateEntry(TargetInfo info)
+        {
+            var tracker = new TargetTracker();
+            var mask = new MaskOverlay();
+            tracker.OnUpdate += (r, visible, hrgn, _) =>
+            {
+                try
+                {
+                    if (hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
+                    if (!_settings.Enabled || !visible) { mask.Hide(); return; }
+                    if (_settings.Mode == "Invert") return; // Invert 只对第一个目标生效
+                    mask.Alpha = (byte)_settings.Alpha;
+                    mask.AlignTo(r);
+                }
+                catch (Exception ex) { DebugLog.Error("TargetUpdate 异常", ex); }
+            };
+
+            return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
+        }
+
+        private void TryBindTarget(TargetInfo info)
+        {
+            var h = TargetTracker.FindByTitleAndProcess(info.WindowTitle, info.ProcessName);
+            if (h == IntPtr.Zero) return;
+
+            // 避免重复绑定
+            if (_entries.Any(e => e.Tracker.TargetHandle == h)) return;
+
+            var entry = CreateEntry(info);
+            entry.Tracker.TargetHandle = h;
+            entry.Tracker.RefreshNow();
+            _entries.Add(entry);
+
+            AddTargetUI(info, entry);
+            RefreshOwnWindows();
+
+            DebugLog.Info($"已绑定窗口: {info}");
+        }
+
+        private void AddTargetUI(TargetInfo info, TargetEntry entry)
+        {
+            var pnl = new Panel { Size = new Size(_pnlTargets.ClientSize.Width - 6, 32), Margin = new Padding(0, 0, 0, 3) };
+            var lbl = new Label
+            {
+                Text = $"  {info}", AutoSize = true,
+                Location = new Point(4, 8), MaximumSize = new Size(300, 20)
+            };
+            pnl.Controls.Add(lbl);
+
+            var btnRemove = new Button { Text = "×", Size = new Size(28, 24), Location = new Point(pnl.Width - 34, 4), FlatStyle = FlatStyle.Flat };
+            int idx = _entries.IndexOf(entry);
+            btnRemove.Click += (s, ev) =>
+            {
+                _entries.Remove(entry);
+                _pnlTargets.Controls.Remove(pnl);
+                entry.Tracker.Dispose();
+                entry.Mask.Dispose();
+                _settings.Targets.Remove(info);
+                _settings.Save();
+                RefreshOwnWindows();
+                UpdateUI();
+                DebugLog.Info($"已移除窗口: {info}");
+            };
+            pnl.Controls.Add(btnRemove);
+
+            entry.UIPanel = pnl;
+            entry.Label = lbl;
+            _pnlTargets.Controls.Add(pnl);
+            _pnlTargets.Controls.SetChildIndex(pnl, _pnlTargets.Controls.Count - 2); // 保持在添加按钮之前
+        }
+
+        private void RefreshOwnWindows()
+        {
+            var own = new List<IntPtr>();
+            foreach (var e in _entries) own.Add(e.Mask.Handle);
+            foreach (var h in _invert.OwnHandles) own.Add(h);
+            foreach (var e in _entries) e.Tracker.OwnWindows = own.ToArray();
+        }
+
+        // ── 设置界面 ──────────────────────────────────────────────
 
         private void BuildUI()
         {
-            int y = 12;
-            int pad = 8;
+            int y = 10, pad = 10;
 
             // ── 状态 ──
-            var gbStatus = new GroupBox { Text = "状态", Location = new Point(pad, y), Size = new Size(438, 50) };
+            var gbStatus = new GroupBox { Text = "状态", Location = new Point(pad, y), Size = new Size(434, 50) };
             _lblStatus = new Label { Location = new Point(pad, 20), AutoSize = true, Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold) };
             gbStatus.Controls.Add(_lblStatus);
             Controls.Add(gbStatus);
             y += 56;
 
-            // ── 目标窗口 ──
-            var gbTarget = new GroupBox { Text = "目标窗口", Location = new Point(pad, y), Size = new Size(438, 80) };
-            _lblTarget = new Label { Location = new Point(pad, 22), AutoSize = true, Text = "未绑定" };
-            gbTarget.Controls.Add(_lblTarget);
-            _btnPickWindow = new Button { Text = "⊕ 选择窗口", Location = new Point(pad, 44), Size = new Size(90, 26) };
-            _btnPickWindow.Click += (s, ev) => PickWindow();
-            gbTarget.Controls.Add(_btnPickWindow);
-            _btnRefind = new Button { Text = "🔄 重新查找", Location = new Point(102, 44), Size = new Size(90, 26) };
-            _btnRefind.Click += (s, ev) => RefindWindow();
-            gbTarget.Controls.Add(_btnRefind);
-            Controls.Add(gbTarget);
-            y += 86;
+            // ── 目标窗口列表 ──
+            var gbTarget = new GroupBox { Text = "目标窗口", Location = new Point(pad, y), Size = new Size(434, 160) };
+            _pnlTargets = new FlowLayoutPanel
+            {
+                Location = new Point(pad, 18), Size = new Size(416, 110),
+                AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false
+            };
+            gbTarget.Controls.Add(_pnlTargets);
 
-            // ── 启用 / 停用 ──
+            _btnAdd = new Button { Text = "+ 添加窗口", Location = new Point(pad, 132), Size = new Size(95, 24) };
+            _btnAdd.Click += (s, ev) => PickWindow();
+            gbTarget.Controls.Add(_btnAdd);
+            _btnRefind = new Button { Text = "🔄 重新查找", Location = new Point(110, 132), Size = new Size(95, 24) };
+            _btnRefind.Click += (s, ev) => RefindAllWindows();
+            gbTarget.Controls.Add(_btnRefind);
+
+            Controls.Add(gbTarget);
+            y += 166;
+
+            // ── 启用 ──
             _chkEnabled = new CheckBox
             {
-                Text = "启用覆盖",
-                Location = new Point(pad + 4, y),
-                AutoSize = true,
-                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold),
-                Checked = _settings.Enabled
+                Text = "启用覆盖", Location = new Point(pad + 4, y), AutoSize = true,
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold), Checked = _settings.Enabled
             };
             _chkEnabled.CheckedChanged += (s, ev) => ToggleEnabled();
             Controls.Add(_chkEnabled);
             y += 28;
 
             // ── 模式 ──
-            var gbMode = new GroupBox { Text = "模式", Location = new Point(pad, y), Size = new Size(438, 50) };
+            var gbMode = new GroupBox { Text = "模式", Location = new Point(pad, y), Size = new Size(434, 50) };
             _rbMask = new RadioButton { Text = "深色蒙版", Location = new Point(pad, 20), AutoSize = true, Checked = _settings.Mode == "Mask" };
             _rbMask.CheckedChanged += (s, ev) => { if (_rbMask.Checked) SetMode("Mask"); };
-            _rbInvert = new RadioButton { Text = "真·反色 (实验)", Location = new Point(200, 20), AutoSize = true, Checked = _settings.Mode == "Invert" };
+            _rbInvert = new RadioButton { Text = "真·反色 (实验，仅首个窗口)", Location = new Point(200, 20), AutoSize = true, Checked = _settings.Mode == "Invert" };
             _rbInvert.CheckedChanged += (s, ev) => { if (_rbInvert.Checked) SetMode("Invert"); };
             gbMode.Controls.Add(_rbMask);
             gbMode.Controls.Add(_rbInvert);
@@ -137,35 +210,21 @@ namespace WindowTinter
             y += 56;
 
             // ── 透明度 ──
-            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(438, 105) };
-            _tbAlpha = new TrackBar
-            {
-                Location = new Point(pad, 18), Size = new Size(340, 40),
-                Minimum = 10, Maximum = 255, Value = _settings.Alpha,
-                TickFrequency = 25, SmallChange = 10, LargeChange = 50
-            };
+            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(434, 105) };
+            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(340, 40), Minimum = 10, Maximum = 255, Value = _settings.Alpha, TickFrequency = 25, SmallChange = 10, LargeChange = 50 };
             _tbAlpha.ValueChanged += (s, ev) => SetAlpha(_tbAlpha.Value);
             gbAlpha.Controls.Add(_tbAlpha);
             _lblAlpha = new Label { Location = new Point(358, 24), AutoSize = false, Width = 60, TextAlign = ContentAlignment.MiddleRight };
             gbAlpha.Controls.Add(_lblAlpha);
 
-            // 预设按钮（一行四个，滑块下方）
             var presetLabels = new[] { "轻 (50)", "中 (100)", "重 (150)", "极暗 (200)" };
             var presetValues = new[] { 50, 100, 150, 200 };
             for (int i = 0; i < 4; i++)
             {
-                var btn = new Button
-                {
-                    Text = presetLabels[i],
-                    Size = new Size(95, 24),
-                    Location = new Point(pad + i * 102, 60),
-                    FlatStyle = FlatStyle.Flat
-                };
+                var btn = new Button { Text = presetLabels[i], Size = new Size(95, 24), Location = new Point(pad + i * 101, 60), FlatStyle = FlatStyle.Flat };
                 int v = presetValues[i];
                 btn.Click += (s, ev) => SetAlpha(v);
                 gbAlpha.Controls.Add(btn);
-                if (i == 0) _btnPreset50 = btn; else if (i == 1) _btnPreset100 = btn;
-                else if (i == 2) _btnPreset150 = btn; else _btnPreset200 = btn;
             }
             Controls.Add(gbAlpha);
             y += 111;
@@ -173,55 +232,41 @@ namespace WindowTinter
             // ── 系统 ──
             var rowY = y + 2;
             _chkStartup = new CheckBox { Text = "开机自启", Location = new Point(pad + 4, rowY), AutoSize = true, Checked = _settings.StartWithWindows };
-            _chkStartup.CheckedChanged += (s, ev) =>
-            {
-                _settings.StartWithWindows = _chkStartup.Checked;
-                _settings.ApplyStartWithWindows();
-                _settings.Save();
-            };
+            _chkStartup.CheckedChanged += (s, ev) => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); };
             Controls.Add(_chkStartup);
             rowY += 30;
 
-            _btnConfigFolder = new Button { Text = "📂 配置文件夹", Location = new Point(pad, rowY), Size = new Size(120, 30) };
-            _btnConfigFolder.Click += (s, ev) => OpenConfigFolder();
-            Controls.Add(_btnConfigFolder);
-            _btnViewLog = new Button { Text = "📋 查看日志", Location = new Point(134, rowY), Size = new Size(100, 30) };
-            _btnViewLog.Click += (s, ev) => OpenLog();
-            Controls.Add(_btnViewLog);
-            _btnAbout = new Button { Text = "ℹ 关于", Location = new Point(240, rowY), Size = new Size(70, 30) };
-            _btnAbout.Click += (s, ev) => ShowAbout();
-            Controls.Add(_btnAbout);
-            y += 64;
+            Controls.Add(MakeButton("📂 配置文件夹", pad, rowY, 120, OpenConfigFolder));
+            Controls.Add(MakeButton("📋 查看日志", 134, rowY, 100, OpenLog));
+            Controls.Add(MakeButton("ℹ 关于", 240, rowY, 70, ShowAbout));
 
-            // ── 提示 ──
-            var hint = new Label
-            {
-                Text = "关闭窗口将最小化到系统托盘",
-                Location = new Point(pad, rowY + 36),
-                AutoSize = true,
-                ForeColor = Color.Gray
-            };
+            var hint = new Label { Text = "关闭窗口将最小化到系统托盘", Location = new Point(pad, rowY + 36), AutoSize = true, ForeColor = Color.Gray };
             Controls.Add(hint);
+
+            // 恢复已有条目的 UI
+            for (int i = 0; i < _entries.Count; i++)
+                AddTargetUI(_entries[i].Info, _entries[i]);
 
             ApplyDarkTheme();
         }
 
-        /// <summary>深色主题：背景 #1E1E1E，文字 #E0E0E0，标题栏也暗。</summary>
+        private static Button MakeButton(string text, int x, int y, int w, Action onClick)
+        {
+            var btn = new Button { Text = text, Location = new Point(x, y), Size = new Size(w, 30) };
+            btn.Click += (s, ev) => onClick();
+            return btn;
+        }
+
+        // ── 深色主题 ──────────────────────────────────────────────
+
         private void ApplyDarkTheme()
         {
-            var bg = Color.FromArgb(30, 30, 30);       // #1E1E1E
-            var fg = Color.FromArgb(224, 224, 224);    // #E0E0E0
+            var bg = Color.FromArgb(30, 30, 30);
+            var fg = Color.FromArgb(224, 224, 224);
             var panelBg = Color.FromArgb(40, 40, 40);
 
-            BackColor = bg;
-            ForeColor = fg;
-
-            // 标题栏深色 (Win10 2004+)
-            if (IsHandleCreated)
-            {
-                int dark = 1;
-                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
-            }
+            BackColor = bg; ForeColor = fg;
+            if (IsHandleCreated) { int dark = 1; Native.DwmSetWindowAttribute(Handle, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4); }
 
             ThemeAll(this, bg, fg, panelBg);
         }
@@ -230,275 +275,145 @@ namespace WindowTinter
         {
             foreach (Control c in parent.Controls)
             {
-                if (c is GroupBox || c is Panel)
-                {
-                    c.BackColor = panelBg;
-                    c.ForeColor = fg;
-                }
-                else if (c is Button btn)
-                {
-                    btn.BackColor = Color.FromArgb(60, 60, 60);
-                    btn.ForeColor = fg;
-                    btn.FlatStyle = FlatStyle.Flat;
-                    btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
-                }
-                else if (c is CheckBox || c is RadioButton)
-                {
-                    c.BackColor = bg;
-                    c.ForeColor = fg;
-                }
-                else if (c is TrackBar)
-                {
-                    c.BackColor = panelBg;
-                }
-                else if (c is Label)
-                {
-                    c.BackColor = bg;
-                    c.ForeColor = c.ForeColor == Color.Gray ? Color.FromArgb(140, 140, 140) : fg;
-                }
-                else
-                {
-                    c.BackColor = bg;
-                    c.ForeColor = fg;
-                }
-
+                if (c is GroupBox || c is Panel || c is FlowLayoutPanel) { c.BackColor = panelBg; c.ForeColor = fg; }
+                else if (c is Button btn) { btn.BackColor = Color.FromArgb(60, 60, 60); btn.ForeColor = fg; btn.FlatStyle = FlatStyle.Flat; btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80); }
+                else if (c is CheckBox || c is RadioButton) { c.BackColor = bg; c.ForeColor = fg; }
+                else if (c is Label) { c.BackColor = c.Parent is Panel ? panelBg : bg; c.ForeColor = c.ForeColor == Color.Gray ? Color.FromArgb(140, 140, 140) : fg; }
+                else if (c is TextBox) { c.BackColor = Color.FromArgb(50, 50, 50); c.ForeColor = fg; }
+                else if (c is TrackBar) { c.BackColor = panelBg; }
+                else { c.BackColor = bg; c.ForeColor = fg; }
                 if (c.Controls.Count > 0) ThemeAll(c, bg, fg, panelBg);
             }
         }
 
+        // ── UI 同步 ───────────────────────────────────────────────
+
         private void UpdateUI()
         {
-            // 状态
-            if (!_settings.Enabled)
-                _lblStatus.Text = "⏸ 已暂停";
-            else if (_tracker.TargetHandle == IntPtr.Zero)
-                _lblStatus.Text = "○ 等待选择窗口…";
-            else
-                _lblStatus.Text = $"● 监控中 — {_targetDisplayName}";
+            if (!_settings.Enabled) _lblStatus.Text = "⏸ 已暂停";
+            else if (_entries.Count == 0) _lblStatus.Text = "○ 等待选择窗口…";
+            else _lblStatus.Text = $"● 监控中 — {_entries.Count} 个窗口";
 
-            // 目标
-            _lblTarget.Text = _tracker.TargetHandle != IntPtr.Zero
-                ? $"已绑定: {_targetDisplayName}" : "未绑定 — 请点击「选择窗口」";
-
-            // 控件同步
             _chkEnabled.Checked = _settings.Enabled;
             _rbMask.Checked = _settings.Mode == "Mask";
             _rbInvert.Checked = _settings.Mode == "Invert";
             if (_tbAlpha.Value != _settings.Alpha) _tbAlpha.Value = _settings.Alpha;
             _lblAlpha.Text = $"{_settings.Alpha}/255";
             _chkStartup.Checked = _settings.StartWithWindows;
+            RefreshTrayMenu();
         }
 
-        // ── 托盘菜单（精简版） ──────────────────────────────────────────
+        // ── 托盘 ──────────────────────────────────────────────────
 
         private void BuildTray()
         {
             _menu = new ContextMenuStrip();
-            RefreshTrayMenu();
-            _tray = new NotifyIcon
-            {
-                Icon = SystemIcons.Application,
-                Text = "WindowTinter",
-                ContextMenuStrip = _menu,
-                Visible = true
-            };
+            _tray = new NotifyIcon { Icon = SystemIcons.Application, Text = "WindowTinter", ContextMenuStrip = _menu, Visible = true };
             _tray.DoubleClick += (s, e) => ToggleWindow();
+            RefreshTrayMenu();
         }
 
         private void RefreshTrayMenu()
         {
             _menu.Items.Clear();
-
-            string status;
-            if (!_settings.Enabled) status = "⏸ 已暂停";
-            else if (_tracker.TargetHandle == IntPtr.Zero) status = "○ 等待选择窗口…";
-            else status = $"● 监控中 — {_targetDisplayName}";
-            _menu.Items.Add(status).Enabled = false;
+            string s = !_settings.Enabled ? "⏸ 已暂停" : _entries.Count == 0 ? "○ 等待选择窗口…" : $"● 监控中 — {_entries.Count} 窗口";
+            _menu.Items.Add(s).Enabled = false; _menu.Items.Add("-");
+            _menu.Items.Add(Visible ? "最小化到托盘" : "打开设置窗口", null, (s2, e) => ToggleWindow());
+            _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (s2, e) => ToggleEnabled());
             _menu.Items.Add("-");
-
-            _menu.Items.Add(Visible ? "最小化到托盘" : "打开设置窗口", null, (s, e) => ToggleWindow());
-            _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (s, e) => ToggleEnabled());
-            _menu.Items.Add("-");
-            _menu.Items.Add("退出", null, (s, e) => { _reallyQuit = true; Close(); });
+            _menu.Items.Add("退出", null, (s2, e) => { _reallyQuit = true; Close(); });
         }
 
-        private void ToggleWindow()
-        {
-            if (Visible)
-                Hide();
-            else
-            {
-                Show();
-                WindowState = FormWindowState.Normal;
-                BringToFront();
-                Activate();
-            }
-        }
+        private void ToggleWindow() { if (Visible) Hide(); else { Show(); WindowState = FormWindowState.Normal; BringToFront(); Activate(); } }
+        private void OnFormClosing(object sender, FormClosingEventArgs e) { if (!_reallyQuit) { e.Cancel = true; Hide(); } }
 
-        private void OnFormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (!_reallyQuit)
-            {
-                e.Cancel = true;
-                Hide();
-            }
-        }
-
-        // ── 核心逻辑（不变） ────────────────────────────────────────────
-
-        private void RefreshOwnWindows()
-        {
-            var own = new List<IntPtr>(4) { _mask.Handle };
-            foreach (var h in _invert.OwnHandles) own.Add(h);
-            _tracker.OwnWindows = own.ToArray();
-        }
-
-        private void InstallWinEventHook()
-        {
-            _winEventProc = WinEventProcCallback;
-            _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND,
-                Native.EVENT_OBJECT_ZORDERCHANGES,
-                IntPtr.Zero, _winEventProc, 0, 0,
-                Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
-        }
-
-        private void WinEventProcCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
-            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
-        {
-            if (idObject != 0 || idChild != 0) return;
-            bool relevant;
-            switch (eventType)
-            {
-                case Native.EVENT_SYSTEM_FOREGROUND:
-                case Native.EVENT_OBJECT_ZORDERCHANGES:
-                    relevant = true; break;
-                case Native.EVENT_OBJECT_LOCATIONCHANGE:
-                case Native.EVENT_OBJECT_HIDE:
-                case Native.EVENT_OBJECT_SHOW:
-                case Native.EVENT_OBJECT_DESTROY:
-                    relevant = (hwnd == _tracker.TargetHandle); break;
-                default: relevant = false; break;
-            }
-            if (relevant) { try { BeginInvoke(_refreshAction); } catch { } }
-        }
-
-        private void OnTargetUpdate(Native.RECT r, bool visible, IntPtr hrgn, bool occluded)
-        {
-            try
-            {
-                if (hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
-
-                if (!_settings.Enabled || _tracker.TargetHandle == IntPtr.Zero || !visible)
-                {
-                    _mask.Hide(); _invert.Hide(); return;
-                }
-                if (_settings.Mode == "Invert")
-                {
-                    _mask.Hide(); _invert.Update(r, IntPtr.Zero);
-                }
-                else
-                {
-                    _invert.Hide();
-                    _mask.Alpha = (byte)_settings.Alpha;
-                    _mask.AlignTo(r);
-                }
-            }
-            catch (Exception ex) { DebugLog.Error("OnTargetUpdate 异常", ex); }
-        }
-
-        private void ApplyMode() => _mask.Alpha = (byte)_settings.Alpha;
+        // ── 核心操作 ──────────────────────────────────────────────
 
         private void ToggleEnabled()
         {
             _settings.Enabled = !_settings.Enabled;
             if (_settings.Enabled)
             {
-                if (_tracker.TargetHandle == IntPtr.Zero && !string.IsNullOrEmpty(_settings.TargetProcessName))
-                {
-                    var h = TargetTracker.FindByTitleAndProcess(_settings.TargetWindowTitle, _settings.TargetProcessName);
-                    _tracker.TargetHandle = h;
-                }
+                foreach (var t in _settings.Targets) TryBindTarget(t);
             }
-            else { _mask.Hide(); _invert.Hide(); }
-            _settings.Save();
-            RefreshTrayMenu(); UpdateUI();
+            else
+            {
+                foreach (var e in _entries) e.Mask.Hide();
+                _invert.Hide();
+            }
+            _settings.Save(); UpdateUI();
         }
 
         private void SetMode(string mode)
         {
             _settings.Mode = mode;
-            if (mode == "Invert") { _invert.Start(); RefreshOwnWindows(); }
+            if (mode == "Invert") _invert.Start();
             else _invert.Hide();
-            ApplyMode();
-            _settings.Save();
-            RefreshTrayMenu(); UpdateUI();
+            _settings.Save(); UpdateUI();
         }
 
         private void SetAlpha(int value)
         {
             _settings.Alpha = Math.Max(10, Math.Min(255, value));
-            _mask.Alpha = (byte)_settings.Alpha;
+            foreach (var e in _entries) e.Mask.Alpha = (byte)_settings.Alpha;
             _settings.Save();
             if (_tbAlpha.Value != _settings.Alpha) _tbAlpha.Value = _settings.Alpha;
             _lblAlpha.Text = $"{_settings.Alpha}/255";
-            RefreshTrayMenu();
         }
 
         private void PickWindow()
         {
-            // 先最小化自己，避免拾取到自己
-            bool wasVisible = Visible;
-            if (wasVisible) Hide();
-
+            bool wasVisible = Visible; if (wasVisible) Hide();
             using var picker = new WindowPickerForm();
             var result = picker.ShowDialog();
-
             if (wasVisible) { Show(); BringToFront(); Activate(); }
 
-            if (result == DialogResult.OK && picker.SelectedHandle != IntPtr.Zero)
+            if (result != DialogResult.OK || picker.SelectedHandle == IntPtr.Zero) return;
+
+            uint pid; Native.GetWindowThreadProcessId(picker.SelectedHandle, out pid);
+            var info = new TargetInfo();
+            try { var proc = Process.GetProcessById((int)pid); info.ProcessName = proc.ProcessName + ".exe"; } catch { info.ProcessName = ""; }
+            int len = Native.GetWindowTextLength(picker.SelectedHandle);
+            if (len > 0) { var sb = new System.Text.StringBuilder(len + 1); Native.GetWindowText(picker.SelectedHandle, sb, len + 1); info.WindowTitle = sb.ToString(); }
+
+            // 避免重复
+            if (_settings.Targets.Any(t => t.WindowTitle == info.WindowTitle && t.ProcessName == info.ProcessName))
             {
-                _tracker.TargetHandle = picker.SelectedHandle;
-                uint pid;
-                Native.GetWindowThreadProcessId(picker.SelectedHandle, out pid);
-                try
-                {
-                    var proc = Process.GetProcessById((int)pid);
-                    _settings.TargetProcessName = proc.ProcessName + ".exe";
-                    _targetDisplayName = proc.ProcessName;
-                }
-                catch { _settings.TargetProcessName = ""; _targetDisplayName = "未知"; }
-                int len = Native.GetWindowTextLength(picker.SelectedHandle);
-                if (len > 0)
-                {
-                    var sb = new System.Text.StringBuilder(len + 1);
-                    Native.GetWindowText(picker.SelectedHandle, sb, len + 1);
-                    _settings.TargetWindowTitle = sb.ToString();
-                    if (string.IsNullOrEmpty(_targetDisplayName)) _targetDisplayName = sb.ToString();
-                }
-                _settings.Save();
-                DebugLog.Info($"已选择窗口: title=\"{_settings.TargetWindowTitle}\", process={_settings.TargetProcessName}");
+                MessageBox.Show("此窗口已添加。", "WindowTinter", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
             }
-            RefreshTrayMenu(); UpdateUI();
+
+            _settings.Targets.Add(info);
+            _settings.Save();
+            DebugLog.Info($"添加窗口: {info}");
+
+            if (_settings.Enabled)
+                TryBindTarget(info);
+
+            UpdateUI();
         }
 
-        private void RefindWindow()
+        private void RefindAllWindows()
         {
-            var h = TargetTracker.FindByTitleAndProcess(_settings.TargetWindowTitle, _settings.TargetProcessName);
-            _tracker.TargetHandle = h;
-            DebugLog.Info($"重新查找窗口: {(h != IntPtr.Zero ? "成功" : "未找到")}");
-            if (h == IntPtr.Zero)
-                MessageBox.Show("未找到目标窗口，请确认窗口已打开。", "WindowTinter", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            RefreshTrayMenu(); UpdateUI();
+            // 释放旧条目
+            foreach (var e in _entries) { e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose(); }
+            _entries.Clear();
+            _pnlTargets.Controls.Clear();
+            _pnlTargets.Controls.Add(_btnAdd);
+            _pnlTargets.Controls.Add(_btnRefind);
+            _invert.Hide();
+
+            // 重新查找全部
+            foreach (var t in _settings.Targets)
+                TryBindTarget(t);
+
+            UpdateUI();
+            DebugLog.Info($"重新查找窗口: {_entries.Count}/{_settings.Targets.Count} 已绑定");
         }
 
         private void OpenConfigFolder()
         {
-            try
-            {
-                var dir = Path.GetDirectoryName(Environment.ProcessPath);
-                Process.Start("explorer.exe", dir);
-            }
+            try { Process.Start("explorer.exe", Path.GetDirectoryName(Environment.ProcessPath)); }
             catch (Exception ex) { DebugLog.Error("打开配置文件夹失败", ex); }
         }
 
@@ -515,28 +430,47 @@ namespace WindowTinter
 
         private void ShowAbout()
         {
-            MessageBox.Show(
-                "WindowTinter v2.1.2\n\n" +
-                "给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具。\n\n" +
-                "• 蒙版：UpdateLayeredWindow 逐像素合成\n" +
-                "• 拾取：全屏超低透明度捕获层 + 反转边框\n" +
-                "• 配置：exe 同目录 WindowTinter.settings.json\n" +
-                "• 日志：exe 同目录 WindowTinter.debug.log\n\n" +
-                "https://github.com/Simiely/WindowTinter",
-                "关于", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("WindowTinter v2.2\n\n给任意窗口叠加深色半透明蒙版的常驻小工具。\n支持多窗口同时覆盖。\n\n• 配置: exe 同目录 WindowTinter.settings.json\n• 日志: exe 同目录 WindowTinter.debug.log\n\nhttps://github.com/Simiely/WindowTinter", "关于");
+        }
+
+        // ── WinEvent ──────────────────────────────────────────────
+
+        private void InstallWinEventHook()
+        {
+            _winEventProc = WinEventProcCallback;
+            _winEventHook = Native.SetWinEventHook(
+                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_ZORDERCHANGES,
+                IntPtr.Zero, _winEventProc, 0, 0, Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
+        }
+
+        private void WinEventProcCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (idObject != 0 || idChild != 0) return;
+            bool relevant = (eventType is Native.EVENT_SYSTEM_FOREGROUND or Native.EVENT_OBJECT_ZORDERCHANGES);
+            if (!relevant)
+            {
+                relevant = _entries.Any(e => e.Tracker.TargetHandle == hwnd) &&
+                    eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY;
+            }
+            if (relevant)
+            {
+                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); })); }
+                catch { }
+            }
         }
 
         private void Quit()
         {
             DebugLog.Info("WindowTinter 退出");
-            _reallyQuit = true;
-            _tray.Visible = false;
+            _reallyQuit = true; _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
+            foreach (var e in _entries) { e.Mask.Dispose(); e.Tracker.Dispose(); }
             _invert.Dispose();
-            _mask.Dispose();
-            _tracker.Dispose();
             Application.Exit();
         }
+
+        // ── 入口 ──────────────────────────────────────────────────
 
         [STAThread]
         static void Main()
