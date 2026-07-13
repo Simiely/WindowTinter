@@ -89,13 +89,6 @@ namespace WindowTinter
                     if (!_settings.Enabled || !visible) { mask.Hide(); return; }
                     if (_settings.Mode == "Invert") return;
 
-                    // 如果目标窗口上方有其他窗口遮挡，隐藏蒙版
-                    if (TargetTracker.IsOccluded(tracker.TargetHandle, tracker.OwnWindows))
-                    {
-                        mask.Hide();
-                        return;
-                    }
-
                     mask.Alpha = (byte)_settings.Alpha;
                     mask.AlignTo(r);
                 }
@@ -347,8 +340,7 @@ namespace WindowTinter
                 foreach (var e in _entries)
                 {
                     if (e.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(e.Tracker.TargetHandle)
-                        && Native.IsWindowVisible(e.Tracker.TargetHandle) && !Native.IsIconic(e.Tracker.TargetHandle)
-                        && !TargetTracker.IsOccluded(e.Tracker.TargetHandle, e.Tracker.OwnWindows))
+                        && Native.IsWindowVisible(e.Tracker.TargetHandle) && !Native.IsIconic(e.Tracker.TargetHandle))
                     {
                         Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
                         e.Mask.Alpha = (byte)_settings.Alpha;
@@ -378,12 +370,10 @@ namespace WindowTinter
             foreach (var e in _entries)
             {
                 e.Mask.Alpha = (byte)_settings.Alpha;
-                // 立即刷新蒙版透明度
                 if (e.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(e.Tracker.TargetHandle))
                 {
                     Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
-                    if (!TargetTracker.IsOccluded(e.Tracker.TargetHandle, e.Tracker.OwnWindows))
-                        e.Mask.AlignTo(r);
+                    e.Mask.AlignTo(r);
                 }
             }
             _settings.Save();
