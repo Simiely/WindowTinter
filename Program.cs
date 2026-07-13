@@ -163,7 +163,6 @@ namespace WindowTinter
                     {
                         mask.Hide();
                         if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
-                        _lastFg = false;
                         return;
                     }
                     if (fg)
@@ -176,13 +175,12 @@ namespace WindowTinter
                     {
                         mask.Hide();
                         byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
-                        if (!_lastFg || _lastBgAlpha != targetAlpha)
+                        if (_lastBgAlpha != targetAlpha)
                         {
                             SetTargetAlpha(tracker.TargetHandle, targetAlpha);
                             _lastBgAlpha = targetAlpha;
                         }
                     }
-                    _lastFg = fg;
                 }
                 catch (Exception ex) { DebugLog.Error("OnUpdate", ex); }
             };
