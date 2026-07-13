@@ -278,6 +278,32 @@ namespace WindowTinter
             return IntPtr.Zero;
         }
 
+        /// <summary>
+        /// 检查目标窗口是否被其他可见窗口遮挡（重叠）。
+        /// 排除 OwnWindows（本程序自身的蒙版/反色窗口）。
+        /// </summary>
+        public static bool IsOccluded(IntPtr target, IntPtr[] ownWindows)
+        {
+            if (target == IntPtr.Zero || !Native.IsWindow(target)) return false;
+
+            Native.RECT tr;
+            Native.GetWindowRect(target, out tr);
+            if (tr.Width <= 0 || tr.Height <= 0) return false;
+
+            var own = new HashSet<IntPtr>(ownWindows ?? Array.Empty<IntPtr>());
+            IntPtr hw = target;
+            while ((hw = Native.GetWindow(hw, Native.GW_HWNDPREV)) != IntPtr.Zero)
+            {
+                if (own.Contains(hw)) continue;
+                if (!Native.IsWindowVisible(hw) || Native.IsIconic(hw)) continue;
+                Native.RECT or;
+                Native.GetWindowRect(hw, out or);
+                if (or.Left < tr.Right && or.Right > tr.Left && or.Top < tr.Bottom && or.Bottom > tr.Top)
+                    return true;
+            }
+            return false;
+        }
+
         private static bool EnumVisible(IntPtr hwnd, IntPtr lparam) => true;
 
         public void Dispose() => _timer.Dispose();
