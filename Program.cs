@@ -100,6 +100,8 @@ namespace WindowTinter
                 {
                     if (_entries.Any(e => e.Info == t)) continue;
                     TryBindTarget(t);
+                    var entry = _entries.FirstOrDefault(e => e.Info == t);
+                    if (entry != null) ApplyMaskNow(entry);
                 }
             };
             _autoBindTimer.Start();
@@ -518,7 +520,12 @@ namespace WindowTinter
             _settings.Targets.Add(info);
             DebugLog.Info($"添加窗口: {info}");
 
-            if (_settings.Enabled) TryBindTarget(info);
+            if (_settings.Enabled)
+            {
+                TryBindTarget(info);
+                var entry = _entries.FirstOrDefault(e => e.Info == info);
+                if (entry != null) ApplyMaskNow(entry);
+            }
             UpdateUI();
         }
 
