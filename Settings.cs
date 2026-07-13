@@ -6,7 +6,6 @@ using Microsoft.Win32;
 
 namespace WindowTinter
 {
-    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题重新查找）。</summary>
     internal class TargetInfo
     {
         public string ProcessName { get; set; } = "";
@@ -14,56 +13,38 @@ namespace WindowTinter
         public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
     }
 
-    /// <summary>
-    /// 持久化设置。支持多窗口目标列表。
-    /// </summary>
     internal class Settings
     {
         public List<TargetInfo> Targets { get; set; } = new();
-        public string Mode { get; set; } = "Mask";
         public int Alpha { get; set; } = 75;
         public bool Enabled { get; set; } = false;
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
         public bool DebugEnabled { get; set; } = true;
 
-        // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
+        // 旧字段（v2.x 迁移用，不再写入）
         public string TargetProcessName { get; set; } = "";
         public string TargetWindowTitle { get; set; } = "";
+        public string Mode { get; set; } = "Mask";
 
-        private static string AppDir =>
-            Path.GetDirectoryName(Environment.ProcessPath);
-
-        private static string FilePath => Path.Combine(AppDir, "WindowTinter.settings.json");
+        private static string FilePath => Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "WindowTinter.settings.json");
 
         public static Settings Load()
         {
             Settings s = null;
-            try
-            {
-                if (File.Exists(FilePath))
-                    s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
-            }
-            catch { /* 损坏则回退默认 */ }
-
+            try { if (File.Exists(FilePath)) s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)); } catch { }
             s ??= new Settings();
 
             // 迁移旧 Alpha 格式（0-255 → 0-100）
             if (s.Alpha > 100) s.Alpha = s.Alpha * 100 / 255;
 
-            // 迁移旧格式：单窗口 → 列表
+            // 迁移旧单窗口格式 → 列表
             if (s.Targets.Count == 0 && !string.IsNullOrEmpty(s.TargetProcessName))
             {
-                s.Targets.Add(new TargetInfo
-                {
-                    ProcessName = s.TargetProcessName,
-                    WindowTitle = s.TargetWindowTitle
-                });
-                s.TargetProcessName = "";
-                s.TargetWindowTitle = "";
+                s.Targets.Add(new TargetInfo { ProcessName = s.TargetProcessName, WindowTitle = s.TargetWindowTitle });
+                s.TargetProcessName = s.TargetWindowTitle = "";
                 s.Save();
             }
-
             return s;
         }
 
@@ -71,25 +52,23 @@ namespace WindowTinter
         {
             try
             {
-                if (!Directory.Exists(AppDir)) Directory.CreateDirectory(AppDir);
+                var dir = Path.GetDirectoryName(Environment.ProcessPath);
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
                 File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
             }
-            catch { /* 忽略保存失败 */ }
+            catch { }
         }
 
         public void ApplyStartWithWindows()
         {
             try
             {
-                using var key = Registry.CurrentUser.OpenSubKey(
-                    @"Software\Microsoft\Windows\CurrentVersion\Run", true);
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (key == null) return;
-                if (StartWithWindows)
-                    key.SetValue("WindowTinter", System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
-                else
-                    key.DeleteValue("WindowTinter", false);
+                if (StartWithWindows) key.SetValue("WindowTinter", System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "");
+                else key.DeleteValue("WindowTinter", false);
             }
-            catch { /* 忽略 */ }
+            catch { }
         }
     }
 }
