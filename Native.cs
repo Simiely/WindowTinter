@@ -245,8 +245,13 @@ namespace WindowTinter
             uint dwStyle, int x, int y, int nWidth, int nHeight,
             IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
 
+        public const int WS_EX_NOACTIVATE = 0x08000000;
+
         [DllImport("user32.dll")]
         public static extern bool DestroyWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
 
         // ---- Magnification.dll ----
         [DllImport("Magnification.dll")]

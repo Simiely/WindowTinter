@@ -34,7 +34,6 @@ namespace WindowTinter
         // ── 核心状态 ──────────────────────────────────────────────
 
         private readonly Settings _settings;
-        private readonly InvertLens _invert;
         private readonly List<TargetEntry> _entries = new();
 
         private NotifyIcon _tray;
@@ -50,7 +49,6 @@ namespace WindowTinter
         private FlowLayoutPanel _pnlTargets;
         private Button _btnRefind;
         private CheckBox _chkEnabled;
-        private RadioButton _rbMask, _rbInvert;
         private TrackBar _tbAlpha;
         private Label _lblAlpha;
         private CheckBox _chkStartup;
@@ -61,7 +59,6 @@ namespace WindowTinter
         public MainForm()
         {
             _settings = Settings.Load();
-            _invert = new InvertLens();
 
             Text = "WindowTinter";
             ClientSize = new Size(470, 520);
@@ -92,7 +89,7 @@ namespace WindowTinter
                     var e = _entries[i];
                     if (!Native.IsWindow(e.Tracker.TargetHandle) && e.Tracker.TargetHandle != IntPtr.Zero)
                     {
-                        e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose();
+                        e.Lens.Hide(); e.Tracker.Dispose(); e.Lens.Dispose();
                         _entries.RemoveAt(i);
                         if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
                     }
@@ -128,7 +125,7 @@ namespace WindowTinter
         {
             public TargetInfo Info;
             public TargetTracker Tracker;
-            public MaskOverlay Mask;
+            public DimLens Lens;
             public Panel UIPanel;
         }
 
@@ -136,41 +133,26 @@ namespace WindowTinter
         private TargetEntry CreateEntry(TargetInfo info)
         {
             var tracker = new TargetTracker();
-            var mask = new MaskOverlay();
+            var lens = new DimLens();
 
             tracker.OnUpdate += (r, visible) =>
             {
                 try
                 {
-                    if (!ShouldShowMask(tracker.TargetHandle)) { mask.Hide(); return; }
-                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-                    mask.AlignTo(r, MaskInsertAfter(tracker.TargetHandle));
+                    if (!_settings.Enabled || !visible) { lens.Hide(); return; }
+                    lens.Update(_settings.Alpha, r);
                 }
                 catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
             };
 
-            return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
+            return new TargetEntry { Info = info, Tracker = tracker, Lens = lens };
         }
 
-        /// <summary>前台用 TOPMOST 盖一切，后台插在目标上一层（不影响上层窗口）。</summary>
-        private static IntPtr MaskInsertAfter(IntPtr h) =>
-            Native.GetForegroundWindow() == h ? Native.HWND_TOPMOST : h;
-
-        /// <summary>判断是否应该显示蒙版——不关心前后台，只检查基本条件。</summary>
-        private bool ShouldShowMask(IntPtr targetHandle)
-        {
-            if (!_settings.Enabled) return false;
-            if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
-            if (_settings.Mode == "Invert") return false;
-            return true;
-        }
-
-        /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
-        private void ApplyMaskNow(TargetEntry e)
+        /// <summary>立即将暗化应用到目标。用于启停/透明度变更等主动触发。</summary>
+        private void ApplyLensNow(TargetEntry e)
         {
             if (!TryGetTargetRect(e, out Native.RECT r)) return;
-            e.Mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-            e.Mask.AlignTo(r, MaskInsertAfter(e.Tracker.TargetHandle));
+            e.Lens.Update(_settings.Alpha, r);
         }
 
         private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
@@ -185,8 +167,7 @@ namespace WindowTinter
         private IntPtr[] OwnHandles()
         {
             var own = new List<IntPtr>();
-            foreach (var e in _entries) own.Add(e.Mask.Handle);
-            foreach (var h in _invert.OwnHandles) own.Add(h);
+            foreach (var e in _entries) own.Add(e.Lens.Handle);
             return own.ToArray();
         }
 
@@ -255,7 +236,7 @@ namespace WindowTinter
             _entries.Remove(entry);
             _pnlTargets.Controls.Remove(pnl);
             entry.Tracker.Dispose();
-            entry.Mask.Dispose();
+            entry.Lens.Dispose();
             _settings.Targets.Remove(entry.Info);
             _settings.Save();
             RefreshOwnWindows();
@@ -265,11 +246,10 @@ namespace WindowTinter
 
         private void UnbindAll()
         {
-            foreach (var e in _entries) { e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose(); }
+            foreach (var e in _entries) { e.Lens.Hide(); e.Tracker.Dispose(); e.Lens.Dispose(); }
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pnlTargets.Controls.Add(_btnRefind);
-            _invert.Hide();
         }
 
         // ════════════════════════════════════════════════════════════
@@ -299,14 +279,6 @@ namespace WindowTinter
 
             _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
             y += 28;
-
-            AddGroup("模式", pad, ref y, 50, GW, gb =>
-            {
-                _rbMask = AddRadio(gb, "深色蒙版", pad, 20, _settings.Mode == "Mask",
-                    () => SetMode("Mask"));
-                _rbInvert = AddRadio(gb, "真·反色 (实验，仅首个窗口)", 200, 20, _settings.Mode == "Invert",
-                    () => SetMode("Invert"));
-            });
 
             AddGroup("透明度", pad, ref y, 65, GW, gb =>
             {
@@ -435,8 +407,6 @@ namespace WindowTinter
                 : $"● 监控中 — {_entries.Count} 个窗口";
 
             _chkEnabled.Checked = _settings.Enabled;
-            _rbMask.Checked = _settings.Mode == "Mask";
-            _rbInvert.Checked = _settings.Mode == "Invert";
 
             int sv = _settings.Alpha;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
@@ -492,28 +462,19 @@ namespace WindowTinter
             if (_settings.Enabled)
             {
                 foreach (var t in _settings.Targets) TryBindTarget(t);
-                foreach (var e in _entries) ApplyMaskNow(e);
+                foreach (var e in _entries) ApplyLensNow(e);
             }
             else
             {
-                foreach (var e in _entries) e.Mask.Hide();
-                _invert.Hide();
+                foreach (var e in _entries) e.Lens.Hide();
             }
-            UpdateUI();
-        }
-
-        private void SetMode(string mode)
-        {
-            _settings.Mode = mode;
-            if (mode == "Invert") _invert.Start();
-            else _invert.Hide();
             UpdateUI();
         }
 
         private void SetAlpha(int value)
         {
             _settings.Alpha = Math.Clamp(value, 0, 100);
-            foreach (var e in _entries) ApplyMaskNow(e);
+            foreach (var e in _entries) ApplyLensNow(e);
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
         }
 
@@ -631,8 +592,7 @@ namespace WindowTinter
             _reallyQuit = true;
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
-            foreach (var e in _entries) { e.Mask.Dispose(); e.Tracker.Dispose(); }
-            _invert.Dispose();
+            foreach (var e in _entries) { e.Lens.Dispose(); e.Tracker.Dispose(); }
             Application.Exit();
         }
 
