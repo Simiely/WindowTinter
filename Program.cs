@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -47,7 +48,7 @@ namespace WindowTinter
             _refreshAction = () => _tracker.RefreshNow();
 
             Text = "WindowTinter";
-            ClientSize = new Size(420, 410);
+            ClientSize = new Size(460, 460);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -377,26 +378,26 @@ namespace WindowTinter
 
         private void OnTargetUpdate(Native.RECT r, bool visible, IntPtr hrgn, bool occluded)
         {
-            bool ownsRegion = false;
             try
             {
+                if (hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
+
                 if (!_settings.Enabled || _tracker.TargetHandle == IntPtr.Zero || !visible)
                 {
                     _mask.Hide(); _invert.Hide(); return;
                 }
                 if (_settings.Mode == "Invert")
                 {
-                    _mask.Hide(); _invert.Update(r, hrgn); ownsRegion = true;
+                    _mask.Hide(); _invert.Update(r, IntPtr.Zero);
                 }
                 else
                 {
-                    _invert.Hide(); _mask.Alpha = (byte)_settings.Alpha; _mask.AlignTo(r, hrgn); ownsRegion = true;
+                    _invert.Hide();
+                    _mask.Alpha = (byte)_settings.Alpha;
+                    _mask.AlignTo(r);
                 }
             }
-            finally
-            {
-                if (!ownsRegion && hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
-            }
+            catch (Exception ex) { DebugLog.Error("OnTargetUpdate 异常", ex); }
         }
 
         private void ApplyMode() => _mask.Alpha = (byte)_settings.Alpha;
@@ -488,8 +489,7 @@ namespace WindowTinter
         {
             try
             {
-                var dir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
-                if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
+                var dir = Path.GetDirectoryName(Environment.ProcessPath);
                 Process.Start("explorer.exe", dir);
             }
             catch (Exception ex) { DebugLog.Error("打开配置文件夹失败", ex); }
@@ -499,8 +499,8 @@ namespace WindowTinter
         {
             try
             {
-                var path = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter", "debug.log");
-                if (System.IO.File.Exists(path)) Process.Start("notepad.exe", path);
+                var path = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "WindowTinter.debug.log");
+                if (File.Exists(path)) Process.Start("notepad.exe", path);
                 else MessageBox.Show("日志文件尚不存在。", "WindowTinter");
             }
             catch (Exception ex) { DebugLog.Error("打开日志失败", ex); }
@@ -509,11 +509,12 @@ namespace WindowTinter
         private void ShowAbout()
         {
             MessageBox.Show(
-                "WindowTinter v2.1\n\n" +
+                "WindowTinter v2.1.2\n\n" +
                 "给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具。\n\n" +
                 "• 蒙版：UpdateLayeredWindow 逐像素合成\n" +
-                "• 拾取：Spy++ 准星拖拽模式\n" +
-                "• 日志：%LocalAppData%\\WindowTinter\\debug.log\n\n" +
+                "• 拾取：全屏超低透明度捕获层 + 反转边框\n" +
+                "• 配置：exe 同目录 WindowTinter.settings.json\n" +
+                "• 日志：exe 同目录 WindowTinter.debug.log\n\n" +
                 "https://github.com/Simiely/WindowTinter",
                 "关于", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }

@@ -5,15 +5,14 @@ namespace WindowTinter
 {
     /// <summary>
     /// 极简文件日志：lock + File.AppendAllText + 时间戳。零依赖。
-    /// 路径：%LocalAppData%\WindowTinter\debug.log
-    /// 超过 1MB 自动轮转为 debug.log.old。
+    /// 路径：exe 所在目录下的 WindowTinter.debug.log
+    /// 超过 1MB 自动轮转为 WindowTinter.debug.log.old。
     /// </summary>
     internal static class DebugLog
     {
         private static readonly object _lock = new object();
-        private static readonly string _dir =
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
-        private static readonly string _path = Path.Combine(_dir, "debug.log");
+        private static readonly string _path =
+            Path.Combine(Path.GetDirectoryName(Environment.ProcessPath), "WindowTinter.debug.log");
         private const long MaxSize = 1 * 1024 * 1024; // 1MB
 
         public static void Info(string msg) => Write("INFO", msg, null);
@@ -25,8 +24,6 @@ namespace WindowTinter
             {
                 lock (_lock)
                 {
-                    if (!Directory.Exists(_dir)) Directory.CreateDirectory(_dir);
-
                     // 轮转
                     if (File.Exists(_path) && new FileInfo(_path).Length > MaxSize)
                     {

@@ -19,9 +19,9 @@ namespace WindowTinter
         public bool DebugEnabled { get; set; } = true;
 
         private static string AppDir =>
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
+            Path.GetDirectoryName(Environment.ProcessPath);
 
-        private static string FilePath => Path.Combine(AppDir, "settings.json");
+        private static string FilePath => Path.Combine(AppDir, "WindowTinter.settings.json");
 
         public static Settings Load()
         {
