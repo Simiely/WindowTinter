@@ -175,17 +175,37 @@ namespace WindowTinter
             _menu.Items.Add(status).Enabled = false;
 
             _menu.Items.Add("-");
-            _menu.Items.Add(_settings.Enabled ? "停用 (隐藏覆盖)" : "启用覆盖", null, (s, e) => ToggleEnabled());
+            _menu.Items.Add(_settings.Enabled ? "⏸ 停用 (隐藏覆盖)" : "▶ 启用覆盖", null, (s, e) => ToggleEnabled());
+
+            // 模式
             _menu.Items.Add("── 模式 ──").Enabled = false;
             ((ToolStripMenuItem)_menu.Items.Add("深色蒙版", null, (s, e) => SetMode("Mask"))).Checked = _settings.Mode == "Mask";
             ((ToolStripMenuItem)_menu.Items.Add("真·反色 (实验)", null, (s, e) => SetMode("Invert"))).Checked = _settings.Mode == "Invert";
+
+            // 透明度：预设 + 微调
             _menu.Items.Add("── 透明度 ──").Enabled = false;
+            var alphaMenu = (ToolStripMenuItem)_menu.Items.Add($"当前: {_settings.Alpha}/255");
+            alphaMenu.Enabled = false;
+            // 快速预设
+            var preset = (ToolStripMenuItem)_menu.Items.Add("快速预设");
+            foreach (var p in new[] { ("轻 (50)", 50), ("中 (100)", 100), ("重 (150)", 150), ("极暗 (200)", 200) })
+            {
+                var item = (ToolStripMenuItem)preset.DropDownItems.Add(p.Item1);
+                item.Checked = _settings.Alpha == p.Item2;
+                int val = p.Item2;
+                item.Click += (s, e) => SetAlpha(val);
+            }
             _menu.Items.Add("调暗一点 (-)", null, (s, e) => ChangeAlpha(-20));
             _menu.Items.Add("调亮一点 (+)", null, (s, e) => ChangeAlpha(+20));
-            _menu.Items.Add($"当前不透明度: {_settings.Alpha}/255");
+
+            // 目标窗口
             _menu.Items.Add("── 目标窗口 ──").Enabled = false;
-            _menu.Items.Add("选择窗口 (拖拽拾取)...", null, (s, e) => PickWindow());
-            _menu.Items.Add($"当前目标: {(_tracker.TargetHandle != IntPtr.Zero ? _targetDisplayName : "未绑定")}");
+            _menu.Items.Add("⊕ 选择窗口 (拖拽拾取)...", null, (s, e) => PickWindow());
+            _menu.Items.Add("🔄 重新查找窗口", null, (s, e) => RefindWindow());
+            _menu.Items.Add($"当前目标: {(_tracker.TargetHandle != IntPtr.Zero ? _targetDisplayName : "未绑定")}").Enabled = false;
+
+            // 系统
+            _menu.Items.Add("── 系统 ──").Enabled = false;
             ((ToolStripMenuItem)_menu.Items.Add("开机自启", null, (s, e) =>
             {
                 _settings.StartWithWindows = !_settings.StartWithWindows;
@@ -193,8 +213,10 @@ namespace WindowTinter
                 _settings.Save();
                 RefreshMenu();
             })).Checked = _settings.StartWithWindows;
-            _menu.Items.Add("── 调试 ──").Enabled = false;
-            _menu.Items.Add("查看日志", null, (s, e) => OpenLog());
+            _menu.Items.Add("📂 打开配置文件夹", null, (s, e) => OpenConfigFolder());
+            _menu.Items.Add("📋 查看日志", null, (s, e) => OpenLog());
+            _menu.Items.Add("ℹ 关于", null, (s, e) => ShowAbout());
+            _menu.Items.Add("-");
             _menu.Items.Add("退出", null, (s, e) => Quit());
         }
 
@@ -242,6 +264,48 @@ namespace WindowTinter
             _mask.Alpha = (byte)_settings.Alpha;
             _settings.Save();
             RefreshMenu();
+        }
+
+        private void SetAlpha(int value)
+        {
+            _settings.Alpha = Math.Max(10, Math.Min(255, value));
+            _mask.Alpha = (byte)_settings.Alpha;
+            _settings.Save();
+            RefreshMenu();
+        }
+
+        private void RefindWindow()
+        {
+            var h = TargetTracker.FindByTitleAndProcess(_settings.TargetWindowTitle, _settings.TargetProcessName);
+            _tracker.TargetHandle = h;
+            DebugLog.Info($"重新查找窗口: {(h != IntPtr.Zero ? "成功" : "未找到")}");
+            if (h == IntPtr.Zero)
+                MessageBox.Show("未找到目标窗口，请确认窗口已打开。", "WindowTinter", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RefreshMenu();
+        }
+
+        private void OpenConfigFolder()
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
+                if (!System.IO.Directory.Exists(dir)) System.IO.Directory.CreateDirectory(dir);
+                Process.Start("explorer.exe", dir);
+            }
+            catch (Exception ex) { DebugLog.Error("打开配置文件夹失败", ex); }
+        }
+
+        private void ShowAbout()
+        {
+            MessageBox.Show(
+                "WindowTinter v2.0\n\n" +
+                "给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具。\n\n" +
+                "• 蒙版：UpdateLayeredWindow 逐像素合成\n" +
+                "• 拾取：Spy++ 准星拖拽模式\n" +
+                "• 日志：%LocalAppData%\\WindowTinter\\debug.log\n\n" +
+                "https://github.com/Simiely/WindowTinter",
+                "关于 WindowTinter", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void PickWindow()
