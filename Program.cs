@@ -250,13 +250,6 @@ namespace WindowTinter
                     Value = _settings.Alpha * 100 / 255
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value * 255 / 100);
-                // 点击滑轨直接跳到鼠标位置（代替默认的逐格移动）
-                _tbAlpha.MouseDown += (_, ev) =>
-                {
-                    if (ev.Button != MouseButtons.Left) return;
-                    int newVal = (ev.X - 12) * _tbAlpha.Maximum / (_tbAlpha.Width - 24);
-                    _tbAlpha.Value = Math.Clamp(newVal, _tbAlpha.Minimum, _tbAlpha.Maximum);
-                };
                 gb.Controls.Add(_tbAlpha);
 
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
