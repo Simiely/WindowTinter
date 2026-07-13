@@ -217,8 +217,8 @@ mask.AlignTo(r);
 
             // ── 透明度 ──
             var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(434, 65) };
-            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(350, 40), Minimum = 0, Maximum = 19, Value = (int)(_settings.Alpha * 19.0 / 255 + 0.5), TickFrequency = 1, SmallChange = 1, LargeChange = 3 };
-            _tbAlpha.ValueChanged += (s, ev) => SetAlpha((int)(_tbAlpha.Value * 255.0 / 19 + 0.5));
+            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(350, 40), Minimum = 0, Maximum = 100, Value = (int)(_settings.Alpha * 100.0 / 255 + 0.5), TickFrequency = 10, SmallChange = 5, LargeChange = 20 };
+            _tbAlpha.ValueChanged += (s, ev) => SetAlpha((int)(_tbAlpha.Value * 2.55 + 0.5));
             gbAlpha.Controls.Add(_tbAlpha);
             _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true, TextAlign = ContentAlignment.MiddleRight };
             gbAlpha.Controls.Add(_lblAlpha);
@@ -298,9 +298,9 @@ mask.AlignTo(r);
             _chkEnabled.Checked = _settings.Enabled;
             _rbMask.Checked = _settings.Mode == "Mask";
             _rbInvert.Checked = _settings.Mode == "Invert";
-            int sv = (int)(_settings.Alpha * 19.0 / 255 + 0.5);
+            int sv = (int)(_settings.Alpha * 100.0 / 255 + 0.5);
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
-            _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
+            _lblAlpha.Text = $"{_tbAlpha.Value}%";
             _chkStartup.Checked = _settings.StartWithWindows;
             _chkMinimizeTray.Checked = _settings.MinimizeToTray;
             _chkAlwaysDim.Checked = _settings.AlwaysDim;
@@ -380,9 +380,9 @@ mask.AlignTo(r);
                 }
             }
             _settings.Save();
-            int sv = (int)(_settings.Alpha * 19.0 / 255 + 0.5);
+            int sv = (int)(_settings.Alpha * 100.0 / 255 + 0.5);
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
-            _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
+            _lblAlpha.Text = $"{_tbAlpha.Value}%";
         }
 
         private void PickWindow()
