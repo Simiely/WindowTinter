@@ -79,6 +79,16 @@ namespace WindowTinter
             BuildUI();
             InstallWinEventHook();
 
+            // 3 秒一次检查是否有目标窗口新启动但未绑定
+            var autoBindTimer = new Timer { Interval = 3000 };
+            autoBindTimer.Tick += (_, _) =>
+            {
+                if (!_settings.Enabled) return;
+                foreach (var t in _settings.Targets)
+                    TryBindTarget(t);
+            };
+            autoBindTimer.Start();
+
             if (_settings.Enabled)
                 foreach (var t in _settings.Targets)
                     TryBindTarget(t);
@@ -555,7 +565,7 @@ namespace WindowTinter
         {
             _winEventProc = WinEventProcCallback;
             _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_SHOW, // 覆盖前台切换→窗口显示
+                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_ZORDERCHANGES,
                 IntPtr.Zero, _winEventProc, 0, 0,
                 Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
         }
@@ -564,12 +574,6 @@ namespace WindowTinter
             int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (idObject != 0 || idChild != 0) return;
-
-            // 新窗口出现：尝试绑定匹配的已保存目标
-            if (eventType == Native.EVENT_OBJECT_SHOW && _settings.Enabled)
-            {
-                try { BeginInvoke(new Action(() => TryAutoBind(hwnd))); } catch { }
-            }
 
             bool isGlobal = eventType is Native.EVENT_SYSTEM_FOREGROUND or Native.EVENT_OBJECT_ZORDERCHANGES;
             bool isTarget = !isGlobal && _entries.Any(e => e.Tracker.TargetHandle == hwnd)
@@ -580,37 +584,6 @@ namespace WindowTinter
             {
                 try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); })); }
                 catch { /* 窗口可能正在关闭 */ }
-            }
-        }
-
-        /// <summary>检查新出现的窗口是否匹配未绑定的已保存目标，自动绑定。</summary>
-        private void TryAutoBind(IntPtr hwnd)
-        {
-            if (!Native.IsWindow(hwnd) || !Native.IsWindowVisible(hwnd)) return;
-            if (!TargetTracker.IsAcceptableTarget(hwnd)) return;
-
-            uint pid; Native.GetWindowThreadProcessId(hwnd, out pid);
-            int len = Native.GetWindowTextLength(hwnd);
-            var sb = new System.Text.StringBuilder(len + 1);
-            Native.GetWindowText(hwnd, sb, len + 1);
-            string title = sb.ToString();
-            string proc = "";
-            try { proc = Process.GetProcessById((int)pid).ProcessName + ".exe"; } catch { }
-
-            foreach (var t in _settings.Targets)
-            {
-                if (_entries.Any(e => e.Tracker.TargetHandle == hwnd)) return; // 已绑定
-                bool matchProc = string.IsNullOrEmpty(t.ProcessName) || 
-                    t.ProcessName.Equals(proc, StringComparison.OrdinalIgnoreCase) ||
-                    t.ProcessName.Replace(".exe", "").Equals(proc.Replace(".exe", ""), StringComparison.OrdinalIgnoreCase);
-                bool matchTitle = string.IsNullOrEmpty(t.WindowTitle) ||
-                    title.Contains(t.WindowTitle, StringComparison.OrdinalIgnoreCase);
-                if (matchProc && matchTitle)
-                {
-                    DebugLog.Info($"自动绑定新窗口: {t}");
-                    TryBindTarget(t);
-                    return;
-                }
             }
         }
 
