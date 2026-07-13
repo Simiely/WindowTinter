@@ -220,8 +220,8 @@ mask.AlignTo(r);
 
             // ── 透明度 ──
             var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(434, 65) };
-            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(350, 40), Minimum = 0, Maximum = 100, Value = (int)(_settings.Alpha * 100.0 / 255 + 0.5), TickFrequency = 10, SmallChange = 5, LargeChange = 20 };
-            _tbAlpha.ValueChanged += (s, ev) => SetAlpha((int)(_tbAlpha.Value * 2.55 + 0.5));
+            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(350, 40), Minimum = 0, Maximum = 100, Value = _settings.Alpha * 100 / 255, TickFrequency = 10, SmallChange = 5, LargeChange = 20 };
+            _tbAlpha.ValueChanged += (s, ev) => SetAlpha(_tbAlpha.Value * 255 / 100);
             gbAlpha.Controls.Add(_tbAlpha);
             _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true, TextAlign = ContentAlignment.MiddleRight };
             gbAlpha.Controls.Add(_lblAlpha);
@@ -297,7 +297,7 @@ mask.AlignTo(r);
             _chkEnabled.Checked = _settings.Enabled;
             _rbMask.Checked = _settings.Mode == "Mask";
             _rbInvert.Checked = _settings.Mode == "Invert";
-            int sv = (int)(_settings.Alpha * 100.0 / 255 + 0.5);
+            int sv = _settings.Alpha * 100 / 255;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
             _chkStartup.Checked = _settings.StartWithWindows;
@@ -367,7 +367,7 @@ mask.AlignTo(r);
 
         private void SetAlpha(int value)
         {
-            _settings.Alpha = Math.Max(10, Math.Min(255, value));
+            _settings.Alpha = Math.Max(0, Math.Min(255, value));
             foreach (var e in _entries)
             {
                 e.Mask.Alpha = (byte)_settings.Alpha;
@@ -378,7 +378,7 @@ mask.AlignTo(r);
                 }
             }
             _settings.Save();
-            int sv = (int)(_settings.Alpha * 100.0 / 255 + 0.5);
+            int sv = _settings.Alpha * 100 / 255;
             if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
         }
