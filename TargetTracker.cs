@@ -121,7 +121,8 @@ namespace WindowTinter
         {
             if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
             string kw = titleKeyword.ToLowerInvariant();
-            IntPtr found = IntPtr.Zero;
+            IntPtr exact = IntPtr.Zero, contains = IntPtr.Zero;
+
             Native.EnumWindows((hwnd, _) =>
             {
                 if (!IsAcceptableTarget(hwnd)) return true;
@@ -129,21 +130,25 @@ namespace WindowTinter
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                if (sb.ToString().ToLowerInvariant().Contains(kw)) { found = hwnd; return false; }
+                string title = sb.ToString().ToLowerInvariant();
+
+                if (title == kw) { exact = hwnd; return false; }          // 精确匹配，立即返回
+                if (contains == IntPtr.Zero && title.Contains(kw)) contains = hwnd; // 包含匹配备选
                 return true;
             }, IntPtr.Zero);
-            return found;
+
+            return exact != IntPtr.Zero ? exact : contains;
         }
 
         public static IntPtr FindByTitleAndProcess(string title, string processName)
         {
-            // 双匹配：标题 + 进程名
             if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(processName))
             {
                 string proc = processName.ToLowerInvariant();
                 if (proc.EndsWith(".exe")) proc = proc[..^4];
                 string kw = title.ToLowerInvariant();
-                IntPtr found = IntPtr.Zero;
+                IntPtr exact = IntPtr.Zero, contains = IntPtr.Zero;
+
                 Native.EnumWindows((hwnd, _) =>
                 {
                     if (!IsAcceptableTarget(hwnd)) return true;
@@ -151,17 +156,22 @@ namespace WindowTinter
                     if (len == 0) return true;
                     var sb = new StringBuilder(len + 1);
                     Native.GetWindowText(hwnd, sb, len + 1);
-                    if (!sb.ToString().ToLowerInvariant().Contains(kw)) return true;
+                    string wt = sb.ToString().ToLowerInvariant();
+
                     Native.GetWindowThreadProcessId(hwnd, out uint pid);
                     try
                     {
-                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() == proc)
-                        { found = hwnd; return false; }
+                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() != proc) return true;
                     }
-                    catch { }
+                    catch { return true; }
+
+                    if (wt == kw) { exact = hwnd; return false; }           // 精确 → 立即返回
+                    if (contains == IntPtr.Zero && wt.Contains(kw)) contains = hwnd;
                     return true;
                 }, IntPtr.Zero);
-                if (found != IntPtr.Zero) return found;
+
+                if (exact != IntPtr.Zero) return exact;
+                if (contains != IntPtr.Zero) return contains;
             }
             return !string.IsNullOrWhiteSpace(title) ? FindByWindowTitle(title)
                  : !string.IsNullOrWhiteSpace(processName) ? FindByProcessName(processName)
