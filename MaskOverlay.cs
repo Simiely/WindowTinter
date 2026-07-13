@@ -28,7 +28,7 @@ namespace WindowTinter
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT | Native.WS_EX_TOPMOST;
+                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
                 return cp;
             }
         }
@@ -39,12 +39,12 @@ namespace WindowTinter
             set => _alpha = value;
         }
 
-        public void AlignTo(Native.RECT r)
+        public void AlignTo(Native.RECT r, IntPtr insertAfter)
         {
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
+            Native.SetWindowPos(Handle, insertAfter,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 

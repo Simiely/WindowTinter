@@ -144,7 +144,7 @@ namespace WindowTinter
                 {
                     if (!ShouldShowMask(tracker.TargetHandle)) { mask.Hide(); return; }
                     mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-                    mask.AlignTo(r);
+                    mask.AlignTo(r, MaskInsertAfter(tracker.TargetHandle));
                 }
                 catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
             };
@@ -152,18 +152,17 @@ namespace WindowTinter
             return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
         }
 
-        /// <summary>判断是否应该对指定目标显示蒙版。</summary>
+        /// <summary>前台用 TOPMOST 盖一切，后台插在目标上一层（不影响上层窗口）。</summary>
+        private static IntPtr MaskInsertAfter(IntPtr h) =>
+            Native.GetForegroundWindow() == h ? Native.HWND_TOPMOST : h;
+
+        /// <summary>判断是否应该显示蒙版——不关心前后台，只检查基本条件。</summary>
         private bool ShouldShowMask(IntPtr targetHandle)
         {
             if (!_settings.Enabled) return false;
             if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
             if (_settings.Mode == "Invert") return false;
-
-            // 前台 → 总是显示
-            if (Native.GetForegroundWindow() == targetHandle) return true;
-
-            // 后台 → 仅当不被显著遮挡时才显示
-            return !TargetTracker.IsSignificantlyOccluded(targetHandle, OwnHandles());
+            return true;
         }
 
         /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
@@ -171,7 +170,7 @@ namespace WindowTinter
         {
             if (!TryGetTargetRect(e, out Native.RECT r)) return;
             e.Mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-            e.Mask.AlignTo(r);
+            e.Mask.AlignTo(r, MaskInsertAfter(e.Tracker.TargetHandle));
         }
 
         private static bool TryGetTargetRect(TargetEntry e, out Native.RECT r)
