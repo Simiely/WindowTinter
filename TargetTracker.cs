@@ -6,9 +6,6 @@ using System.Windows.Forms;
 
 namespace WindowTinter
 {
-    /// <summary>
-    /// 描述一个可见窗口。
-    /// </summary>
     internal class WindowInfo
     {
         public IntPtr Handle { get; set; }
@@ -18,184 +15,101 @@ namespace WindowTinter
     }
 
     /// <summary>
-    /// 负责：枚举可见窗口、按进程名查找、跟踪目标窗口的位置/可见性/遮挡状态。
-    ///
-    /// 关键改进：
-    /// 1) 计算目标窗口的「可见区域」HRGN（减去其上方的遮挡窗口），供蒙版做区域裁剪；
-    ///    同时回报 occluded 标志，供反色模式在「被遮挡就整体隐藏」。
-    /// 2) 轮询间隔从 100ms 降为 250ms 仅作兜底；真正的更新由 SetWinEventHook 事件驱动，
-    ///    且只有在几何/遮挡状态真正变化时才向下传递，避免无谓重画（修卡顿）。
+    /// 跟踪目标窗口的位置和可见性，通过 WinEvent + 250ms 兜底轮询驱动。
     /// </summary>
     internal class TargetTracker : IDisposable
     {
         public IntPtr TargetHandle { get; set; } = IntPtr.Zero;
 
-        /// <summary>本工具自身的窗口句柄集合（蒙版/宿主/放大镜），遮挡遍历时跳过，避免误判自遮挡。</summary>
+        /// <summary>本程序自身的窗口句柄（用于 IsSignificantlyOccluded 排除）。</summary>
         public IntPtr[] OwnWindows { get; set; } = Array.Empty<IntPtr>();
 
-        /// <summary>
-        /// 每帧回报：目标矩形（屏幕坐标）、是否可见、可见区域 HRGN（屏幕坐标，调用方负责 DeleteObject）、是否被遮挡。
-        /// </summary>
-        public event Action<Native.RECT, bool, IntPtr, bool> OnUpdate;
+        /// <summary>目标窗口状态变化时触发：RECT（屏幕坐标）、是否可见。</summary>
+        public event Action<Native.RECT, bool> OnUpdate;
 
         private readonly Timer _timer;
-        private readonly Native.EnumWindowsProc _enumCallback;
 
-        // 变更守卫缓存
+        // 变更守卫
         private bool _hasLast;
         private Native.RECT _lastRect;
         private bool _lastVisible;
-        private bool _lastOccluded;
-        private Native.RECT _lastRgnBox;
 
         public TargetTracker()
         {
-            _enumCallback = EnumVisible;
-            _timer = new Timer { Interval = 250 }; // 兜底轮询，仅防漏事件；主更新走 WinEvent
-            _timer.Tick += (s, e) => Refresh();
+            _timer = new Timer { Interval = 250 };
+            _timer.Tick += (_, _) => Refresh();
             _timer.Start();
         }
 
-        /// <summary>供 WinEvent 回调立即触发一次刷新（带变更判断）。</summary>
         public void RefreshNow() => Refresh();
 
         private void Refresh()
         {
             if (TargetHandle == IntPtr.Zero || !Native.IsWindow(TargetHandle))
             {
-                if (_hasLast)
-                {
-                    _hasLast = false;
-                    OnUpdate?.Invoke(new Native.RECT(), false, IntPtr.Zero, false);
-                }
+                if (_hasLast) { _hasLast = false; OnUpdate?.Invoke(default, false); }
                 return;
             }
 
             bool visible = Native.IsWindowVisible(TargetHandle) && !Native.IsIconic(TargetHandle);
-            Native.RECT r;
-            Native.GetWindowRect(TargetHandle, out r);
-
-            bool occluded;
-            IntPtr hrgn = ComputeVisibleRegion(TargetHandle, OwnWindows, out occluded);
-            Native.RECT box;
-            Native.GetRgnBox(hrgn, out box);
+            Native.GetWindowRect(TargetHandle, out Native.RECT r);
 
             bool changed = !_hasLast
                 || r.Left != _lastRect.Left || r.Top != _lastRect.Top
                 || r.Right != _lastRect.Right || r.Bottom != _lastRect.Bottom
-                || visible != _lastVisible
-                || occluded != _lastOccluded
-                || box.Left != _lastRgnBox.Left || box.Top != _lastRgnBox.Top
-                || box.Right != _lastRgnBox.Right || box.Bottom != _lastRgnBox.Bottom;
+                || visible != _lastVisible;
 
             if (changed)
             {
-                _lastRect = r; _lastVisible = visible; _lastOccluded = occluded; _lastRgnBox = box; _hasLast = true;
-                OnUpdate?.Invoke(r, visible, hrgn, occluded);
-            }
-            else
-            {
-                // 无变化：区域不用了，立即释放，避免 GDI 对象泄漏
-                if (hrgn != IntPtr.Zero) Native.DeleteObject(hrgn);
+                (_lastRect, _lastVisible, _hasLast) = (r, visible, true);
+                OnUpdate?.Invoke(r, visible);
             }
         }
 
-        /// <summary>
-        /// 计算目标窗口的可见区域（屏幕坐标 HRGN）：目标矩形减去其上方的、可见且相交的其他窗口矩形。
-        /// 返回 HRGN（调用方负责 DeleteObject）；occluded 指示是否有窗口遮挡了目标。
-        /// </summary>
-        public static IntPtr ComputeVisibleRegion(IntPtr target, IntPtr[] ownWindows, out bool occluded)
+        // ── 静态查找方法 ──────────────────────────────────────────
+
+        public const int MIN_TARGET_SIZE = 100;
+
+        public static bool IsAcceptableTarget(IntPtr hwnd)
         {
-            occluded = false;
-            Native.RECT tr;
-            Native.GetWindowRect(target, out tr);
-            if (tr.Width <= 0 || tr.Height <= 0) { occluded = false; return IntPtr.Zero; }
-
-            IntPtr hrgn = Native.CreateRectRgn(tr.Left, tr.Top, tr.Right, tr.Bottom);
-            if (hrgn == IntPtr.Zero) return IntPtr.Zero;
-
-            var own = new HashSet<IntPtr>(ownWindows ?? Array.Empty<IntPtr>());
-            IntPtr hw = target;
-            // GW_HWNDPREV 沿 Z 序向上（更靠前）遍历，覆盖在目标之上的窗口都在这一链里
-            while ((hw = Native.GetWindow(hw, Native.GW_HWNDPREV)) != IntPtr.Zero)
-            {
-                if (own.Contains(hw)) continue;
-                if (!Native.IsWindowVisible(hw) || Native.IsIconic(hw)) continue;
-
-                Native.RECT or;
-                Native.GetWindowRect(hw, out or);
-                // 是否与目标矩形相交
-                if (or.Left < tr.Right && or.Right > tr.Left && or.Top < tr.Bottom && or.Bottom > tr.Top)
-                {
-                    occluded = true;
-                    IntPtr hr = Native.CreateRectRgn(or.Left, or.Top, or.Right, or.Bottom);
-                    if (hr != IntPtr.Zero)
-                    {
-                        Native.CombineRgn(hrgn, hrgn, hr, Native.RGN_DIFF);
-                        Native.DeleteObject(hr);
-                    }
-                }
-            }
-            return hrgn;
+            if (!Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd)) return false;
+            Native.GetWindowRect(hwnd, out Native.RECT r);
+            return r.Width >= MIN_TARGET_SIZE && r.Height >= MIN_TARGET_SIZE;
         }
 
-        /// <summary>列出所有有标题的可见窗口（用于菜单/列表选择）。</summary>
         public static List<WindowInfo> GetVisibleWindows()
         {
             var list = new List<WindowInfo>();
-            Native.EnumWindows((hwnd, lparam) =>
+            Native.EnumWindows((hwnd, _) =>
             {
-                if (!Native.IsWindowVisible(hwnd)) return true;
+                if (!IsAcceptableTarget(hwnd)) return true;
                 int len = Native.GetWindowTextLength(hwnd);
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                uint pid;
-                Native.GetWindowThreadProcessId(hwnd, out pid);
+                Native.GetWindowThreadProcessId(hwnd, out uint pid);
                 string proc = "";
-                try { proc = Process.GetProcessById((int)pid)?.ProcessName ?? ""; }
-                catch { /* 进程可能已退出 */ }
+                try { proc = Process.GetProcessById((int)pid)?.ProcessName ?? ""; } catch { }
                 list.Add(new WindowInfo { Handle = hwnd, Title = sb.ToString(), ProcessName = proc });
                 return true;
             }, IntPtr.Zero);
             return list;
         }
 
-        /// <summary>
-        /// 是否为「可作为蒙版目标」的窗口：可见、未最小化、且尺寸不小于阈值
-        /// （排除百度网盘那种 10x10 占位窗体等无意义的极小窗口）。
-        /// </summary>
-        public const int MIN_TARGET_SIZE = 100; // 单边小于此像素数视为「占位小窗」，跳过
-
-        public static bool IsAcceptableTarget(IntPtr hwnd)
-        {
-            if (!Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd)) return false;
-            Native.RECT r;
-            if (!Native.GetWindowRect(hwnd, out r)) return false;
-            return r.Width >= MIN_TARGET_SIZE && r.Height >= MIN_TARGET_SIZE;
-        }
-
-        /// <summary>按进程名（忽略大小写）查找第一个可见窗口。传入 "foo" 或 "foo.exe" 均可。会跳过极小占位窗口。</summary>
         public static IntPtr FindByProcessName(string processName)
         {
             if (string.IsNullOrWhiteSpace(processName)) return IntPtr.Zero;
-            // Process.ProcessName 不含 .exe 后缀，这里统一去掉以便比较
             string target = processName.ToLowerInvariant();
-            if (target.EndsWith(".exe")) target = target.Substring(0, target.Length - 4);
+            if (target.EndsWith(".exe")) target = target[..^4];
             IntPtr found = IntPtr.Zero;
-            Native.EnumWindows((hwnd, lparam) =>
+            Native.EnumWindows((hwnd, _) =>
             {
-                if (!IsAcceptableTarget(hwnd)) return true; // 跳过极小/不可见窗口，继续枚举
-                uint pid;
-                Native.GetWindowThreadProcessId(hwnd, out pid);
+                if (!IsAcceptableTarget(hwnd)) return true;
+                Native.GetWindowThreadProcessId(hwnd, out uint pid);
                 try
                 {
                     var p = Process.GetProcessById((int)pid);
-                    if (p.ProcessName != null && p.ProcessName.ToLowerInvariant() == target)
-                    {
-                        found = hwnd;
-                        return false; // 命中，停止枚举
-                    }
+                    if (p.ProcessName?.ToLowerInvariant() == target) { found = hwnd; return false; }
                 }
                 catch { }
                 return true;
@@ -203,43 +117,34 @@ namespace WindowTinter
             return found;
         }
 
-        /// <summary>按窗口标题（忽略大小写、包含匹配）查找第一个可作为目标的窗口。会跳过极小占位窗口。</summary>
         public static IntPtr FindByWindowTitle(string titleKeyword)
         {
             if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
             string kw = titleKeyword.ToLowerInvariant();
             IntPtr found = IntPtr.Zero;
-            Native.EnumWindows((hwnd, lparam) =>
+            Native.EnumWindows((hwnd, _) =>
             {
-                if (!IsAcceptableTarget(hwnd)) return true; // 跳过极小/不可见窗口，继续枚举
+                if (!IsAcceptableTarget(hwnd)) return true;
                 int len = Native.GetWindowTextLength(hwnd);
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                if (sb.ToString().ToLowerInvariant().Contains(kw))
-                {
-                    found = hwnd;
-                    return false;
-                }
+                if (sb.ToString().ToLowerInvariant().Contains(kw)) { found = hwnd; return false; }
                 return true;
             }, IntPtr.Zero);
             return found;
         }
 
-        /// <summary>
-        /// 按标题+进程名双匹配查找窗口。优先精确匹配，标题匹配失败再退到仅进程名。
-        /// 传入空字符串表示该字段不参与匹配。
-        /// </summary>
         public static IntPtr FindByTitleAndProcess(string title, string processName)
         {
-            // 先尝试标题+进程名同时匹配
+            // 双匹配：标题 + 进程名
             if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(processName))
             {
                 string proc = processName.ToLowerInvariant();
-                if (proc.EndsWith(".exe")) proc = proc.Substring(0, proc.Length - 4);
+                if (proc.EndsWith(".exe")) proc = proc[..^4];
                 string kw = title.ToLowerInvariant();
                 IntPtr found = IntPtr.Zero;
-                Native.EnumWindows((hwnd, lparam) =>
+                Native.EnumWindows((hwnd, _) =>
                 {
                     if (!IsAcceptableTarget(hwnd)) return true;
                     int len = Native.GetWindowTextLength(hwnd);
@@ -247,48 +152,30 @@ namespace WindowTinter
                     var sb = new StringBuilder(len + 1);
                     Native.GetWindowText(hwnd, sb, len + 1);
                     if (!sb.ToString().ToLowerInvariant().Contains(kw)) return true;
-                    uint pid;
-                    Native.GetWindowThreadProcessId(hwnd, out pid);
+                    Native.GetWindowThreadProcessId(hwnd, out uint pid);
                     try
                     {
-                        var p = Process.GetProcessById((int)pid);
-                        if (p.ProcessName != null && p.ProcessName.ToLowerInvariant() == proc)
-                        {
-                            found = hwnd;
-                            return false;
-                        }
+                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() == proc)
+                        { found = hwnd; return false; }
                     }
                     catch { }
                     return true;
                 }, IntPtr.Zero);
                 if (found != IntPtr.Zero) return found;
             }
-
-            // 退到仅标题
-            if (!string.IsNullOrWhiteSpace(title))
-            {
-                var h = FindByWindowTitle(title);
-                if (h != IntPtr.Zero) return h;
-            }
-
-            // 退到仅进程名
-            if (!string.IsNullOrWhiteSpace(processName))
-                return FindByProcessName(processName);
-
-            return IntPtr.Zero;
+            return !string.IsNullOrWhiteSpace(title) ? FindByWindowTitle(title)
+                 : !string.IsNullOrWhiteSpace(processName) ? FindByProcessName(processName)
+                 : IntPtr.Zero;
         }
 
         /// <summary>
-        /// 检查目标窗口是否被其他可见用户窗口显著遮挡（>25% 面积重叠）。
-        /// 排除 OwnWindows（本程序自身的蒙版）和系统级窗口（无标题、不可见、最小化）。
-        /// 仅用于后台目标：前台目标总是显示蒙版，不做此检查。
+        /// 沿 Z 序向上遍历，检查是否有可见用户窗口遮挡目标超过 25% 面积。
+        /// 跳过 OwnWindows（本程序自身窗口）和无标题系统窗口。
         /// </summary>
         public static bool IsSignificantlyOccluded(IntPtr target, IntPtr[] ownWindows)
         {
             if (target == IntPtr.Zero || !Native.IsWindow(target)) return false;
-
-            Native.RECT tr;
-            Native.GetWindowRect(target, out tr);
+            Native.GetWindowRect(target, out Native.RECT tr);
             int targetArea = tr.Width * tr.Height;
             if (targetArea <= 0) return false;
 
@@ -300,23 +187,16 @@ namespace WindowTinter
             {
                 if (own.Contains(hw)) continue;
                 if (!Native.IsWindowVisible(hw) || Native.IsIconic(hw)) continue;
+                if (Native.GetWindowTextLength(hw) == 0) continue; // 跳过系统窗口
 
-                // 跳过无标题的系统窗口（Shell、托盘等）
-                int titleLen = Native.GetWindowTextLength(hw);
-                if (titleLen == 0) continue;
-
-                Native.RECT or;
-                Native.GetWindowRect(hw, out or);
+                Native.GetWindowRect(hw, out Native.RECT or);
                 int overlapW = Math.Min(tr.Right, or.Right) - Math.Max(tr.Left, or.Left);
                 int overlapH = Math.Min(tr.Bottom, or.Bottom) - Math.Max(tr.Top, or.Top);
                 if (overlapW > 0 && overlapH > 0)
                     totalOverlap += (long)overlapW * overlapH;
             }
-
             return totalOverlap > targetArea * 0.25;
         }
-
-        private static bool EnumVisible(IntPtr hwnd, IntPtr lparam) => true;
 
         public void Dispose() => _timer.Dispose();
     }
