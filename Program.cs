@@ -8,6 +8,27 @@ using System.Windows.Forms;
 
 namespace WindowTinter
 {
+    /// <summary>点击滑轨直接跳到鼠标位置的自定义 TrackBar。</summary>
+    internal class JumpTrackBar : TrackBar
+    {
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_LBUTTONDOWN = 0x0201;
+            if (m.Msg == WM_LBUTTONDOWN)
+            {
+                int x = unchecked((short)((int)m.LParam & 0xFFFF));
+                int channelW = Width - 24;
+                if (channelW > 0)
+                {
+                    int newVal = (x - 12) * (Maximum - Minimum) / channelW + Minimum;
+                    newVal = Math.Clamp(newVal, Minimum, Maximum);
+                    Value = newVal; // 先跳到鼠标位置，再让默认 WndProc 处理拖拽
+                }
+            }
+            base.WndProc(ref m);
+        }
+    }
+
     internal class MainForm : Form
     {
         // ── 核心状态 ──────────────────────────────────────────────
@@ -242,7 +263,7 @@ namespace WindowTinter
 
             AddGroup("透明度", pad, ref y, 65, GW, gb =>
             {
-                _tbAlpha = new TrackBar
+                _tbAlpha = new JumpTrackBar
                 {
                     Location = new Point(pad, 18), Size = new Size(350, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
