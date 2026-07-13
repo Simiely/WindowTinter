@@ -287,14 +287,15 @@ namespace WindowTinter
             // 系统选项
             int rowY = y + 2;
             _chkStartup = AddCheck(this, "开机自启", pad + 4, rowY, FontStyle.Regular, _settings.StartWithWindows,
-                () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); });
+                () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); });
             _chkMinimizeTray = AddCheck(this, "关闭窗口时最小化到托盘（不勾选则直接退出）", pad + 4, rowY + 24, FontStyle.Regular,
-                _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); });
+                _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; });
             rowY += 54;
 
             AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
             AddButton(this, "📋 查看日志", 134, rowY, 100, OpenLog);
             AddButton(this, "ℹ 关于", 240, rowY, 70, ShowAbout);
+            AddButton(this, "💾 保存配置", 316, rowY, 110, SaveSettings);
 
             // 恢复已有条目
             for (int i = 0; i < _entries.Count; i++)
@@ -458,7 +459,6 @@ namespace WindowTinter
                 foreach (var e in _entries) e.Mask.Hide();
                 _invert.Hide();
             }
-            _settings.Save();
             UpdateUI();
         }
 
@@ -467,7 +467,6 @@ namespace WindowTinter
             _settings.Mode = mode;
             if (mode == "Invert") _invert.Start();
             else _invert.Hide();
-            _settings.Save();
             UpdateUI();
         }
 
@@ -506,7 +505,6 @@ namespace WindowTinter
             }
 
             _settings.Targets.Add(info);
-            _settings.Save();
             DebugLog.Info($"添加窗口: {info}");
 
             if (_settings.Enabled) TryBindTarget(info);
@@ -578,6 +576,12 @@ namespace WindowTinter
                 try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshNow(); })); }
                 catch { /* 窗口可能正在关闭 */ }
             }
+        }
+
+        private void SaveSettings()
+        {
+            _settings.Save();
+            DebugLog.Info("配置已手动保存");
         }
 
         private void Quit()
