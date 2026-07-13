@@ -52,10 +52,10 @@ namespace WindowTinter
             }
             else
             {
-                // 先脱离 TOPMOST 段（如果之前是隐藏/TOPMOST），再插入目标正上方
+                // 先脱离 TOPMOST 段（带位置和显示），再插入目标正上方
                 Native.SetWindowPos(Handle, Native.HWND_NOTOPMOST,
-                    0, 0, 0, 0,
-                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+                    r.Left, r.Top, w, h,
+                    Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
                 Native.SetWindowPos(Handle, insertAfter,
                     r.Left, r.Top, w, h,
                     Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
