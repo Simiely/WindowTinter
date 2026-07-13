@@ -43,9 +43,23 @@ namespace WindowTinter
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            Native.SetWindowPos(Handle, insertAfter,
-                r.Left, r.Top, w, h,
-                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            // 动态切换 Z 序段：HWND_TOPMOST 进入顶层，否则先降到普通段再插目标上方
+            if (insertAfter == Native.HWND_TOPMOST)
+            {
+                Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
+                    r.Left, r.Top, w, h,
+                    Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            }
+            else
+            {
+                // 先脱离 TOPMOST 段（如果之前是隐藏/TOPMOST），再插入目标正上方
+                Native.SetWindowPos(Handle, Native.HWND_NOTOPMOST,
+                    0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+                Native.SetWindowPos(Handle, insertAfter,
+                    r.Left, r.Top, w, h,
+                    Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            }
 
             RenderLayered(r.Left, r.Top, w, h);
         }
