@@ -85,9 +85,22 @@ namespace WindowTinter
             _autoBindTimer.Tick += (_, _) =>
             {
                 if (!_settings.Enabled) return;
+
+                // 清理窗口已销毁的条目
+                for (int i = _entries.Count - 1; i >= 0; i--)
+                {
+                    var e = _entries[i];
+                    if (!Native.IsWindow(e.Tracker.TargetHandle) && e.Tracker.TargetHandle != IntPtr.Zero)
+                    {
+                        e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose();
+                        _entries.RemoveAt(i);
+                        if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
+                        DebugLog.Info($"自动清理已关闭窗口: {e.Info}");
+                    }
+                }
+
                 foreach (var t in _settings.Targets)
                 {
-                    // 已绑定就跳过
                     if (_entries.Any(e => e.Info == t)) continue;
                     DebugLog.Info($"自动查找: {t}");
                     TryBindTarget(t);
@@ -188,8 +201,22 @@ namespace WindowTinter
         private void TryBindTarget(TargetInfo info)
         {
             var h = TargetTracker.FindByTitleAndProcess(info.WindowTitle, info.ProcessName);
-            if (h == IntPtr.Zero || _entries.Any(e => e.Tracker.TargetHandle == h)) return;
+            if (h == IntPtr.Zero) return;
 
+            // 已绑定到同一个 handle → 跳过
+            if (_entries.Any(e => e.Tracker.TargetHandle == h)) return;
+
+            // 有该目标的旧条目（窗口关闭后 reopen）→ 更新 handle 复用
+            var stale = _entries.FirstOrDefault(e => e.Info == info && !Native.IsWindow(e.Tracker.TargetHandle));
+            if (stale != null)
+            {
+                stale.Tracker.TargetHandle = h;
+                stale.Tracker.RefreshNow();
+                DebugLog.Info($"重新绑定窗口: {info}");
+                return;
+            }
+
+            // 新绑定
             var entry = CreateEntry(info);
             entry.Tracker.TargetHandle = h;
             entry.Tracker.RefreshNow();
