@@ -37,14 +37,14 @@ namespace WindowTinter
             set => _alpha = value;
         }
 
-        /// <summary>把蒙版覆盖到目标矩形（屏幕坐标）。</summary>
-        public void AlignTo(Native.RECT r)
+        /// <summary>把蒙版覆盖到目标窗口正上方（插入 targetHandle 之后，而非 TOPMOST）。</summary>
+        public void AlignTo(Native.RECT r, IntPtr targetHandle)
         {
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            // 先定位并显示窗口，再 UpdateLayeredWindow 渲染内容
-            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
+            // 插入到目标窗口正上方：目标之上的其他窗口不受影响
+            Native.SetWindowPos(Handle, targetHandle,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 

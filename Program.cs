@@ -39,7 +39,7 @@ namespace WindowTinter
             _invert = new InvertLens();
 
             Text = "WindowTinter";
-            ClientSize = new Size(470, 560);
+            ClientSize = new Size(470, 520);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -90,7 +90,7 @@ namespace WindowTinter
                     if (_settings.Mode == "Invert") return;
 
                     mask.Alpha = (byte)_settings.Alpha;
-                    mask.AlignTo(r);
+mask.AlignTo(r, tracker.TargetHandle);
                 }
                 catch (Exception ex) { DebugLog.Error("TargetUpdate 异常", ex); }
             };
@@ -211,24 +211,14 @@ namespace WindowTinter
             y += 56;
 
             // ── 透明度 ──
-            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(434, 105) };
-            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(340, 40), Minimum = 10, Maximum = 255, Value = _settings.Alpha, TickFrequency = 25, SmallChange = 10, LargeChange = 50 };
-            _tbAlpha.ValueChanged += (s, ev) => SetAlpha(_tbAlpha.Value);
+            var gbAlpha = new GroupBox { Text = "透明度", Location = new Point(pad, y), Size = new Size(434, 65) };
+            _tbAlpha = new TrackBar { Location = new Point(pad, 18), Size = new Size(350, 40), Minimum = 0, Maximum = 19, Value = (_settings.Alpha - 10) / 10, TickFrequency = 1, SmallChange = 1, LargeChange = 3 };
+            _tbAlpha.ValueChanged += (s, ev) => SetAlpha(10 + _tbAlpha.Value * 10);
             gbAlpha.Controls.Add(_tbAlpha);
-            _lblAlpha = new Label { Location = new Point(358, 24), AutoSize = false, Width = 60, TextAlign = ContentAlignment.MiddleRight };
+            _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true, TextAlign = ContentAlignment.MiddleRight };
             gbAlpha.Controls.Add(_lblAlpha);
-
-            var presetLabels = new[] { "轻 (50)", "中 (100)", "重 (150)", "极暗 (200)" };
-            var presetValues = new[] { 50, 100, 150, 200 };
-            for (int i = 0; i < 4; i++)
-            {
-                var btn = new Button { Text = presetLabels[i], Size = new Size(95, 24), Location = new Point(pad + i * 101, 60), FlatStyle = FlatStyle.Flat };
-                int v = presetValues[i];
-                btn.Click += (s, ev) => SetAlpha(v);
-                gbAlpha.Controls.Add(btn);
-            }
             Controls.Add(gbAlpha);
-            y += 111;
+            y += 71;
 
             // ── 系统 ──
             var rowY = y + 2;
@@ -298,8 +288,9 @@ namespace WindowTinter
             _chkEnabled.Checked = _settings.Enabled;
             _rbMask.Checked = _settings.Mode == "Mask";
             _rbInvert.Checked = _settings.Mode == "Invert";
-            if (_tbAlpha.Value != _settings.Alpha) _tbAlpha.Value = _settings.Alpha;
-            _lblAlpha.Text = $"{_settings.Alpha}/255";
+            int sv = (_settings.Alpha - 10) / 10;
+            if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
+            _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
             _chkStartup.Checked = _settings.StartWithWindows;
             RefreshTrayMenu();
         }
@@ -344,7 +335,7 @@ namespace WindowTinter
                     {
                         Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
                         e.Mask.Alpha = (byte)_settings.Alpha;
-                        e.Mask.AlignTo(r);
+                        e.Mask.AlignTo(r, e.Tracker.TargetHandle);
                     }
                 }
             }
@@ -373,12 +364,13 @@ namespace WindowTinter
                 if (e.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(e.Tracker.TargetHandle))
                 {
                     Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
-                    e.Mask.AlignTo(r);
+                    e.Mask.AlignTo(r, e.Tracker.TargetHandle);
                 }
             }
             _settings.Save();
-            if (_tbAlpha.Value != _settings.Alpha) _tbAlpha.Value = _settings.Alpha;
-            _lblAlpha.Text = $"{_settings.Alpha}/255";
+            int sv = (_settings.Alpha - 10) / 10;
+            if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
+            _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
         }
 
         private void PickWindow()
