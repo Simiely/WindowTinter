@@ -286,6 +286,7 @@ namespace WindowTinter
         {
             _entries.Remove(entry);
             _pnlTargets.Controls.Remove(pnl);
+            SetTargetAlpha(entry.Tracker.TargetHandle, 255);
             entry.Tracker.Dispose();
             entry.Mask.Dispose();
             _settings.Targets.Remove(entry.Info);
@@ -517,7 +518,7 @@ namespace WindowTinter
             }
             else
             {
-                foreach (var e in _entries) e.Mask.Hide();
+                foreach (var e in _entries) { e.Mask.Hide(); SetTargetAlpha(e.Tracker.TargetHandle, 255); }
             }
             UpdateUI();
         }
