@@ -85,7 +85,14 @@ namespace WindowTinter
             {
                 if (!_settings.Enabled) return;
                 foreach (var t in _settings.Targets)
+                {
+                    // 已绑定就跳过，避免每次 EnumWindows 扫描全量窗口
+                    if (_entries.Any(e =>
+                        string.Equals(e.Info.ProcessName, t.ProcessName, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(e.Info.WindowTitle, t.WindowTitle, StringComparison.OrdinalIgnoreCase)))
+                        continue;
                     TryBindTarget(t);
+                }
             };
             autoBindTimer.Start();
 
