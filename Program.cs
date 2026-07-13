@@ -42,6 +42,7 @@ namespace WindowTinter
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
         private bool _reallyQuit;
+        private Timer _autoBindTimer;
 
         // ── UI 控件 ────────────────────────────────────────────────
 
@@ -80,21 +81,19 @@ namespace WindowTinter
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
-            var autoBindTimer = new Timer { Interval = 3000 };
-            autoBindTimer.Tick += (_, _) =>
+            _autoBindTimer = new Timer { Interval = 3000 };
+            _autoBindTimer.Tick += (_, _) =>
             {
                 if (!_settings.Enabled) return;
                 foreach (var t in _settings.Targets)
                 {
-                    // 已绑定就跳过，避免每次 EnumWindows 扫描全量窗口
-                    if (_entries.Any(e =>
-                        string.Equals(e.Info.ProcessName, t.ProcessName, StringComparison.OrdinalIgnoreCase) &&
-                        string.Equals(e.Info.WindowTitle, t.WindowTitle, StringComparison.OrdinalIgnoreCase)))
-                        continue;
+                    // 已绑定就跳过
+                    if (_entries.Any(e => e.Info == t)) continue;
+                    DebugLog.Info($"自动查找: {t}");
                     TryBindTarget(t);
                 }
             };
-            autoBindTimer.Start();
+            _autoBindTimer.Start();
 
             if (_settings.Enabled)
                 foreach (var t in _settings.Targets)
