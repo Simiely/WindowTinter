@@ -32,6 +32,7 @@ namespace WindowTinter
         private Label _lblAlpha;
         private CheckBox _chkStartup;
         private CheckBox _chkMinimizeTray;
+        private CheckBox _chkAlwaysDim;
         private bool _reallyQuit;
 
         public MainForm()
@@ -40,7 +41,7 @@ namespace WindowTinter
             _invert = new InvertLens();
 
             Text = "WindowTinter";
-            ClientSize = new Size(470, 520);
+            ClientSize = new Size(470, 540);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -90,8 +91,8 @@ namespace WindowTinter
                     if (!_settings.Enabled || !visible) { mask.Hide(); return; }
                     if (_settings.Mode == "Invert") return;
 
-                    // 目标不是前台窗口时隐藏蒙版，避免遮挡上层窗口
-                    if (Native.GetForegroundWindow() != tracker.TargetHandle) { mask.Hide(); return; }
+                    // AlwaysDim 关闭时：目标不在前台则隐藏蒙版，避免遮挡上层窗口
+                    if (!_settings.AlwaysDim && Native.GetForegroundWindow() != tracker.TargetHandle) { mask.Hide(); return; }
 
                     mask.Alpha = (byte)_settings.Alpha;
 mask.AlignTo(r);
@@ -233,7 +234,11 @@ mask.AlignTo(r);
             _chkMinimizeTray = new CheckBox { Text = "关闭窗口时最小化到托盘（不勾选则直接退出）", Location = new Point(pad + 4, rowY + 24), AutoSize = true, Checked = _settings.MinimizeToTray };
             _chkMinimizeTray.CheckedChanged += (s1, ev) => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); };
             Controls.Add(_chkMinimizeTray);
-            rowY += 54;
+
+            _chkAlwaysDim = new CheckBox { Text = "后台仍遮挡（目标不在前台时也加蒙版）", Location = new Point(pad + 4, rowY + 48), AutoSize = true, Checked = _settings.AlwaysDim };
+            _chkAlwaysDim.CheckedChanged += (s1, ev) => { _settings.AlwaysDim = _chkAlwaysDim.Checked; _settings.Save(); };
+            Controls.Add(_chkAlwaysDim);
+            rowY += 78;
 
             Controls.Add(MakeButton("📂 配置文件夹", pad, rowY, 120, OpenConfigFolder));
             Controls.Add(MakeButton("📋 查看日志", 134, rowY, 100, OpenLog));
@@ -298,6 +303,7 @@ mask.AlignTo(r);
             _lblAlpha.Text = $"Lv.{_tbAlpha.Value} ({_settings.Alpha}/255)";
             _chkStartup.Checked = _settings.StartWithWindows;
             _chkMinimizeTray.Checked = _settings.MinimizeToTray;
+            _chkAlwaysDim.Checked = _settings.AlwaysDim;
             RefreshTrayMenu();
         }
 
