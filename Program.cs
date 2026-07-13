@@ -71,6 +71,7 @@ namespace WindowTinter
             Shown += OnShown;
             Activated += OnActivated;
             FormClosing += OnFormClosing;
+            FormClosed += (_, _) => Quit();
         }
 
         private void OnLoad(object sender, EventArgs e)
@@ -666,7 +667,6 @@ namespace WindowTinter
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
             foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Dispose(); e.Tracker.Dispose(); }
-            Application.Exit();
         }
 
         // ════════════════════════════════════════════════════════════
