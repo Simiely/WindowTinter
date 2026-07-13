@@ -95,14 +95,13 @@ namespace WindowTinter
                         e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose();
                         _entries.RemoveAt(i);
                         if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
-                        DebugLog.Info($"自动清理已关闭窗口: {e.Info}");
                     }
                 }
 
+                // 查找未绑定目标
                 foreach (var t in _settings.Targets)
                 {
                     if (_entries.Any(e => e.Info == t)) continue;
-                    DebugLog.Info($"自动查找: {t}");
                     TryBindTarget(t);
                 }
             };
