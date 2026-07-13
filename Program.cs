@@ -145,9 +145,24 @@ namespace WindowTinter
             {
                 try
                 {
-                    if (!ShouldShowMask(tracker.TargetHandle)) { mask.Hide(); return; }
-                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-                    mask.AlignTo(r);
+                    bool fg = Native.GetForegroundWindow() == tracker.TargetHandle;
+                    if (!_settings.Enabled || !visible)
+                    {
+                        mask.Hide();
+                        SetTargetAlpha(tracker.TargetHandle, 255);
+                        return;
+                    }
+                    if (fg)
+                    {
+                        SetTargetAlpha(tracker.TargetHandle, 255);
+                        mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
+                        mask.AlignTo(r);
+                    }
+                    else
+                    {
+                        mask.Hide();
+                        SetTargetAlpha(tracker.TargetHandle, (byte)((100 - _settings.Alpha) * 255 / 100));
+                    }
                 }
                 catch (Exception ex) { DebugLog.Error("OnUpdate 异常", ex); }
             };
@@ -155,12 +170,30 @@ namespace WindowTinter
             return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
         }
 
-        /// <summary>判断是否应该对指定目标显示蒙版。</summary>
-        private bool ShouldShowMask(IntPtr targetHandle)
+        private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
         {
-            if (!_settings.Enabled) return false;
-            if (targetHandle == IntPtr.Zero || !Native.IsWindowVisible(targetHandle) || Native.IsIconic(targetHandle)) return false;
-            return Native.GetForegroundWindow() == targetHandle;
+            if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
+            try
+            {
+                if (alpha >= 255)
+                {
+                    // 恢复不透明
+                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                    if ((ex & Native.WS_EX_LAYERED) != 0)
+                    {
+                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
+                    }
+                }
+                else
+                {
+                    int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
+                    if ((ex & Native.WS_EX_LAYERED) == 0)
+                        Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex | Native.WS_EX_LAYERED);
+                    Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                }
+            }
+            catch { }
         }
 
         /// <summary>立即将蒙版应用到目标的当前矩形。用于启停/透明度变更等主动触发。</summary>
@@ -262,7 +295,7 @@ namespace WindowTinter
 
         private void UnbindAll()
         {
-            foreach (var e in _entries) { e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose(); }
+            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose(); }
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pnlTargets.Controls.Add(_btnRefind);
@@ -613,7 +646,7 @@ namespace WindowTinter
             _reallyQuit = true;
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
-            foreach (var e in _entries) { e.Mask.Dispose(); e.Tracker.Dispose(); }
+            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Dispose(); e.Tracker.Dispose(); }
             Application.Exit();
         }
 
