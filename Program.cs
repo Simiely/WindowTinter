@@ -114,9 +114,13 @@ namespace WindowTinter
             UpdateUI();
         }
 
-        private void OnShown(object sender, EventArgs e)
+        private void OnShown(object _, EventArgs __)
         {
-            foreach (var e2 in _entries) e2.Tracker.RefreshNow();
+            foreach (var e in _entries) e.Tracker.RefreshNow();
+            BeginInvoke(new Action(() =>
+            {
+                foreach (var e in _entries) ApplyMaskNow(e);
+            }));
         }
 
         // ════════════════════════════════════════════════════════════
