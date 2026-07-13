@@ -26,7 +26,7 @@ namespace WindowTinter
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT;
+                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT | Native.WS_EX_TOPMOST;
                 return cp;
             }
         }
@@ -37,16 +37,12 @@ namespace WindowTinter
             set => _alpha = value;
         }
 
-        public void AlignTo(Native.RECT r, IntPtr targetHandle)
+        public void AlignTo(Native.RECT r)
         {
             int w = r.Width, h = r.Height;
             if (w <= 0 || h <= 0) { Hide(); return; }
 
-            // 动态 Z 序：目标为 TOPMOST 时蒙版也 TOPMOST，否则插入目标正上方
-            bool targetIsTopmost = (Native.GetWindowLong(targetHandle, Native.GWL_EXSTYLE) & Native.WS_EX_TOPMOST) != 0;
-            IntPtr insertAfter = targetIsTopmost ? Native.HWND_TOPMOST : targetHandle;
-
-            Native.SetWindowPos(Handle, insertAfter,
+            Native.SetWindowPos(Handle, Native.HWND_TOPMOST,
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 

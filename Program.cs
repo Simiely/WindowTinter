@@ -91,7 +91,7 @@ namespace WindowTinter
                     if (_settings.Mode == "Invert") return;
 
                     mask.Alpha = (byte)_settings.Alpha;
-mask.AlignTo(r, tracker.TargetHandle);
+mask.AlignTo(r);
                 }
                 catch (Exception ex) { DebugLog.Error("TargetUpdate 异常", ex); }
             };
@@ -338,7 +338,7 @@ mask.AlignTo(r, tracker.TargetHandle);
                     {
                         Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
                         e.Mask.Alpha = (byte)_settings.Alpha;
-                        e.Mask.AlignTo(r, e.Tracker.TargetHandle);
+                        e.Mask.AlignTo(r);
                     }
                 }
             }
@@ -367,7 +367,7 @@ mask.AlignTo(r, tracker.TargetHandle);
                 if (e.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(e.Tracker.TargetHandle))
                 {
                     Native.GetWindowRect(e.Tracker.TargetHandle, out Native.RECT r);
-                    e.Mask.AlignTo(r, e.Tracker.TargetHandle);
+                    e.Mask.AlignTo(r);
                 }
             }
             _settings.Save();
