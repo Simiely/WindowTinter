@@ -481,7 +481,8 @@ namespace WindowTinter
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
                 _tbAlpha.MouseDown += (_, _) => _previewMask = true;
-                MouseUp += (_, _) => ClearPreview(); // 任意位置松手都清除预览
+                _tbAlpha.MouseUp += (_, _) => ClearPreview();
+                MouseUp += (_, _) => ClearPreview(); // 兜底：滑块外释放
                 gb.Controls.Add(_tbAlpha);
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
