@@ -34,6 +34,7 @@ namespace WindowTinter
             BringToFront();
             Activate();
             Cursor.Current = Cursors.Cross;
+            DebugLog.Info($"Picker Shown: Bounds={Bounds}, Opacity={Opacity}, Handle=0x{Handle:X}");
         }
 
         private IntPtr GetWindowAtCursor()
@@ -64,6 +65,7 @@ namespace WindowTinter
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
+            DebugLog.Info($"Picker OnMouseClick: Button={e.Button}, Location={e.Location}");
             if (e.Button == MouseButtons.Right)
             {
                 CancelPicker();
@@ -85,6 +87,7 @@ namespace WindowTinter
         // ProcessCmdKey 在 ProcessDialogKey 之前——后者吞掉 Esc 等导航键
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            DebugLog.Info($"Picker ProcessCmdKey: keyData={keyData}");
             if (keyData == Keys.Escape)
             {
                 CancelPicker();

@@ -548,6 +548,7 @@ namespace WindowTinter
             bool wasVisible = Visible; if (wasVisible) Hide();
             using var picker = new WindowPickerForm();
             var result = picker.ShowDialog();
+            DebugLog.Info($"Picker result={result}, handle=0x{picker.SelectedHandle:X}");
             if (wasVisible) { Show(); BringToFront(); Activate(); }
 
             if (result != DialogResult.OK || picker.SelectedHandle == IntPtr.Zero) return;
