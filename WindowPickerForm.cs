@@ -40,16 +40,14 @@ namespace WindowTinter
         private IntPtr GetWindowAtCursor()
         {
             Point pt = Control.MousePosition;
-            Enabled = false;
+            Native.ShowWindow(Handle, Native.SW_HIDE);
             IntPtr h = Native.WindowFromPoint(pt);
-            Enabled = true;
+            Native.ShowWindow(Handle, Native.SW_SHOWNOACTIVATE);
 
             if (h != IntPtr.Zero && h != Handle)
                 h = Native.GetAncestor(h, Native.GA_ROOT);
 
-            IntPtr result = (h != IntPtr.Zero && h != Handle) ? h : IntPtr.Zero;
-            DebugLog.Info($"Picker GetWindowAtCursor: pt={pt}, raw=0x{h:X}, ancestor=0x{(h != IntPtr.Zero ? h : IntPtr.Zero):X}, result=0x{result:X}");
-            return result;
+            return (h != IntPtr.Zero && h != Handle) ? h : IntPtr.Zero;
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
