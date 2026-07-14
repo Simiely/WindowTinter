@@ -35,7 +35,7 @@ namespace WindowTinter
             BringToFront();
             Activate();
             Cursor.Current = Cursors.Cross;
-            ShowHint();
+            BeginInvoke(new Action(ShowHint));
         }
 
         private void ShowHint()
@@ -53,6 +53,7 @@ namespace WindowTinter
                 BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Opacity = 0.88,
+                Owner = this,           // 绑定到拾取窗，确保模态对话框链中能正常接收输入
             };
             var lbl = new Label
             {
