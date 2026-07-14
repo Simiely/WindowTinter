@@ -76,6 +76,9 @@ namespace WindowTinter
 
         private void OnLoad(object sender, EventArgs e)
         {
+            // 启动时清除上次强制退出可能残留的透明效果
+            RestoreAllTargets();
+
             BuildTray();
             BuildUI();
             InstallWinEventHook();
@@ -138,6 +141,17 @@ namespace WindowTinter
                 try { foreach (var e in _entries) e.Tracker.RefreshForeground(); }
                 finally { _inActivated = false; }
             }));
+        }
+
+        /// <summary>启动时遍历所有已配置目标，恢复透明度——处理上次强制杀进程残留。</summary>
+        private void RestoreAllTargets()
+        {
+            foreach (var t in _settings.Targets)
+            {
+                var h = TargetTracker.FindByTitleAndProcess(t.WindowTitle, t.ProcessName);
+                if (h != IntPtr.Zero)
+                    SetTargetAlpha(h, 255);
+            }
         }
 
         // ════════════════════════════════════════════════════════════
