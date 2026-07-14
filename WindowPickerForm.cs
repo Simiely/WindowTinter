@@ -50,8 +50,9 @@ namespace WindowTinter
                 Location = new Point(
                     (Screen.PrimaryScreen.Bounds.Width - 340) / 2,
                     60),
-                BackColor = Color.FromArgb(220, 20, 20, 20),
+                BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.FromArgb(224, 224, 224),
+                Opacity = 0.88,
             };
             var lbl = new Label
             {
