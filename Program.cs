@@ -70,7 +70,7 @@ namespace WindowTinter
             var iconPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "app.ico");
             _appIcon = new Icon(iconPath);
             Icon = _appIcon;
-            ClientSize = new Size(470, 534);
+            ClientSize = new Size(470, 613);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -446,11 +446,11 @@ namespace WindowTinter
             AddGroup("状态", pad, ref y, 50, GW, gb =>
                 _lblStatus = AddLabel(gb, pad, 20, FontStyle.Bold, 10f));
 
-            AddGroup("目标窗口", pad, ref y, 160, GW, gb =>
+            AddGroup("目标窗口", pad, ref y, 260, GW, gb =>
             {
                 _pnlTargets = new FlowLayoutPanel
                 {
-                    Location = new Point(pad, 18), Size = new Size(416, 110),
+                    Location = new Point(pad, 18), Size = new Size(416, 210),
                     AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false,
                     BackColor = Color.FromArgb(32, 32, 32), ForeColor = Color.White
                 };
@@ -465,32 +465,32 @@ namespace WindowTinter
             _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
             y += 28;
 
-            AddGroup("透明度", pad, ref y, 120, GW, gb =>
+            AddGroup("透明度", pad, ref y, 110, GW, gb =>
             {
-                gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 28), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 18), AutoSize = true });
                 _tbAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 26), Size = new Size(280, 40),
+                    Location = new Point(90, 16), Size = new Size(280, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.Alpha
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
                 gb.Controls.Add(_tbAlpha);
-                _lblAlpha = new Label { Location = new Point(376, 34), AutoSize = true };
+                _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
 
-                gb.Controls.Add(new Label { Text = "窗口 (后台):", Location = new Point(pad, 66), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "窗口 (后台):", Location = new Point(pad, 56), AutoSize = true });
                 _tbBgAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 64), Size = new Size(280, 40),
+                    Location = new Point(90, 54), Size = new Size(280, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
                 _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = Math.Clamp(_tbBgAlpha.Value, 0, 100); _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
                 gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(376, 72), AutoSize = true };
+                _lblBgAlpha = new Label { Location = new Point(376, 62), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
             });
 
@@ -507,6 +507,17 @@ namespace WindowTinter
             AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
             AddButton(this, "ℹ 关于", 134, rowY, 70, ShowAbout);
             AddButton(this, "💾 保存配置", 210, rowY, 110, SaveSettings);
+
+            var link = new LinkLabel
+            {
+                Text = "20260714 / 世界的风吹向你 / 开源软件",
+                Location = new Point(pad, rowY + 38),
+                AutoSize = true,
+                LinkColor = Color.FromArgb(160, 160, 170),
+                ActiveLinkColor = Color.FromArgb(200, 200, 220)
+            };
+            link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://github.com/Simiely/WindowTinter") { UseShellExecute = true });
+            Controls.Add(link);
 
             // 恢复已有条目（活跃 + 待激活）
             for (int i = 0; i < _entries.Count; i++)
