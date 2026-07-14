@@ -253,6 +253,14 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
 
+        [DllImport("user32.dll")]
+        public static extern bool RedrawWindow(IntPtr hWnd, IntPtr lprcUpdate, IntPtr hrgnUpdate, uint flags);
+
+        public const uint RDW_INVALIDATE = 0x0001;
+        public const uint RDW_ERASE = 0x0004;
+        public const uint RDW_FRAME = 0x0400;
+        public const uint RDW_ALLCHILDREN = 0x0080;
+
         // ---- Magnification.dll ----
         [DllImport("Magnification.dll")]
         public static extern bool MagInitialize();

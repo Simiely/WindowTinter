@@ -210,16 +210,17 @@ namespace WindowTinter
             try
             {
                 int ex = Native.GetWindowLong(hwnd, Native.GWL_EXSTYLE);
-                if (!Native.IsWindow(hwnd)) return; // TOCTOU 守卫
+                if (!Native.IsWindow(hwnd)) return;
                 bool hasLayered = (ex & Native.WS_EX_LAYERED) != 0;
 
                 if (alpha >= 255)
                 {
                     if (hasLayered)
                     {
-                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
                         Native.SetWindowLong(hwnd, Native.GWL_EXSTYLE, ex & ~Native.WS_EX_LAYERED);
-                        Native.InvalidateRect(hwnd, IntPtr.Zero, true);
+                        // MSDN: 移除 WS_EX_LAYERED 后用 RedrawWindow 而非 InvalidateRect
+                        Native.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero,
+                            Native.RDW_INVALIDATE | Native.RDW_ERASE | Native.RDW_FRAME | Native.RDW_ALLCHILDREN);
                     }
                 }
                 else
