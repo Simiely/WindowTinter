@@ -41,7 +41,7 @@ namespace WindowTinter
         public List<TargetInfo> Targets { get; set; } = new();
         public int Alpha { get; set; } = 75;
         public int BackgroundAlpha { get; set; } = 50;
-        public bool Enabled { get; set; } = false;
+        public bool Enabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
         public bool KeepTransparency { get; set; } = false;  // 开启后不用蒙版，窗口保持恒定透明度
