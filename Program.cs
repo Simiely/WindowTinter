@@ -248,21 +248,13 @@ namespace WindowTinter
                 }
                 else
                 {
-                    // 后台：先设透明度，延迟一帧再撤蒙版
-                    // 避免"先撤蒙版→后设透明度"之间闪白
                     byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
                     if (_lastBgAlpha != targetAlpha)
                     {
                         SetTargetAlpha(tracker.TargetHandle, targetAlpha);
                         _lastBgAlpha = targetAlpha;
                     }
-                    var hwnd = tracker.TargetHandle;
-                    var dark = maskDark;
-                    BeginInvoke(() =>
-                    {
-                        if (Native.IsWindow(hwnd) && Native.GetForegroundWindow() != hwnd)
-                            dark.HideMask();
-                    });
+                    maskDark.HideMask();
                 }
             };
 
@@ -438,7 +430,6 @@ namespace WindowTinter
             foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.MaskDark.HideMask(); e.Tracker.Dispose(); e.MaskDark.Dispose(); }
             _entries.Clear();
             _pnlTargets.Controls.Clear();
-            _pnlTargets.Controls.Add(_btnRefind);
             _pendingPanels.Clear();
         }
 
@@ -490,8 +481,7 @@ namespace WindowTinter
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
                 _tbAlpha.MouseDown += (_, _) => _previewMask = true;
-                _tbAlpha.MouseUp += (_, _) => ClearPreview();
-                MouseUp += (_, _) => ClearPreview(); // 兜底：滑块外释放也清除
+                MouseUp += (_, _) => ClearPreview(); // 任意位置松手都清除预览
                 gb.Controls.Add(_tbAlpha);
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
