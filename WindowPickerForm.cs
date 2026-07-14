@@ -53,7 +53,6 @@ namespace WindowTinter
                 BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Opacity = 0.88,
-                ShowInTaskbar = false,
             };
             var lbl = new Label
             {
