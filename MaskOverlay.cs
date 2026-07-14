@@ -6,25 +6,20 @@ using System.Windows.Forms;
 namespace WindowTinter
 {
     /// <summary>
-    /// 蒙版层：用 UpdateLayeredWindow + BLENDFUNCTION 将纯黑 bitmap 交给 DWM 合成。
-    /// clickThrough=true  → WS_EX_TRANSPARENT 鼠标穿透（前台暗色蒙版）
-    /// clickThrough=false → 无 WS_EX_TRANSPARENT 捕获点击（后台激活层）
+    /// 暗色蒙版层：用 UpdateLayeredWindow + BLENDFUNCTION 将纯黑 bitmap 交给 DWM 合成。
+    /// WS_EX_TRANSPARENT 鼠标穿透——覆盖在目标窗口上方但完全不拦截交互。
     /// </summary>
     internal class MaskOverlay : Form
     {
         private byte _alpha = 75;
         private Bitmap _cachedBmp;
         private int _cachedW, _cachedH;
-        private readonly bool _clickThrough;
-        private Action _onClick;
 
-        public MaskOverlay(bool clickThrough = true)
+        public MaskOverlay()
         {
-            _clickThrough = clickThrough;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
-            Enabled = !clickThrough;   // clickThrough=false 时 Enabled=true 才能收鼠标事件
         }
 
         protected override CreateParams CreateParams
@@ -32,9 +27,7 @@ namespace WindowTinter
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TOPMOST;
-                if (_clickThrough)
-                    cp.ExStyle |= Native.WS_EX_TRANSPARENT;
+                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TOPMOST | Native.WS_EX_TRANSPARENT;
                 return cp;
             }
         }
@@ -45,32 +38,16 @@ namespace WindowTinter
             set => _alpha = value;
         }
 
-        /// <summary>仅用于 clickThrough=false 模式：点击时回调。</summary>
-        public void SetClickHandler(Action handler) => _onClick = handler;
-
-        protected override void OnMouseUp(MouseEventArgs e)
+        protected override void Dispose(bool disposing)
         {
-            if (!_clickThrough) _onClick?.Invoke();
-            base.OnMouseUp(e);
-        }
-
-        // 阻止获取焦点（后台激活层不需要键盘输入）
-        protected override void WndProc(ref Message m)
-        {
-            const int WM_MOUSEACTIVATE = 0x0021;
-            const int MA_NOACTIVATE = 3;
-            if (!_clickThrough && m.Msg == WM_MOUSEACTIVATE)
-            {
-                m.Result = (IntPtr)MA_NOACTIVATE;
-                return;
-            }
-            base.WndProc(ref m);
+            if (disposing) _cachedBmp?.Dispose();
+            base.Dispose(disposing);
         }
 
         public void AlignTo(Native.RECT r)
         {
             int w = r.Width, h = r.Height;
-            if (w <= 0 || h <= 0) { Hide(); return; }
+            if (w <= 0 || h <= 0) { HideMask(); return; }
 
             if (!IsHandleCreated) CreateHandle();
 
@@ -79,6 +56,14 @@ namespace WindowTinter
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 
             RenderLayered(r.Left, r.Top, w, h);
+        }
+
+        /// <summary>使用 SetWindowPos SWP_HIDEWINDOW 隐藏（不走 Control.Visible 状态机，避免额外重绘）。</summary>
+        public void HideMask()
+        {
+            if (IsHandleCreated)
+                Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0,
+                    Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
         }
 
         private void RenderLayered(int x, int y, int w, int h)
@@ -98,11 +83,13 @@ namespace WindowTinter
             IntPtr hdcMem = Native.CreateCompatibleDC(hdcScreen);
             if (hdcMem == IntPtr.Zero) { Native.ReleaseDC(IntPtr.Zero, hdcScreen); return; }
 
-            IntPtr hBmp = _cachedBmp.GetHbitmap();
-            IntPtr hOld = Native.SelectObject(hdcMem, hBmp);
-
+            IntPtr hBmp = IntPtr.Zero;
+            IntPtr hOld = IntPtr.Zero;
             try
             {
+                hBmp = _cachedBmp.GetHbitmap();
+                hOld = Native.SelectObject(hdcMem, hBmp);
+
                 var ptDst = new Point(x, y);
                 var ptSrc = new Point(0, 0);
                 var sz = new Size(w, h);
@@ -118,18 +105,11 @@ namespace WindowTinter
             }
             finally
             {
-                Native.SelectObject(hdcMem, hOld);
-                Native.DeleteObject(hBmp);
+                if (hOld != IntPtr.Zero) Native.SelectObject(hdcMem, hOld);
+                if (hBmp != IntPtr.Zero) Native.DeleteObject(hBmp);
                 Native.DeleteDC(hdcMem);
                 Native.ReleaseDC(IntPtr.Zero, hdcScreen);
             }
-        }
-
-        public new void Hide()
-        {
-            if (IsHandleCreated)
-                Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0,
-                    Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
         }
     }
 }

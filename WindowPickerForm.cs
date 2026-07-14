@@ -13,6 +13,7 @@ namespace WindowTinter
         public IntPtr SelectedHandle { get; private set; } = IntPtr.Zero;
         private Native.RECT _highlight;
         private IntPtr _lastHwnd = IntPtr.Zero;
+        private DateTime _lastMoveCheck = DateTime.MinValue;
 
         public WindowPickerForm()
         {
@@ -24,7 +25,6 @@ namespace WindowTinter
             Opacity = 0.01;
             Cursor = Cursors.Cross;
             KeyPreview = true;
-            DoubleBuffered = true;
         }
 
         protected override void OnShown(EventArgs e)
@@ -70,6 +70,11 @@ namespace WindowTinter
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+            // 30ms 节流——避免每像素移动都 EnumWindows
+            var now = DateTime.UtcNow;
+            if ((now - _lastMoveCheck).TotalMilliseconds < 30) return;
+            _lastMoveCheck = now;
+
             IntPtr h = GetWindowAtCursor();
             if (h == _lastHwnd) return;
 
@@ -145,8 +150,9 @@ namespace WindowTinter
 
         private void ClearHighlight()
         {
-            if (_lastHwnd != IntPtr.Zero && Native.IsWindow(_lastHwnd))
-                DrawHighlight(_lastHwnd, _highlight);
+            if (_lastHwnd != IntPtr.Zero && Native.IsWindow(_lastHwnd)
+                && Native.GetWindowRect(_lastHwnd, out Native.RECT current))
+                DrawHighlight(_lastHwnd, current);
             _lastHwnd = IntPtr.Zero;
         }
     }

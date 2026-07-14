@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Windows.Forms;
@@ -57,13 +58,13 @@ namespace WindowTinter
         public void RefreshForeground()
         {
             if (TargetHandle == IntPtr.Zero || !Native.IsWindow(TargetHandle)) return;
-            if (!_hasLast) return;
+            if (!_hasLast) { Refresh(); return; }
             OnUpdate?.Invoke(_lastRect, _lastVisible);
         }
 
         // ── 静态查找方法 ──────────────────────────────────────────
 
-        public const int MIN_TARGET_SIZE = 100;
+        private const int MIN_TARGET_SIZE = 100;
 
         public static bool IsAcceptableTarget(IntPtr hwnd)
         {
@@ -72,77 +73,40 @@ namespace WindowTinter
             return r.Width >= MIN_TARGET_SIZE && r.Height >= MIN_TARGET_SIZE;
         }
 
-        public static IntPtr FindByProcessName(string processName)
+        public static IntPtr FindByTitleAndProcess(string title, string processName, HashSet<IntPtr> excludeHandles = null)
         {
-            if (string.IsNullOrWhiteSpace(processName)) return IntPtr.Zero;
-            string target = processName.ToLowerInvariant();
-            if (target.EndsWith(".exe")) target = target[..^4];
-            IntPtr found = IntPtr.Zero;
-            Native.EnumWindows((hwnd, _) =>
-            {
-                if (!IsAcceptableTarget(hwnd)) return true;
-                Native.GetWindowThreadProcessId(hwnd, out uint pid);
-                try
-                {
-                    var p = Process.GetProcessById((int)pid);
-                    if (p.ProcessName?.ToLowerInvariant() == target) { found = hwnd; return false; }
-                }
-                catch { }
-                return true;
-            }, IntPtr.Zero);
-            return found;
-        }
+            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(processName))
+                return IntPtr.Zero;
 
-        public static IntPtr FindByWindowTitle(string titleKeyword)
-        {
-            if (string.IsNullOrWhiteSpace(titleKeyword)) return IntPtr.Zero;
-            string kw = titleKeyword.ToLowerInvariant();
+            string proc = processName.ToLowerInvariant();
+            if (proc.EndsWith(".exe")) proc = proc[..^4]; // 兼容旧配置带 .exe 后缀
+            string kw = title.ToLowerInvariant();
             IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, _) =>
             {
                 if (!IsAcceptableTarget(hwnd)) return true;
+                if (excludeHandles?.Contains(hwnd) == true) return true;
                 int len = Native.GetWindowTextLength(hwnd);
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                if (sb.ToString().ToLowerInvariant().Contains(kw)) { found = hwnd; return false; }
+                if (!sb.ToString().ToLowerInvariant().Equals(kw)) return true;
+                Native.GetWindowThreadProcessId(hwnd, out uint pid);
+                try
+                {
+                    if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() == proc)
+                    { found = hwnd; return false; }
+                }
+                catch (Exception ex) { Debug.WriteLine($"FindByTitleAndProcess enum error: {ex.Message}"); }
                 return true;
             }, IntPtr.Zero);
             return found;
         }
 
-        public static IntPtr FindByTitleAndProcess(string title, string processName)
+        public void Dispose()
         {
-            if (!string.IsNullOrWhiteSpace(title) && !string.IsNullOrWhiteSpace(processName))
-            {
-                string proc = processName.ToLowerInvariant();
-                if (proc.EndsWith(".exe")) proc = proc[..^4];
-                string kw = title.ToLowerInvariant();
-                IntPtr found = IntPtr.Zero;
-                Native.EnumWindows((hwnd, _) =>
-                {
-                    if (!IsAcceptableTarget(hwnd)) return true;
-                    int len = Native.GetWindowTextLength(hwnd);
-                    if (len == 0) return true;
-                    var sb = new StringBuilder(len + 1);
-                    Native.GetWindowText(hwnd, sb, len + 1);
-                    if (!sb.ToString().ToLowerInvariant().Contains(kw)) return true;
-                    Native.GetWindowThreadProcessId(hwnd, out uint pid);
-                    try
-                    {
-                        if (Process.GetProcessById((int)pid).ProcessName?.ToLowerInvariant() == proc)
-                        { found = hwnd; return false; }
-                    }
-                    catch { }
-                    return true;
-                }, IntPtr.Zero);
-                if (found != IntPtr.Zero) return found;
-            }
-            return !string.IsNullOrWhiteSpace(title) ? FindByWindowTitle(title)
-                 : !string.IsNullOrWhiteSpace(processName) ? FindByProcessName(processName)
-                 : IntPtr.Zero;
+            _timer.Dispose();
+            OnUpdate = null;
         }
-
-        public void Dispose() => _timer.Dispose();
     }
 }

@@ -6,8 +6,17 @@
     <Nullable>disable</Nullable>
     <AssemblyName>WindowTinter</AssemblyName>
     <RootNamespace>WindowTinter</RootNamespace>
-    <AssemblyTitle>WindowTinter</AssemblyTitle>
-    <Description>给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具</Description>
+    <AssemblyTitle>暗幕</AssemblyTitle>
+    <Description>暗幕 — 给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具</Description>
+    <Version>3.2.2</Version>
+    <AssemblyVersion>3.2.2</AssemblyVersion>
+    <FileVersion>3.2.2</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <None Update="app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
