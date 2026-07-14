@@ -37,17 +37,34 @@ namespace WindowTinter
             DebugLog.Info($"Picker Shown: Bounds={Bounds}, Opacity={Opacity}, Handle=0x{Handle:X}");
         }
 
+        /// <summary>
+        /// EnumWindows 按 Z 序从顶到底枚举所有顶层窗口。
+        /// 无需 show/hide 拾取窗 —— 直接跳过自己，找第一个包含光标的窗口。
+        /// </summary>
         private IntPtr GetWindowAtCursor()
         {
             Point pt = Control.MousePosition;
-            Native.ShowWindow(Handle, Native.SW_HIDE);
-            IntPtr h = Native.WindowFromPoint(pt);
-            Native.ShowWindow(Handle, Native.SW_SHOWNOACTIVATE);
+            IntPtr found = IntPtr.Zero;
 
-            if (h != IntPtr.Zero && h != Handle)
-                h = Native.GetAncestor(h, Native.GA_ROOT);
+            Native.EnumWindows((hwnd, _) =>
+            {
+                if (hwnd == Handle) return true;                   // 跳过拾取窗自己
+                if (!Native.IsWindowVisible(hwnd)) return true;     // 跳过不可见
+                if (Native.IsIconic(hwnd)) return true;             // 跳过最小化
 
-            return (h != IntPtr.Zero && h != Handle) ? h : IntPtr.Zero;
+                Native.GetWindowRect(hwnd, out Native.RECT r);
+                if (pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom)
+                {
+                    found = hwnd;
+                    return false; // 找到顶层窗口，停止枚举
+                }
+                return true;
+            }, IntPtr.Zero);
+
+            if (found != IntPtr.Zero)
+                found = Native.GetAncestor(found, Native.GA_ROOT);
+
+            return found;
         }
 
         protected override void OnMouseMove(MouseEventArgs e)
