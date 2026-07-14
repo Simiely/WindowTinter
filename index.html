@@ -1,29 +1,14 @@
 <!DOCTYPE html>
 <!--
-╔══════════════════════════════════════════════════════════════════════╗
-║                🎯 通用产品落地页模板                                   ║
-║                                                                      ║
-║  本文件是一个可复用的全屏滚动产品 Landing Page 模板。                    ║
-║  设计风格：暗色主题、背景噪点纹理、滚动吸附动画、鼠标视差效果。          ║
-║                                                                      ║
-║  ─── 给 AI 助手的说明 ───                                             ║
-║                                                                      ║
-║  1. 要定制页面内容，只需修改下方 ★ CONFIG ★ 对象中的各项即可            ║
-║  2. 不要改动 CONFIG 之外的任何代码                                     ║
-║  3. 修改后直接浏览器打开预览效果                                       ║
-║  4. 所有文本字段支持 HTML 标签: <em>强调</em> <b>加粗</b> <br>换行     ║
-║  5. 颜色统一使用 CONFIG.accentColor 控制                               ║
-║  6. 保持 CONFIG 的所有键不删不改名                                   ║
-║  7. 如果某项不需要，留空字符串 "" 即可                                 ║
-║                                                                      ║
-╚══════════════════════════════════════════════════════════════════════╝
+  暗幕 (WindowTinter) — 产品落地页
+  给任意 Windows 窗口叠加深色半透明蒙版的常驻小工具。
 -->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title data-bind="pageTitle">产品名称</title>
-<link rel="icon" href="https://simiely.github.io/hub-world/favicon.png" type="image/png" /> <!-- 固定链接 -->
+<link rel="icon" href="app.ico" type="image/x-icon" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=Geist:wght@300..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet" />
@@ -518,12 +503,12 @@ var CONFIG = {
 
 
 <!-- ============================================================
-     导航 / Hub Back（logo / favicon 为固定链接，见 CONFIG 注释）
+     顶部品牌标识
      ============================================================ -->
-<a class="hub-back" href="https://simiely.github.io/hub-world/" id="hub-back-link" aria-label="Hub World">
+<a class="hub-back" href="https://github.com/Simiely/WindowTinter" id="hub-back-link" aria-label="WindowTinter">
   <span class="hub-back__inner">
-    <img class="hub-back__logo" src="https://simiely.github.io/hub-world/logo.png" alt="Hub World" id="hub-back-logo">
-    <span id="hub-back-label">Hub World</span>
+    <span style="width:9px;height:9px;border-radius:50%;background:var(--rose);display:inline-block;animation:pulse 2.4s ease infinite"></span>
+    <span id="hub-back-label">暗幕</span>
   </span>
 </a>
 
