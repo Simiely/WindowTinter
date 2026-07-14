@@ -1,6 +1,6 @@
 # DEV.md — 开发笔记
 
-> 本项目从 v1 到 v3.0.1 的完整踩坑记录。以后做「窗口覆盖 / 蒙版 / 暗化」类工具时直接参考。
+> 本项目从 v1 到 v3.6.2 的完整踩坑记录。以后做「窗口覆盖 / 蒙版 / 暗化」类工具时直接参考。
 
 ---
 
@@ -318,6 +318,171 @@ catch (InvalidOperationException) { }  // BeginInvoke 在非 UI 线程被调用
 
 ---
 
+## 19. 启动时恢复透明度 — 强制杀进程残留
+
+### 现象
+
+程序被任务管理器强制结束后重新启动，之前监控的目标窗口仍处于半透明状态（`WS_EX_LAYERED` 未清理干净）。
+
+### 根因
+
+`Quit()` 中的恢复逻辑依赖正常退出流程（`FormClosed` → 遍历所有目标 → 去掉 `WS_EX_LAYERED` → `InvalidateRect`）。强制结束进程时此流程不执行，目标窗口的扩展样式残留。
+
+### 修复
+
+启动时遍历 `WindowTinter.settings.json` 中所有目标，调用 `RedrawWindow` 强制刷新：
+
+```csharp
+// 去掉可能残留的 WS_EX_LAYERED
+SetWindowLong(hwnd, GWL_EXSTYLE, ex & ~WS_EX_LAYERED);
+RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero,
+    RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN);
+```
+
+用 `RedrawWindow` 替代 `SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA)` + `InvalidateRect` 的组合。MSDN 指出后者在某些情况下不能可靠清除分层属性。
+
+**教训**：托盘常驻程序的退出是不可靠的——杀进程、崩溃、断电都可能跳过清理。**必须在启动时做状态修复**，不能仅依赖"退出→清理"路径。
+
+---
+
+## 20. 配置文件路径迁移 — %AppData% → exe 同目录
+
+### 现象
+
+v3.0.1 及之前版本，`WindowTinter.settings.json` 保存在 `%AppData%\WindowTinter\` 下。用户下载新版 exe 到新目录后，旧配置不被识别。
+
+### 修复
+
+```csharp
+var configPath = Path.Combine(
+    Path.GetDirectoryName(Environment.ProcessPath) ?? ".",
+    "WindowTinter.settings.json");
+```
+
+配置与 exe 同目录，下载新版解压即用，无需手动迁移配置。
+
+**教训**：便携式工具（无需安装、解压即用）的配置应与 exe 同目录。`%AppData%` 适合安装版软件，便携版会造成"换了目录配置丢失"的困惑。
+
+---
+
+## 21. UI 重构 — 按钮下移 + 状态栏整合
+
+### 变更
+
+v3.6.x 对主界面进行了重新布局：
+
+- **"+ 添加窗口"按钮**从顶部工具栏移至目标窗口列表下方——拾取后直接看到新增条目，操作流更自然
+- **"启用覆盖"和"保持透明度"**从独立复选框整合到目标条目内联状态栏——每个窗口独立的开关状态一目了然
+- **移除"查看日志"按钮**——DebugLog 仅供开发阶段使用，用户不需要暴露
+
+**教训**：UI 布局应从用户操作流出发设计，而非从功能模块出发。拾取→查看→启用是一个连续的视觉流，按钮应遵循这个顺序。
+
+---
+
+## 22. 后台点击激活目标 — MaskOverlay 双模式
+
+### 设计
+
+新增后台点击捕获能力：当蒙版盖在目标窗口上（`WS_EX_TRANSPARENT` 穿透），用户点击蒙版区域 → 转发激活目标窗口。
+
+### 实现
+
+```csharp
+// MaskOverlay 新增 MouseUp 事件处理
+protected override void OnMouseUp(MouseEventArgs e)
+{
+    // 获取蒙版下方的目标窗口
+    var hwndBelow = GetWindowBelowMaskAtPoint(Cursor.Position);
+    SetForegroundWindow(hwndBelow);
+}
+```
+
+蒙版窗口需要临时取消 `WS_EX_TRANSPARENT`（极短时间）以接收鼠标事件，然后在 `MouseUp` 后恢复穿透。时序：`MouseDown` 去掉 `WS_EX_TRANSPARENT` → `MouseUp` 激活目标 → 恢复 `WS_EX_TRANSPARENT`。
+
+**教训**：`WS_EX_TRANSPARENT` 和接收鼠标事件是互斥的。要在蒙版上实现"点击穿透到下层窗口"的 UX，需要用极短时间窗口切换样式——关键是时序必须在同一个鼠标事件周期内完成。
+
+---
+
+## 23. 窗口拾取器零闪烁方案 — EnumWindows Z 序
+
+### 演进
+
+拾取器经过三轮方案迭代：
+
+| 方案 | 方法 | 问题 |
+|---|---|---|
+| A | `ShowWindow(HIDE)` + `WindowFromPoint` | 每次鼠标移动显隐一次，DWM 合成管线触发过渡动画，高频产生闪烁 |
+| B | `Enabled = false` + `WindowFromPoint` | MSDN 说 `WindowFromPoint` 忽略 `WS_DISABLED` 窗口，但在某些 Windows 版本无效 |
+| **C（最终）** | `EnumWindows` 按 Z 序从顶到底遍历 | 不碰拾取窗本身，零闪烁、零显隐 |
+
+方案 C 实现：
+
+```csharp
+Native.EnumWindows((h, _) => {
+    if (h == pickerHwnd || !IsWindowVisible(h)) return true;
+    GetWindowRect(h, out var r);
+    if (PtInRect(ref r, pt)) { result = h; return false; }  // 找到即停
+    return true;
+}, IntPtr.Zero);
+```
+
+**教训**：`WindowFromPoint` 不是获取"鼠标下可见窗口"的唯一方式。当自身窗口干扰时，`EnumWindows` + 手动 `PtInRect` 更可靠。Z 序遍历天然保证返回最顶层可见窗口，且不需要修改自身窗口状态。
+
+---
+
+## 24. 提示窗 BackColor 含 alpha 崩溃
+
+### 现象
+
+拾取提示窗在设置 `BackColor = Color.FromArgb(200, ...)` 时抛 `ArgumentException`。
+
+### 根因
+
+WinForms 的 `Form.BackColor` 不支持 alpha 通道。带 alpha 的颜色值会被底层 GDI+ 拒绝。
+
+### 修复
+
+```csharp
+// 错误
+BackColor = Color.FromArgb(200, 30, 30, 30);
+
+// 正确：纯色 BackColor + Form.Opacity 控制整体透明度
+BackColor = Color.FromArgb(30, 30, 30);
+Opacity = 0.85;
+```
+
+---
+
+## 25. GitHub Actions CI/CD + GitHub Pages
+
+### CI 自动发布
+
+打 `v*` tag 时自动触发构建，产出单文件自包含 exe 并打包为 `WindowTinter.zip`，发布到 GitHub Release。
+
+```yaml
+# .github/workflows/build.yml
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '6.0.x' }
+      - run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: WindowTinter-release.zip
+```
+
+### GitHub Pages 落地页
+
+产品落地页 (`index.html`) 基于 hub-world 全屏滚动模板，部署在 `https://simiely.github.io/WindowTinter/`。Pages 从 main 分支根目录自动构建，每次 push 自动更新。
+
+---
+
 ## 架构演进
 
 | 版本 | 变化 |
@@ -329,6 +494,8 @@ catch (InvalidOperationException) { }  // BeginInvoke 在非 UI 线程被调用
 | v2.5 | CreateHandle + 100ms Timer + ApplyMaskNow |
 | v2.6 | 后台透明 + 独立滑块 + 死循环修复 + 全面审计 |
 | v3.0.1 | BeginInvoke 闪白修复 + .exe 兼容迁移 + CloseReason 修复 + TargetInfo 值语义 + 设置即时持久化 + app.ico 绝对路径 + KeepTransparency + 超椭圆图标 + 深色滚动条 + 8 轮审计 |
+| v3.2.2 | 配置路径迁移（exe 同目录）+ 启动透明度恢复 + 后台点击激活 + 拾取器零闪烁方案 + 提示窗修复 + DebugLog 清理 |
+| v3.6.2 | UI 重构（按钮下移+状态栏整合）+ GitHub Actions CI/CD + GitHub Pages 落地页 + 多项稳定性修复 |
 
 ---
 
