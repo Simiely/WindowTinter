@@ -35,7 +35,7 @@ namespace WindowTinter
             BringToFront();
             Activate();
             Cursor.Current = Cursors.Cross;
-            BeginInvoke(new Action(ShowHint));
+            ShowHint();
         }
 
         private void ShowHint()
@@ -53,7 +53,7 @@ namespace WindowTinter
                 BackColor = Color.FromArgb(30, 30, 30),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Opacity = 0.88,
-                Owner = this,           // 绑定到拾取窗，确保模态对话框链中能正常接收输入
+                ShowInTaskbar = false,
             };
             var lbl = new Label
             {
@@ -63,6 +63,7 @@ namespace WindowTinter
                 Font = new Font("Microsoft YaHei UI", 11f, FontStyle.Regular)
             };
             _hintForm.Controls.Add(lbl);
+            // 用 Show() 而非 ShowDialog()，且不设 Owner——避免抢走拾取窗焦点
             _hintForm.Show();
         }
 
@@ -127,10 +128,15 @@ namespace WindowTinter
             Close();
         }
 
-        protected override void OnKeyDown(KeyEventArgs e)
+        // ProcessCmdKey 在 ProcessDialogKey 之前执行——后者会吞掉 Esc/Tab/Enter 等导航键
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
-            if (e.KeyCode == Keys.Escape)
+            if (keyData == Keys.Escape)
+            {
                 CancelPicker();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void CancelPicker()
