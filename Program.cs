@@ -92,7 +92,7 @@ namespace WindowTinter
                     var e = _entries[i];
                     if (!Native.IsWindow(e.Tracker.TargetHandle) && e.Tracker.TargetHandle != IntPtr.Zero)
                     {
-                        e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose();
+                        e.MaskDark.Hide(); e.MaskCapture.Hide(); e.Tracker.Dispose(); e.MaskDark.Dispose(); e.MaskCapture.Dispose();
                         _entries.RemoveAt(i);
                         if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
                     }
@@ -148,7 +148,8 @@ namespace WindowTinter
         {
             public TargetInfo Info;
             public TargetTracker Tracker;
-            public MaskOverlay Mask;
+            public MaskOverlay MaskDark;     // 前台暗色蒙版（点击穿透）
+            public MaskOverlay MaskCapture;  // 后台激活层（捕获点击）
             public Panel UIPanel;
         }
 
@@ -156,7 +157,15 @@ namespace WindowTinter
         private TargetEntry CreateEntry(TargetInfo info)
         {
             var tracker = new TargetTracker();
-            var mask = new MaskOverlay();
+            var maskDark = new MaskOverlay(clickThrough: true);
+            var maskCapture = new MaskOverlay(clickThrough: false);
+
+            // 点击后台激活层 → 切目标到前台
+            maskCapture.SetClickHandler(() =>
+            {
+                if (tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(tracker.TargetHandle))
+                    Native.SetForegroundWindow(tracker.TargetHandle);
+            });
 
             byte _lastBgAlpha = 255;
 
@@ -165,29 +174,34 @@ namespace WindowTinter
                 bool fg = Native.GetForegroundWindow() == tracker.TargetHandle;
                 if (!_settings.Enabled || !visible)
                 {
-                    mask.Hide();
+                    maskDark.Hide();
+                    maskCapture.Hide();
                     if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
                     return;
                 }
                 if (fg)
                 {
+                    maskCapture.Hide();
                     if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
-                    mask.Alpha = (byte)(_settings.Alpha * 255 / 100);
-                    mask.AlignTo(r);
+                    maskDark.Alpha = (byte)(_settings.Alpha * 255 / 100);
+                    maskDark.AlignTo(r);
                 }
                 else
                 {
-                    mask.Hide();
+                    maskDark.Hide();
                     byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
                     if (_lastBgAlpha != targetAlpha)
                     {
                         SetTargetAlpha(tracker.TargetHandle, targetAlpha);
                         _lastBgAlpha = targetAlpha;
                     }
+                    // 显示点击捕获层（alpha=1 几乎不可见），拦截后台窗口的交互
+                    maskCapture.Alpha = 1;
+                    maskCapture.AlignTo(r);
                 }
             };
 
-            return new TargetEntry { Info = info, Tracker = tracker, Mask = mask };
+            return new TargetEntry { Info = info, Tracker = tracker, MaskDark = maskDark, MaskCapture = maskCapture };
         }
 
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
@@ -282,7 +296,7 @@ namespace WindowTinter
             _pnlTargets.Controls.Remove(pnl);
             SetTargetAlpha(entry.Tracker.TargetHandle, 255);
             entry.Tracker.Dispose();
-            entry.Mask.Dispose();
+            entry.MaskDark.Dispose(); entry.MaskCapture.Dispose();
             _settings.Targets.Remove(entry.Info);
             _settings.Save();
             UpdateUI();
@@ -290,7 +304,7 @@ namespace WindowTinter
 
         private void UnbindAll()
         {
-            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Hide(); e.Tracker.Dispose(); e.Mask.Dispose(); }
+            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.MaskDark.Hide(); e.MaskCapture.Hide(); e.Tracker.Dispose(); e.MaskDark.Dispose(); e.MaskCapture.Dispose(); }
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pnlTargets.Controls.Add(_btnRefind);
@@ -517,7 +531,7 @@ namespace WindowTinter
             }
             else
             {
-                foreach (var e in _entries) { e.Mask.Hide(); SetTargetAlpha(e.Tracker.TargetHandle, 255); }
+                foreach (var e in _entries) { e.MaskDark.Hide(); e.MaskCapture.Hide(); SetTargetAlpha(e.Tracker.TargetHandle, 255); }
             }
             UpdateUI();
         }
@@ -649,7 +663,7 @@ namespace WindowTinter
             _autoBindTimer?.Stop(); _autoBindTimer?.Dispose();
             _tray.Visible = false;
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
-            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Mask.Dispose(); e.Tracker.Dispose(); }
+            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.MaskDark.Dispose(); e.MaskCapture.Dispose(); e.Tracker.Dispose(); }
         }
 
         // ════════════════════════════════════════════════════════════

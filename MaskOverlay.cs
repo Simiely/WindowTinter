@@ -6,21 +6,25 @@ using System.Windows.Forms;
 namespace WindowTinter
 {
     /// <summary>
-    /// 深色蒙版层：用 UpdateLayeredWindow + BLENDFUNCTION 直接将纯黑 bitmap 交给 DWM 合成。
-    /// TOPMOST 确保蒙版始终在目标窗口上方。
+    /// 蒙版层：用 UpdateLayeredWindow + BLENDFUNCTION 将纯黑 bitmap 交给 DWM 合成。
+    /// clickThrough=true  → WS_EX_TRANSPARENT 鼠标穿透（前台暗色蒙版）
+    /// clickThrough=false → 无 WS_EX_TRANSPARENT 捕获点击（后台激活层）
     /// </summary>
     internal class MaskOverlay : Form
     {
         private byte _alpha = 75;
         private Bitmap _cachedBmp;
         private int _cachedW, _cachedH;
+        private readonly bool _clickThrough;
+        private Action _onClick;
 
-        public MaskOverlay()
+        public MaskOverlay(bool clickThrough = true)
         {
+            _clickThrough = clickThrough;
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
-            Enabled = false;
+            Enabled = !clickThrough;   // clickThrough=false 时 Enabled=true 才能收鼠标事件
         }
 
         protected override CreateParams CreateParams
@@ -28,7 +32,9 @@ namespace WindowTinter
             get
             {
                 var cp = base.CreateParams;
-                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TRANSPARENT | Native.WS_EX_TOPMOST;
+                cp.ExStyle |= Native.WS_EX_LAYERED | Native.WS_EX_TOPMOST;
+                if (_clickThrough)
+                    cp.ExStyle |= Native.WS_EX_TRANSPARENT;
                 return cp;
             }
         }
@@ -37,6 +43,28 @@ namespace WindowTinter
         {
             get => _alpha;
             set => _alpha = value;
+        }
+
+        /// <summary>仅用于 clickThrough=false 模式：点击时回调。</summary>
+        public void SetClickHandler(Action handler) => _onClick = handler;
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (!_clickThrough) _onClick?.Invoke();
+            base.OnMouseUp(e);
+        }
+
+        // 阻止获取焦点（后台激活层不需要键盘输入）
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEACTIVATE = 0x0021;
+            const int MA_NOACTIVATE = 3;
+            if (!_clickThrough && m.Msg == WM_MOUSEACTIVATE)
+            {
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
+            base.WndProc(ref m);
         }
 
         public void AlignTo(Native.RECT r)
@@ -55,7 +83,6 @@ namespace WindowTinter
 
         private void RenderLayered(int x, int y, int w, int h)
         {
-            // 仅在尺寸变化时重建 bitmap，拖滑块时只复用
             if (_cachedBmp == null || w != _cachedW || h != _cachedH)
             {
                 _cachedBmp?.Dispose();
