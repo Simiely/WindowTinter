@@ -70,7 +70,7 @@ namespace WindowTinter
             var iconPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "app.ico");
             _appIcon = new Icon(iconPath);
             Icon = _appIcon;
-            ClientSize = new Size(470, 613);
+            ClientSize = new Size(470, 610);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -443,8 +443,13 @@ namespace WindowTinter
             int y = 10, pad = 10;
             const int GW = 434; // group box width
 
-            AddGroup("状态", pad, ref y, 50, GW, gb =>
-                _lblStatus = AddLabel(gb, pad, 20, FontStyle.Bold, 10f));
+            AddGroup("状态", pad, ref y, 70, GW, gb =>
+            {
+                _lblStatus = AddLabel(gb, pad, 16, FontStyle.Bold, 9f);
+                _chkEnabled = AddCheck(gb, "启用覆盖", pad + 4, 38, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
+                _chkKeepTransparency = AddCheck(gb, "窗口保持透明度", 140, 38, FontStyle.Regular,
+                    _settings.KeepTransparency, () => { _settings.KeepTransparency = _chkKeepTransparency.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
+            });
 
             AddGroup("目标窗口", pad, ref y, 260, GW, gb =>
             {
@@ -457,12 +462,10 @@ namespace WindowTinter
                 _pnlTargets.HandleCreated += (_, _) =>
                     Native.SetWindowTheme(_pnlTargets.Handle, "DarkMode_Explorer", null);
                 gb.Controls.Add(_pnlTargets);
-
-                AddButton(gb, "+ 添加窗口", pad, 132, 95, PickWindow);
-                _btnRefind = AddButton(gb, "🔄 重新查找", 110, 132, 95, RefindAllWindows);
             });
 
-            _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
+            AddButton(this, "+ 添加窗口", pad, y + 2, 95, PickWindow);
+            _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
             y += 28;
 
             AddGroup("透明度", pad, ref y, 110, GW, gb =>
@@ -498,11 +501,9 @@ namespace WindowTinter
             int rowY = y + 2;
             _chkStartup = AddCheck(this, "开机自启", pad + 4, rowY, FontStyle.Regular, _settings.StartWithWindows,
                 () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); });
-            _chkKeepTransparency = AddCheck(this, "窗口保持透明度（前台也直接用透明度，不叠加蒙版）", pad + 4, rowY + 24, FontStyle.Regular,
-                _settings.KeepTransparency, () => { _settings.KeepTransparency = _chkKeepTransparency.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
-            _chkMinimizeTray = AddCheck(this, "关闭窗口时最小化到托盘（不勾选则直接退出）", pad + 4, rowY + 48, FontStyle.Regular,
+            _chkMinimizeTray = AddCheck(this, "关闭窗口时最小化到托盘（不勾选则直接退出）", pad + 4, rowY + 24, FontStyle.Regular,
                 _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); });
-            rowY += 76;
+            rowY += 52;
 
             AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
             AddButton(this, "ℹ 关于", 134, rowY, 70, ShowAbout);
