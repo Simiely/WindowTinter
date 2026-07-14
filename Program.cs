@@ -45,6 +45,7 @@ namespace WindowTinter
         private Timer _autoBindTimer;
         private Timer _onShownTimer;
         private Icon _appIcon;
+        private bool _previewMask; // Alpha 滑块拖拽中——强制所有条目显示蒙版
 
         // ── UI 控件 ────────────────────────────────────────────────
 
@@ -66,11 +67,11 @@ namespace WindowTinter
         {
             _settings = Settings.Load();
 
-            Text = "暗幕 v3.2.2";
+            Text = "暗幕 v3.6.2";
             var iconPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "app.ico");
             _appIcon = new Icon(iconPath);
             Icon = _appIcon;
-            ClientSize = new Size(470, 610);
+            ClientSize = new Size(470, 608);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -220,22 +221,29 @@ namespace WindowTinter
                     return;
                 }
 
-                if (fg)
+                if (fg || _previewMask)
                 {
-                    // 前台：先盖蒙版（AlignTo 会立即渲染），延迟一帧再恢复透明度
-                    // 避免"先恢复透明度→后盖蒙版"之间闪白
                     maskDark.Alpha = (byte)(_settings.Alpha * 255 / 100);
                     maskDark.AlignTo(r);
                     if (_lastBgAlpha != 255)
                     {
                         var hwnd = tracker.TargetHandle;
-                        BeginInvoke(() =>
+                        if (_previewMask)
                         {
-                            // 仅在目标仍为前台且窗口有效时才恢复透明度
-                            if (Native.IsWindow(hwnd) && Native.GetForegroundWindow() == hwnd)
-                                SetTargetAlpha(hwnd, 255);
-                        });
-                        _lastBgAlpha = 255;
+                            // 拖拽预览——立即恢复全不透明，让蒙版效果纯净可见
+                            SetTargetAlpha(hwnd, 255);
+                            _lastBgAlpha = 255;
+                        }
+                        else
+                        {
+                            // 正常前台切换——延迟一帧避免闪白
+                            BeginInvoke(() =>
+                            {
+                                if (Native.IsWindow(hwnd) && Native.GetForegroundWindow() == hwnd)
+                                    SetTargetAlpha(hwnd, 255);
+                            });
+                            _lastBgAlpha = 255;
+                        }
                     }
                 }
                 else
@@ -443,13 +451,15 @@ namespace WindowTinter
             int y = 10, pad = 10;
             const int GW = 434; // group box width
 
-            AddGroup("状态", pad, ref y, 70, GW, gb =>
+            AddGroup("状态", pad, ref y, 50, GW, gb =>
             {
-                _lblStatus = AddLabel(gb, pad, 16, FontStyle.Bold, 9f);
-                _chkEnabled = AddCheck(gb, "启用覆盖", pad + 4, 38, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
-                _chkKeepTransparency = AddCheck(gb, "窗口保持透明度", 140, 38, FontStyle.Regular,
-                    _settings.KeepTransparency, () => { _settings.KeepTransparency = _chkKeepTransparency.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
+                _lblStatus = AddLabel(gb, pad, 20, FontStyle.Bold, 10f);
             });
+
+            _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y + 2, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
+            _chkKeepTransparency = AddCheck(this, "窗口保持透明度（前台也直接用透明度，不叠加蒙版）", 140, y + 2, FontStyle.Regular,
+                _settings.KeepTransparency, () => { _settings.KeepTransparency = _chkKeepTransparency.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
+            y += 28;
 
             AddGroup("目标窗口", pad, ref y, 260, GW, gb =>
             {
@@ -466,9 +476,9 @@ namespace WindowTinter
 
             AddButton(this, "+ 添加窗口", pad, y + 2, 95, PickWindow);
             _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
-            y += 28;
+            y += 38;
 
-            AddGroup("透明度", pad, ref y, 110, GW, gb =>
+            AddGroup("透明度", pad, ref y, 90, GW, gb =>
             {
                 gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 18), AutoSize = true });
                 _tbAlpha = new JumpTrackBar
@@ -479,6 +489,9 @@ namespace WindowTinter
                     Value = _settings.Alpha
                 };
                 _tbAlpha.ValueChanged += (_, _) => SetAlpha(_tbAlpha.Value);
+                _tbAlpha.MouseDown += (_, _) => _previewMask = true;
+                _tbAlpha.MouseUp += (_, _) => ClearPreview();
+                MouseUp += (_, _) => ClearPreview(); // 兜底：滑块外释放也清除
                 gb.Controls.Add(_tbAlpha);
                 _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
@@ -508,6 +521,7 @@ namespace WindowTinter
             AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
             AddButton(this, "ℹ 关于", 134, rowY, 70, ShowAbout);
             AddButton(this, "💾 保存配置", 210, rowY, 110, SaveSettings);
+            AddButton(this, "🚪 退出", 326, rowY, 70, () => { _reallyQuit = true; Close(); });
 
             var link = new LinkLabel
             {
@@ -535,6 +549,14 @@ namespace WindowTinter
         private void AddGroup(string text, int x, ref int y, int h, int w, Action<GroupBox> build)
         {
             var gb = new GroupBox { Text = text, Location = new Point(x, y), Size = new Size(w, h) };
+            // WinForms GroupBox 内部区域由系统主题绘制，BackColor 无效，需自绘填充
+            var groupBg = Color.FromArgb(40, 40, 40);
+            gb.Paint += (_, e) =>
+            {
+                using var brush = new SolidBrush(groupBg);
+                // 仅填充内部（跳过标题栏和边框区域）
+                e.Graphics.FillRectangle(brush, 3, 16, w - 6, h - 19);
+            };
             build(gb);
             Controls.Add(gb);
             y += h + 6;
@@ -637,7 +659,7 @@ namespace WindowTinter
         private void BuildTray()
         {
             _menu = new ContextMenuStrip();
-            _tray = new NotifyIcon { Icon = _appIcon, Text = "暗幕 v3.2.2", ContextMenuStrip = _menu, Visible = true };
+            _tray = new NotifyIcon { Icon = _appIcon, Text = "暗幕 v3.6.2", ContextMenuStrip = _menu, Visible = true };
             _tray.DoubleClick += (_, _) => ToggleWindow();
             RefreshTrayMenu();
         }
@@ -655,7 +677,7 @@ namespace WindowTinter
             _menu.Items.Add(s).Enabled = false;
             _menu.Items.Add("-");
             _menu.Items.Add(Visible ? "最小化到托盘" : "打开设置窗口", null, (_, _) => ToggleWindow());
-            _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (_, _) => ToggleEnabled());
+            _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (_, _) => _chkEnabled.Checked = !_chkEnabled.Checked);
             _menu.Items.Add("-");
             _menu.Items.Add("退出", null, (_, _) => { _reallyQuit = true; Close(); });
         }
@@ -678,9 +700,11 @@ namespace WindowTinter
 
         private void ToggleEnabled()
         {
-            _settings.Enabled = !_settings.Enabled;
+            // 直接读 checkbox 状态，避免 _settings.Enabled 翻转与 UI 不一致
+            bool enable = _chkEnabled.Checked;
+            _settings.Enabled = enable;
             _settings.Save();
-            if (_settings.Enabled)
+            if (enable)
             {
                 foreach (var t in _settings.Targets)
                 {
@@ -704,6 +728,13 @@ namespace WindowTinter
             _settings.Save();
             foreach (var e in _entries) ApplyMaskNow(e);
             _lblAlpha.Text = $"{_settings.Alpha}%";
+        }
+
+        private void ClearPreview()
+        {
+            if (!_previewMask) return;
+            _previewMask = false;
+            foreach (var e in _entries) e.Tracker.RefreshForeground();
         }
 
         private void PickWindow()
@@ -767,7 +798,7 @@ namespace WindowTinter
         private void ShowAbout()
         {
             MessageBox.Show(
-                "暗幕 v3.2.2\n\n" +
+                "暗幕 v3.6.2\n\n" +
                 "给任意窗口叠加深色半透明蒙版的常驻小工具。\n" +
                 "支持多窗口同时覆盖。\n\n" +
                 "• 配置: 与 exe 同目录 WindowTinter.settings.json\n" +
