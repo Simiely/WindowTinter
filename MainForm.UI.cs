@@ -171,13 +171,14 @@ namespace WindowTinter
             return chk;
         }
 
-        /// <summary>创建目标面板中的 ○/● 选中按钮。</summary>
-        private static Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
+        /// <summary>创建目标面板中的 ○/● 选中按钮（按 _dpiScale 放大尺寸/位置）。</summary>
+        private Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
         {
+            int bw = (int)(30 * _dpiScale), bh = (int)(24 * _dpiScale), off = (int)(68 * _dpiScale);
             var btn = new Button
             {
-                Text = selected ? "●" : "○", Size = new Size(30, 24),
-                Location = new Point(w - 68, 4), FlatStyle = FlatStyle.Flat,
+                Text = selected ? "●" : "○", Size = new Size(bw, bh),
+                Location = new Point(w - off, (int)(4 * _dpiScale)), FlatStyle = FlatStyle.Flat,
                 BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Enabled = enabled
@@ -187,13 +188,14 @@ namespace WindowTinter
             return btn;
         }
 
-        /// <summary>创建目标面板中的 × 删除按钮。</summary>
-        private static Button CreateRemoveButton(int w, EventHandler onClick)
+        /// <summary>创建目标面板中的 × 删除按钮（按 _dpiScale 放大尺寸/位置）。</summary>
+        private Button CreateRemoveButton(int w, EventHandler onClick)
         {
+            int bw = (int)(28 * _dpiScale), bh = (int)(24 * _dpiScale), off = (int)(34 * _dpiScale);
             var btn = new Button
             {
-                Text = "×", Size = new Size(28, 24),
-                Location = new Point(w - 34, 4), FlatStyle = FlatStyle.Flat,
+                Text = "×", Size = new Size(bw, bh),
+                Location = new Point(w - off, (int)(4 * _dpiScale)), FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(60, 60, 60), ForeColor = Color.FromArgb(224, 224, 224)
             };
             btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
