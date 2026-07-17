@@ -33,6 +33,10 @@ namespace WindowTinter
             ShowInTaskbar = false;
             Text = "WindowTinter.BlackPlate";
             TopMost = false;
+            // 本窗口完全由 SetWindowPos / UpdateLayeredWindow 以「物理像素」直接定位与渲染，
+            // 不参与 WinForms 的 DPI 自动缩放。若保留默认 AutoScaleMode，在跨不同缩放比的显示器时
+            // 会被 WM_DPICHANGED 错误重缩放，导致底板偏移 / 尺寸不对（100% 正常、缩放屏异常的根因之一）。
+            AutoScaleMode = AutoScaleMode.None;
         }
 
         protected override CreateParams CreateParams
@@ -44,6 +48,20 @@ namespace WindowTinter
                 cp.ExStyle |= Native.WS_EX_LAYERED;
                 return cp;
             }
+        }
+
+        /// <summary>
+        /// 屏蔽 WinForms 在 DPI 变化时的自动重缩放。
+        /// 底板是纯 Win32 分层窗口，坐标始终为物理像素、由 AlignBehind 自行管理；
+        /// 若交由 WinForms 处理 WM_DPICHANGED，它会把我们用 SetWindowPos 设定的物理像素坐标
+        /// 按新旧 DPI 比例重新缩放，导致缩放屏下底板偏移 / 尺寸错误（即「100% 正常、缩放屏异常」）。
+        /// 因此直接吞掉该消息即可——窗口无需任何子控件/字体缩放。
+        /// </summary>
+        private const int WM_DPICHANGED = 0x02E0;
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_DPICHANGED) return;
+            base.WndProc(ref m);
         }
 
         /// <summary>把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。</summary>
