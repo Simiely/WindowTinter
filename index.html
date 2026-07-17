@@ -403,9 +403,9 @@
 // =====================================================================
 var CONFIG = {
 
-  pageTitle: "暗幕 WindowTinter — Windows 窗口暗色蒙版工具",
+  pageTitle: "暗幕 WindowTinter — Windows 窗口暗色工具",
   brand: "暗幕",
-  version: "v3.6.2",
+  version: "v5.1.0",
   accentColor: "#FF9292",
   repoUrl: "https://github.com/Simiely/WindowTinter",
   issuesUrl: "https://github.com/Simiely/WindowTinter/issues",
@@ -416,23 +416,23 @@ var CONFIG = {
   hero: {
     titleLine1: "暗幕",
     titleLine2: "WindowTinter",
-    titleEmphasis: "暗色蒙版",
+    titleEmphasis: "窗口压暗",
     featureLabel: "核心能力",
-    featureText: "给任意 Windows 窗口叠加<b>深色半透明蒙版</b>，切到后台自动变半透明，鼠标穿透不挡交互",
-    subtitle: "轻量级 Windows 常驻小工具 · 支持<b>多窗口同时监控</b> · <b>.NET 6 WinForms</b> 原生实现",
+    featureText: "给任意 Windows 窗口<b>直接控制透明度</b>，可选在正下方<b>垫纯黑底板</b>，半透明时稳定呈现压暗效果",
+    subtitle: "轻量级 Windows 常驻小工具 · 支持<b>多窗口独立配置</b> · <b>.NET 6 WinForms</b> 原生实现",
     badgeLabel: "Platform",
     badgeIcon: "⬛",
-    tags: ["Windows 10/11", ".NET 6", "WinForms", "MIT"],
-    tickerItems: ["鼠标穿透不挡交互", "目标切到后台自动变半透明", "无限窗口同时监控", "十字光标精准拾取", "开机自启后台静默", "移动缩放蒙版实时同步"]
+    tags: ["Windows 10/11", ".NET 6 Desktop", "WinForms", "MIT"],
+    tickerItems: ["窗口透明度直接控制", "纯黑底板稳定压暗", "无限窗口同时监控", "十字光标精准拾取", "开机自启后台静默", "窗口移动底板实时同步", "全局或单独配置"]
   },
 
   problem: {
     eyebrow: "痛点",
     title: "深夜编码<br><em>屏幕太刺眼？</em>",
-    description: "浏览器、编辑器、文档窗口在深色模式下依然有过亮区域。<strong>暗幕</strong>给任意窗口叠加可控透明度的深色蒙版，不改变原有应用设置，一键为所有窗口降亮度。",
+    description: "浏览器、编辑器、文档窗口在深色模式下依然有过亮区域。<strong>暗幕</strong>直接控制目标窗口透明度，并可在其正下方垫纯黑底板，让半透明稳定呈现为压暗效果，不改变原有应用设置。",
     stats: [
       { number: "无限", label: "目标窗口\\n同时监控" },
-      { number: "0~100%", label: "透明度\\n双滑块独立调节" },
+      { number: "0~100%", label: "透明度\\n统一或独立控制" },
       { number: "< 1 MB", label: "内存占用\\n极轻量" }
     ]
   },
@@ -442,15 +442,15 @@ var CONFIG = {
     title: "全部",
     titleEmphasis: "功能",
     items: [
-      { icon: "🎯", name: "前景蒙版", desc: "点击目标窗口自动显示暗色蒙版，鼠标穿透不挡交互" },
-      { icon: "👻", name: "后台透明", desc: "切走目标后自动变半透明，不遮挡任何其他窗口" },
-      { icon: "🔒", name: "保持透明度", desc: "开关后不走蒙版，前台后台始终用统一透明度" },
-      { icon: "🎚️", name: "双滑块调节", desc: "蒙版透明度 + 后台透明度各独立调节，范围 0~100%" },
-      { icon: "⬛", name: "多窗口支持", desc: "不限数量，任意添加需要暗化处理的目标窗口" },
-      { icon: "📌", name: "自动跟随", desc: "目标窗口移动、缩放、最小化时蒙版实时同步" },
-      { icon: "🔍", name: "自动发现", desc: "目标程序启动后自动绑定，无需手动重新添加" },
+      { icon: "🎯", name: "窗口透明度", desc: "直接控制目标窗口自身透明度，0~100% 实时调节" },
+      { icon: "⬛", name: "纯黑下层遮罩", desc: "在目标正下方垫不透明纯黑底板，半透明时稳定压暗，不露桌面" },
+      { icon: "🎛️", name: "全局/单独", desc: "全局统一透明度或每个窗口独立配置，灵活切换" },
+      { icon: "📋", name: "多窗口支持", desc: "不限数量，任意添加需要暗化处理的目标窗口" },
+      { icon: "🔗", name: "自动绑定", desc: "目标程序关闭后重新启动自动绑定，无需手动重新添加" },
+      { icon: "🌙", name: "深色主题", desc: "原生暗色 UI 配合沉浸式深色标题栏" },
       { icon: "📦", name: "托盘常驻", desc: "最小化到系统托盘，后台静默运行不打扰" },
-      { icon: "🚀", name: "开机自启", desc: "可选开机自动启动，无需每次手动打开" }
+      { icon: "🚀", name: "开机自启", desc: "可选开机自动启动，无需每次手动打开" },
+      { icon: "🔍", name: "窗口拾取", desc: "十字光标精准拾取窗口，支持多窗口场景快速切换" }
     ]
   },
 
@@ -459,12 +459,12 @@ var CONFIG = {
     title: "快速",
     titleEmphasis: "上手",
     steps: [
-      { icon: "📥", name: "下载解压", desc: "从 Release 下载 zip 包，解压到任意目录即可运行", accent: true },
-      { icon: "🎯", name: "拾取窗口", desc: "点击「+ 添加窗口」，十字光标左键选择目标窗口", accent: false },
-      { icon: "🎚️", name: "调节透明度", desc: "拖动蒙版透明度和后台透明度两个滑块，实时预览效果", accent: false },
-      { icon: "✅", name: "启用覆盖", desc: "勾选「启用覆盖」，切到目标窗口即变暗，切走即半透明", accent: true }
+      { icon: "📥", name: "下载解压", desc: "从 Release 下载 ZIP 包，解压到任意目录即可运行", accent: true },
+      { icon: "🎯", name: "添加窗口", desc: "点击「+ 添加窗口」，十字光标左键选择目标窗口", accent: false },
+      { icon: "🎚️", name: "调节透明度", desc: "拖动「窗口透明度」滑块控制压暗程度，实时预览效果", accent: false },
+      { icon: "⬛", name: "开启垫黑", desc: "勾选「下方垫黑色」，窗口半透明时背后稳定纯黑", accent: true }
     ],
-    flowLabels: ["下载解压", "→", "拾取窗口", "→", "调节参数", "→", "启用覆盖", "→", "后台静默"]
+    flowLabels: ["下载解压", "→", "添加窗口", "→", "调节透明度", "→", "开启垫黑", "→", "后台静默"]
   },
 
   install: {
@@ -472,15 +472,15 @@ var CONFIG = {
     title: "安装",
     titleEmphasis: "指南",
     steps: [
-      { title: "下载 Release", desc: "前往 GitHub Release 页面，下载 WindowTinter-release.zip" },
-      { title: "解压运行", desc: "解压到任意目录，双击 WindowTinter.exe 即可运行" },
-      { title: "首次配置", desc: "配置文件自动生成在 exe 同目录 WindowTinter.settings.json" },
+      { title: "下载 Release", desc: "前往 GitHub Release 页面，下载最新 WindowTinter_v5.x.x.zip" },
+      { title: "解压运行", desc: "解压到任意目录，双击 WindowTinter.exe 即可运行（需 .NET 6 Desktop Runtime）" },
+      { title: "首次配置", desc: "默认开启纯黑下层遮罩，配置文件 WindowTinter.settings.json 在 exe 同目录" },
       { title: "源码构建", desc: "需要 .NET 6+ SDK 和 Windows 环境，dotnet build -c Release" }
     ],
-    codeSnippet: '<span class="cm"># 克隆仓库</span><br>git clone https://github.com/<span class="hl">Simiely</span>/<span class="hl">WindowTinter</span>.git<br><br><span class="cm"># 构建项目</span><br><span class="hl">cd</span> WindowTinter<br><span class="hl">dotnet build</span> -c Release',
-    compatInfo: '● 系统要求：Windows 10 / Windows 11<br>● 运行环境：.NET 6+ Runtime<br>● 架构支持：x64<br>● 单文件自包含：无需安装 .NET 运行时',
+    codeSnippet: '<span class="cm"># 克隆仓库</span><br>git clone https://github.com/<span class="hl">Simiely</span>/<span class="hl">WindowTinter</span>.git<br><br><span class="cm"># 构建项目</span><br><span class="hl">cd</span> WindowTinter<br><span class="hl">dotnet build</span> -c Release<br><br><span class="cm"># 单文件发布</span><br><span class="hl">dotnet publish</span> -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true',
+    compatInfo: '● 系统要求：Windows 10 / Windows 11<br>● 运行环境：.NET 6+ Desktop Runtime<br>● 架构支持：x64<br>● 发布包：framework-dependent 单文件（~450KB）',
     downloadUrl: "https://github.com/Simiely/WindowTinter/releases",
-    downloadLabel: "⬇ 下载最新版"
+    downloadLabel: "⬇ 下载 ZIP"
   },
 
   cta: {
@@ -514,7 +514,7 @@ var CONFIG = {
   </div>
   <div class="nav__meta">
     <a href="#" target="_blank" id="nav-github-link" class="nav__link-text">GitHub</a>
-    <a href="#" target="_blank" id="nav-version-link" style="text-decoration:none;color:inherit"><span class="nav__ver" id="nav-version">v3.6.2</span></a>
+    <a href="#" target="_blank" id="nav-version-link" style="text-decoration:none;color:inherit"><span class="nav__ver" id="nav-version">v5.1.0</span></a>
   </div>
 </nav>
 
@@ -541,7 +541,7 @@ var CONFIG = {
         <div class="anim d1">
           <h1 class="hero__title">
             <span id="hero-title-1">暗幕</span><br>
-            <span class="l2"><span id="hero-title-2">WindowTinter</span> <em id="hero-title-em">暗色蒙版</em></span>
+            <span class="l2"><span id="hero-title-2">WindowTinter</span> <em id="hero-title-em">窗口压暗</em></span>
           </h1>
         </div>
         <div class="hero__feat anim d2">
