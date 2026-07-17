@@ -10,10 +10,9 @@ namespace WindowTinter
     /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题重新查找）。</summary>
     internal class TargetInfo : IEquatable<TargetInfo>
     {
-        public string ProcessName { get; set; } = "";
-        public string WindowTitle { get; set; } = "";
-        public int Alpha { get; set; } = 75;            // 该目标前台蒙版暗度（0~100），仅“全局统一透明度”关闭时生效
-        public int BackgroundAlpha { get; set; } = 50;  // 该目标退到后台时的透明度（0~100），仅“全局统一透明度”关闭时生效
+        public string ProcessName { get; init; } = "";
+        public string WindowTitle { get; init; } = "";
+        public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
 
         public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
 
@@ -42,13 +41,12 @@ namespace WindowTinter
     internal class Settings
     {
         public List<TargetInfo> Targets { get; set; } = new();
-        public int Alpha { get; set; } = 75;
         public int BackgroundAlpha { get; set; } = 50;
         public bool Enabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
-        public bool KeepTransparency { get; set; } = false;  // 开启后不用蒙版，窗口保持恒定透明度
         public bool GlobalTransparency { get; set; } = true; // true=所有应用统一用全局透明度；false=每个目标单独配置
+        public bool BackdropBlackPlate { get; set; } = true;  // 在目标正后方叠加纯黑底板（下层遮罩），默认开启
 
         // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -78,27 +76,9 @@ namespace WindowTinter
             }
             catch { /* 损坏则回退默认 */ }
 
-            // 尝试从旧位置迁移（exe 同目录的旧配置文件）
-            if (s == null)
-            {
-                var oldPath = Path.Combine(
-                    Path.GetDirectoryName(Environment.ProcessPath) ?? ".",
-                    "WindowTinter.settings.json");
-                try
-                {
-                    if (File.Exists(oldPath))
-                    {
-                        s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(oldPath), _jsonOptions);
-                        if (s != null) s.Save(); // 迁移到新位置
-                    }
-                }
-                catch { }
-            }
-
             s ??= new Settings();
 
-            // 迁移旧 Alpha 格式（0-255 → 0-100）
-            if (s.Alpha > 100) s.Alpha = s.Alpha * 100 / 255;
+            // 迁移旧透明度格式（0-255 → 0-100）
             if (s.BackgroundAlpha > 100) s.BackgroundAlpha = s.BackgroundAlpha * 100 / 255;
 
             // 迁移旧格式：单窗口 → 列表
@@ -115,11 +95,12 @@ namespace WindowTinter
 
             // 迁移旧 ProcessName 后缀：去掉 .exe（v2.x 曾经存储 "notepad.exe" 格式）
             bool migratedExe = false;
-            foreach (var t in s.Targets)
+            for (int i = 0; i < s.Targets.Count; i++)
             {
+                var t = s.Targets[i];
                 if (!string.IsNullOrEmpty(t.ProcessName) && t.ProcessName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    t.ProcessName = t.ProcessName[..^4];
+                    s.Targets[i] = new TargetInfo { ProcessName = t.ProcessName[..^4], WindowTitle = t.WindowTitle };
                     migratedExe = true;
                 }
             }
@@ -149,7 +130,7 @@ namespace WindowTinter
                     @"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (key == null) return;
                 if (StartWithWindows)
-                    key.SetValue("WindowTinter", Environment.ProcessPath ?? "");
+                    key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\"");
                 else
                     key.DeleteValue("WindowTinter", false);
             }

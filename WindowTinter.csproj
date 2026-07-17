@@ -8,9 +8,9 @@
     <RootNamespace>WindowTinter</RootNamespace>
     <AssemblyTitle>暗幕</AssemblyTitle>
     <Description>暗幕 — 给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具</Description>
-    <Version>3.9.0</Version>
-    <AssemblyVersion>3.9.0</AssemblyVersion>
-    <FileVersion>3.9.0</FileVersion>
+    <Version>5.1.0</Version>
+    <AssemblyVersion>5.1.0</AssemblyVersion>
+    <FileVersion>5.1.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>

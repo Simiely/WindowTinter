@@ -41,7 +41,8 @@ namespace WindowTinter
             }
 
             bool visible = Native.IsWindowVisible(TargetHandle) && !Native.IsIconic(TargetHandle);
-            Native.GetWindowRect(TargetHandle, out Native.RECT r);
+            if (!Native.GetWindowRect(TargetHandle, out Native.RECT r))
+                return; // 窗口已销毁，跳过
 
             bool changed = !_hasLast
                 || r.Left != _lastRect.Left || r.Top != _lastRect.Top

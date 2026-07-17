@@ -130,6 +130,23 @@ namespace WindowTinter
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int pvAttr, int cbAttr);
 
+        // ---- dwmapi：扩展框架边界（排除 DWM 阴影后的真实可见矩形）----
+        public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+        /// <summary>取真实可见矩形（排除 DWM 阴影），失败时回退 GetWindowRect。</summary>
+        public static RECT GetVisibleWindowRect(IntPtr hwnd)
+        {
+            var r = default(RECT);
+            // DwmGetWindowAttribute 仅在 Windows Vista+ 可用，我们的 target 是 net6-windows 没问题
+            int hr = DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<RECT>());
+            if (hr != 0 && !GetWindowRect(hwnd, out r))
+                r = default; // 双重回退均失败，返回全零（调用方有 w<=0 防护）
+            return r;
+        }
+
         // ---- user32：拾取窗口 ----
         [DllImport("user32.dll")]
         public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
