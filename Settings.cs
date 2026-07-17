@@ -13,6 +13,7 @@ namespace WindowTinter
         public string ProcessName { get; init; } = "";
         public string WindowTitle { get; init; } = "";
         public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
+        public int CornerRadius { get; set; } = 15;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 
         public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
 
@@ -46,7 +47,9 @@ namespace WindowTinter
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
         public bool GlobalTransparency { get; set; } = true; // true=所有应用统一用全局透明度；false=每个目标单独配置
+        public bool GlobalCornerRadius { get; set; } = true; // true=所有应用统一用全局圆角；false=每个目标单独配置
         public bool BackdropBlackPlate { get; set; } = true;  // 在目标正后方叠加纯黑底板（下层遮罩），默认开启
+        public int CornerRadius { get; set; } = 15;            // 底板圆角半径 (0=关, 1-20px)，默认 6px
 
         // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

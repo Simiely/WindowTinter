@@ -46,28 +46,45 @@ namespace WindowTinter
             _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
             y += 38;
 
-            AddGroup("透明度", pad, ref y, 104, GW, gb =>
+            AddGroup("窗口控制", pad, ref y, 170, GW, gb =>
             {
-                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 14, FontStyle.Bold,
+                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 30, FontStyle.Bold,
                     _settings.GlobalTransparency, ToggleGlobalTransparency);
 
-                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 44), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 37), AutoSize = true });
                 _tbBgAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 42), Size = new Size(280, 24),
+                    Location = new Point(90, 35), Size = new Size(260, 24),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
                 _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
                 gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(376, 50), AutoSize = true };
+                _lblBgAlpha = new Label { Location = new Point(356, 37), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
+
+                _chkGlobalCornerRadius = AddCheck(gb, "全局统一圆角（关闭后每个窗口单独配置）", pad, 72, FontStyle.Bold,
+                    _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
+
+                gb.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(pad, 104), AutoSize = true });
+                _tbCornerRadius = new JumpTrackBar
+                {
+                    Location = new Point(90, 102), Size = new Size(260, 24),
+                    Minimum = 0, Maximum = 20, TickFrequency = 5,
+                    SmallChange = 1, LargeChange = 5,
+                    Value = _settings.CornerRadius
+                };
+                _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
+                gb.Controls.Add(_tbCornerRadius);
+                _lblCornerRadius = new Label { Location = new Point(356, 104), AutoSize = true,
+                    Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px" };
+                gb.Controls.Add(_lblCornerRadius);
 
                 gb.Controls.Add(new Label
                 {
-                    Text = "关闭上方开关后，用每个窗口前的 ○ 选中要单独配置的窗口",
-                    Location = new Point(pad, 84), AutoSize = true,
+                    Text = "关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置",
+                    Location = new Point(pad, 139), AutoSize = true,
                     ForeColor = Color.FromArgb(150, 150, 160),
                     Font = new Font("Microsoft YaHei UI", 8.5f)
                 });
@@ -234,6 +251,7 @@ namespace WindowTinter
 
             _chkEnabled.Checked = _settings.Enabled;
             _chkGlobalTransparency.Checked = _settings.GlobalTransparency;
+            _chkGlobalCornerRadius.Checked = _settings.GlobalCornerRadius;
 
             // 非全局模式下，若选中目标已不在列表中则清空
             if (!_settings.GlobalTransparency && _selectedTarget != null && !_settings.Targets.Any(t => t.Equals(_selectedTarget)))
@@ -244,9 +262,10 @@ namespace WindowTinter
             UpdateSliderEnabled();
             _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%";
 
-            _chkStartup.Checked = _settings.StartWithWindows;
-            _chkBackdropPlate.Checked = _settings.BackdropBlackPlate;
-            _chkMinimizeTray.Checked = _settings.MinimizeToTray;
+            int cr = _settings.GlobalCornerRadius ? _settings.CornerRadius : (_selectedTarget?.CornerRadius ?? 0);
+            if (_tbCornerRadius.Value != cr) _tbCornerRadius.Value = cr;
+            UpdateCornerSliderEnabled();
+            _lblCornerRadius.Text = cr == 0 ? "关" : $"{cr}px";
             UpdateSelectButtons();
             RefreshTrayMenu();
         }
@@ -257,13 +276,23 @@ namespace WindowTinter
 
         private void SelectTarget(TargetInfo info)
         {
-            if (_settings.GlobalTransparency) return; // 全局模式无需选中
+            if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
             _selectedTarget = info;
             UpdateSelectButtons();
-            int b = info.BackgroundAlpha;
-            if (_tbBgAlpha.Value != b) _tbBgAlpha.Value = b;
-            _lblBgAlpha.Text = $"{b}%";
-            UpdateSliderEnabled();
+            if (!_settings.GlobalTransparency)
+            {
+                int b = info.BackgroundAlpha;
+                if (_tbBgAlpha.Value != b) _tbBgAlpha.Value = b;
+                _lblBgAlpha.Text = $"{b}%";
+                UpdateSliderEnabled();
+            }
+            if (!_settings.GlobalCornerRadius)
+            {
+                int cr = info.CornerRadius;
+                if (_tbCornerRadius.Value != cr) _tbCornerRadius.Value = cr;
+                _lblCornerRadius.Text = cr == 0 ? "关" : $"{cr}px";
+                UpdateCornerSliderEnabled();
+            }
         }
 
         private void UpdateSelectButtons()
@@ -291,6 +320,12 @@ namespace WindowTinter
         {
             bool enabled = _settings.GlobalTransparency || _selectedTarget != null;
             _tbBgAlpha.Enabled = enabled;
+        }
+
+        private void UpdateCornerSliderEnabled()
+        {
+            bool enabled = _settings.GlobalCornerRadius || _selectedTarget != null;
+            _tbCornerRadius.Enabled = enabled;
         }
 
         // ════════════════════════════════════════════════════════════
@@ -382,6 +417,31 @@ namespace WindowTinter
             foreach (var e in _entries) ApplyMaskNow(e);
         }
 
+        private void ToggleGlobalCornerRadius()
+        {
+            bool g = _chkGlobalCornerRadius.Checked;
+            _settings.GlobalCornerRadius = g;
+            if (!g)
+            {
+                // 关闭全局：把当前全局圆角值写入每个目标作为各自起点
+                foreach (var t in _settings.Targets)
+                {
+                    t.CornerRadius = _settings.CornerRadius;
+                }
+                _selectedTarget = _settings.Targets.FirstOrDefault();
+            }
+            _settings.Save();
+            UpdateSelectButtons();
+            UpdateUI();
+            // 刷新所有底板的圆角
+            foreach (var e in _entries)
+            {
+                bool useGlobal = _settings.GlobalCornerRadius;
+                e.Plate.CornerRadius = useGlobal ? _settings.CornerRadius : e.Info.CornerRadius;
+                e.Tracker.RefreshForeground();
+            }
+        }
+
         private void SetBgAlpha(int value)
         {
             value = Math.Clamp(value, 0, 100);
@@ -397,6 +457,39 @@ namespace WindowTinter
             // 200ms 防抖：停止拖动后再写盘
             _saveDebounceTimer.Stop();
             _saveDebounceTimer.Start();
+        }
+
+        private void SetCornerRadius(int value)
+        {
+            value = Math.Clamp(value, 0, 20);
+            if (_settings.GlobalCornerRadius)
+            {
+                _settings.CornerRadius = value;
+                foreach (var e in _entries)
+                    SetPlateCornerRadius(e, value);
+            }
+            else
+            {
+                if (_selectedTarget == null) return;
+                _selectedTarget.CornerRadius = value;
+                foreach (var e in _entries)
+                {
+                    if (e.Info == _selectedTarget)
+                    {
+                        SetPlateCornerRadius(e, value);
+                        break;
+                    }
+                }
+            }
+            _lblCornerRadius.Text = value == 0 ? "关" : $"{value}px";
+            _saveDebounceTimer.Stop();
+            _saveDebounceTimer.Start();
+        }
+
+        private static void SetPlateCornerRadius(TargetEntry e, int value)
+        {
+            e.Plate.CornerRadius = value;
+            e.Tracker.RefreshForeground();
         }
 
         private void PickWindow()
@@ -422,8 +515,9 @@ namespace WindowTinter
             }
             var info = new TargetInfo { ProcessName = procName, WindowTitle = title };
 
-            // 以当前全局值作为该窗口独立配置的起点（仅"全局统一透明度"关闭时生效）
+            // 以当前全局值作为该窗口独立配置的起点
             info.BackgroundAlpha = _settings.BackgroundAlpha;
+            info.CornerRadius = _settings.CornerRadius;
 
             if (_settings.Targets.Contains(info))
             {
@@ -442,7 +536,7 @@ namespace WindowTinter
             }
             else AddPendingUI(info);
             // 非全局模式下，自动选中刚添加的窗口
-            if (!_settings.GlobalTransparency) _selectedTarget = info;
+            if (!_settings.GlobalTransparency || !_settings.GlobalCornerRadius) _selectedTarget = info;
             UpdateUI();
         }
 

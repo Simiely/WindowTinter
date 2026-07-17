@@ -11,12 +11,21 @@ namespace WindowTinter
     /// 让目标透出来的不是桌面或其它窗口，而是纯黑 —— 即「被压暗」。
     /// 与 MaskOverlay 关键区别：不置顶（无 WS_EX_TOPMOST）、不鼠标穿透（无 WS_EX_TRANSPARENT），
     /// 且窗体类名即 WindowTinter.BlackPlate（不同名），便于单独识别 / 清理。
+    /// 
+    /// 圆角通过 SetWindowRgn + CreateRoundRectRgn 实现（不依赖逐像素 Alpha），
+    /// 避免了 GetHbitmap 丢失 Alpha 通道导致的合成问题。
     /// </summary>
     internal class BlackPlate : Form
     {
         private Bitmap _cachedBmp;
-        private int _cachedW, _cachedH;
+        private int _cachedW, _cachedH, _cachedCornerRadius;
         private IntPtr _hBmp = IntPtr.Zero;   // 由 _cachedBmp 派生的 GDI 位图句柄，跨帧缓存以减少句柄抖动
+
+        // 窗口区域缓存（SetWindowRgn 传入后由系统管理，我们不再持有句柄）
+        private int _rgnW, _rgnH, _rgnRadius;
+
+        /// <summary>圆角半径（0=关，矩形；1~10=圆角px）。</summary>
+        public int CornerRadius { get; set; } = 0;
 
         public BlackPlate()
         {
@@ -51,6 +60,9 @@ namespace WindowTinter
                 r.Left, r.Top, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 
+            // 设置窗口区域（圆角裁剪），仅在尺寸/半径变化时重建 HRGN
+            ApplyWindowRegion(w, h);
+
             RenderSolidBlack(r.Left, r.Top, w, h);
         }
 
@@ -62,17 +74,44 @@ namespace WindowTinter
                     Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
         }
 
+        /// <summary>
+        /// 通过 SetWindowRgn 裁剪窗口形状。
+        /// radius=0 时恢复为全矩形，radius>0 时设为圆角矩形。
+        /// SetWindowRgn 调用后区域句柄由系统管理，不缓存也不手动释放。
+        /// </summary>
+        private void ApplyWindowRegion(int w, int h)
+        {
+            int r = CornerRadius;
+            int clamped = r > 0 ? Math.Min(r, Math.Min(w / 2, h / 2)) : 0;
+
+            // 尺寸/半径未变 → 跳过（避免每帧重建 HRGN）
+            if (w == _rgnW && h == _rgnH && clamped == _rgnRadius)
+                return;
+
+            IntPtr hrgn = clamped > 0
+                ? Native.CreateRoundRectRgn(0, 0, w + 1, h + 1, clamped, clamped)
+                : Native.CreateRectRgn(0, 0, w, h);
+
+            if (hrgn != IntPtr.Zero)
+            {
+                Native.SetWindowRgn(Handle, hrgn, true);
+                // SetWindowRgn 接管了区域句柄所有权，不可再 DeleteObject
+                (_rgnW, _rgnH, _rgnRadius) = (w, h, clamped);
+            }
+        }
+
         private void RenderSolidBlack(int x, int y, int w, int h)
         {
-            if (_cachedBmp == null || w != _cachedW || h != _cachedH)
+            if (_cachedBmp == null || w != _cachedW || h != _cachedH || CornerRadius != _cachedCornerRadius)
             {
-                // 尺寸变化：旧 GDI 位图随之失效，先释放再重建
+                // 尺寸/圆角变化：旧 GDI 位图随之失效，先释放再重建
                 if (_hBmp != IntPtr.Zero) { Native.DeleteObject(_hBmp); _hBmp = IntPtr.Zero; }
                 _cachedBmp?.Dispose();
                 _cachedBmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
                 using (var g = Graphics.FromImage(_cachedBmp))
                     g.Clear(Color.Black);
                 _cachedW = w; _cachedH = h;
+                _cachedCornerRadius = CornerRadius;
             }
 
             IntPtr hdcScreen = Native.GetDC(IntPtr.Zero);
@@ -81,7 +120,7 @@ namespace WindowTinter
             IntPtr hdcMem = Native.CreateCompatibleDC(hdcScreen);
             if (hdcMem == IntPtr.Zero) { Native.ReleaseDC(IntPtr.Zero, hdcScreen); return; }
 
-            // 缓存 GDI 位图：仅在尺寸变化时重建，避免每帧 GetHbitmap/DeleteObject 抖动
+            // 缓存 GDI 位图：仅在尺寸/圆角变化时重建，避免每帧 GetHbitmap/DeleteObject 抖动
             if (_hBmp == IntPtr.Zero)
                 _hBmp = _cachedBmp.GetHbitmap();
             IntPtr hOld = IntPtr.Zero;
@@ -96,7 +135,7 @@ namespace WindowTinter
                 {
                     BlendOp = 0, BlendFlags = 0,
                     SourceConstantAlpha = 255, // 不透明纯黑
-                    AlphaFormat = 0
+                    AlphaFormat = 0            // 全局不透明（圆角由 SetWindowRgn 裁剪，不走逐像素 Alpha）
                 };
 
                 Native.UpdateLayeredWindow(Handle, hdcScreen,

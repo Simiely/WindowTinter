@@ -78,6 +78,7 @@ namespace WindowTinter
 
         // ---- user32：UpdateLayeredWindow（逐像素 alpha 合成）----
         public const uint ULW_ALPHA = 0x00000002;
+        public const byte AC_SRC_ALPHA = 1;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct BLENDFUNCTION
@@ -123,6 +124,17 @@ namespace WindowTinter
 
         [DllImport("gdi32.dll")]
         public static extern bool DeleteObject(IntPtr hObject);
+
+        // ---- gdi32：区域创建（圆角矩形裁剪用）----
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateRoundRectRgn(int x1, int y1, int x2, int y2, int cx, int cy);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
+
+        // ---- user32：设置窗口区域 ----
+        [DllImport("user32.dll")]
+        public static extern int SetWindowRgn(IntPtr hWnd, IntPtr hRgn, bool bRedraw);
 
         // ---- dwmapi：标题栏深色模式 (Windows 10 2004+) ----
         public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;

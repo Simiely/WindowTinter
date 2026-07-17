@@ -1,4 +1,4 @@
-# 暗幕 开发笔记 — DEV_README
+# 暗幕 开发笔记 — DEV_README (v5.3.1)
 
 ## 项目概况
 
@@ -95,6 +95,61 @@
 **涉及文件**：
 - `Program.cs:192-200` — `RestoreAllTargets()`
 
+### 11. BlackPlate 圆角裁剪：SetWindowRgn vs 逐像素 Alpha
+
+**背景**：v5.1.0 重构移除了上方蒙版（MaskOverlay），改为"目标窗口自身半透明 + 正下方垫纯黑底板"架构。底板是矩形，遮盖了目标窗口的 DWM 圆角。
+
+**v1 尝试（失败）——逐像素 Alpha**：将底板位图改为 `Format32bppArgb`，用 `GraphicsPath` 画圆角 + `AC_SRC_ALPHA` 逐像素合成。
+
+**坑 1：`GetHbitmap()` 丢失 Alpha 通道**。`Bitmap.GetHbitmap()` 从 `Format32bppArgb` 位图生成的 GDI 位图会丢弃 Alpha 数据。`AC_SRC_ALPHA` 合成时所有像素 Alpha=0，四角变成白色。
+
+**坑 2：`UpdateLayeredWindow` 的 `ptDst` 与 `SetWindowPos` 双重定位**。当同时通过 `SetWindowPos` 和 `UpdateLayeredWindow(pptDst=...)` 设置位置且使用了 `AC_SRC_ALPHA` 时，DWM 合成路径变化，导致窗口上/左边框偏移几个像素。
+
+**最终方案（成功）——`SetWindowRgn` + `CreateRoundRectRgn`**：
+- 位图保持原 `Format32bppRgb` + `Clear(Color.Black)` + `AlphaFormat=0`（零改动）
+- 圆角通过 `CreateRoundRectRgn` 创建区域句柄，`SetWindowRgn` 从窗口管理器层面裁剪形状
+- 按 `(w, h, clamped)` 三元组缓存 HRGN 避免每帧重建
+- `SetWindowRgn` 调用后区域所有权转移给系统，无需手动释放
+
+**关键性质**：底板圆角半径只需 **≥ 目标窗口 DWM 圆角半径**。因为底板在目标正后方，目标 DWM 裁掉的透明角会透到底板层。底板裁角 < 目标半径 → 黑色漏出；= 目标半径 → 完美对齐；> 目标半径 → 多裁的区域被目标自身遮挡，视觉无感知。
+
+**涉及文件**：
+- `BlackPlate.cs` — `ApplyWindowRegion()`
+- `Native.cs` — `CreateRoundRectRgn` / `CreateRectRgn` / `SetWindowRgn` P/Invoke
+- `Program.cs` — `JumpTrackBar.ClipVisual()`
+
+### 12. TrackBar 底部视觉溢出：Region 裁剪
+
+**现象**：WinForms TrackBar 原生控件的视觉轨道（填充背景条）延伸到控件底部边界之外约 8-12px，遮挡下方的提示文字。
+
+**根因**：TrackBar 是对原生 `msctls_trackbar32` 的封装，其内部 track 绘制区域比 WinForms 声明的 ClientSize 大，底部有多余的填充/焦点矩形。
+
+**解决**：在 `JumpTrackBar` 中通过 `Region` 从窗口管理器层面裁掉底部 8px 的渲染区域：
+
+```csharp
+int clipH = Math.Max(Height - 8, 12);
+this.Region = new Region(new Rectangle(0, 0, Width, clipH));
+```
+
+**涉及文件**：
+- `Program.cs:12-31` — `JumpTrackBar` 类
+
+### 13. 全局/局部双开关：透明度与圆角独立控制
+
+**设计**：v5.3.0 引入两个独立的全局开关——`GlobalTransparency`（透明度）和 `GlobalCornerRadius`（圆角）。各自可独立开启/关闭：
+
+- 开启（默认）：所有窗口共用全局滑块值
+- 关闭：进入逐窗口配置模式，每个目标前显示 ○/● 选中按钮，上方滑块只修改选中目标
+
+**关键逻辑**：
+- 关闭全局开关时，把当前全局值写入每个目标作为各自起点（避免跳变）
+- 非全局模式下未选中目标时，对应的滑块自动禁用
+- `SelectTarget()` 同步两个参数组的滑块值
+
+**涉及文件**：
+- `Settings.cs` — `GlobalCornerRadius` + `TargetInfo.CornerRadius`
+- `MainForm.UI.cs` — `ToggleGlobalCornerRadius()` / `SetCornerRadius()` / `SelectTarget()`
+
 ---
 
 ## 发布流程
@@ -106,9 +161,9 @@ dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 
 # 3. 标签 + Release
-git tag v5.1.0
-git push origin v5.1.0
-gh release create v5.1.0 bin/Release/net6.0-windows/win-x64/publish/WindowTinter.exe --notes "xxx"
+git tag v5.3.1
+git push origin v5.3.1
+gh release create v5.3.1 bin/Release/net6.0-windows/win-x64/publish/WindowTinter.exe --notes "xxx"
 ```
 
 ---

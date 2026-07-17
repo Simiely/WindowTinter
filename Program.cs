@@ -9,9 +9,26 @@ using System.Windows.Forms;
 
 namespace WindowTinter
 {
-    /// <summary>点击滑轨直接跳到鼠标位置的自定义 TrackBar。</summary>
+    /// <summary>点击滑轨直接跳到鼠标位置的自定义 TrackBar。自带底部视觉裁剪。</summary>
     internal class JumpTrackBar : TrackBar
     {
+        public JumpTrackBar()
+        {
+            HandleCreated += (_, _) => ClipVisual();
+            Resize += (_, _) => ClipVisual();
+        }
+
+        /// <summary>裁掉 TrackBar 原生控件底部的视觉溢出（轨道背景比声明区域大）。</summary>
+        private void ClipVisual()
+        {
+            if (Width > 0 && Height > 0)
+            {
+                int clipH = Math.Max(Height - 8, 12);
+                this.Region?.Dispose();
+                this.Region = new Region(new Rectangle(0, 0, Width, clipH));
+            }
+        }
+
         protected override void WndProc(ref Message m)
         {
             const int WM_LBUTTONDOWN = 0x0201;
@@ -69,6 +86,9 @@ namespace WindowTinter
         private CheckBox _chkBackdropPlate;
         private CheckBox _chkMinimizeTray;
         private CheckBox _chkGlobalTransparency;
+        private CheckBox _chkGlobalCornerRadius;
+        private TrackBar _tbCornerRadius;
+        private Label _lblCornerRadius;
 
         // ── 窗口 ───────────────────────────────────────────────────
 
@@ -81,7 +101,7 @@ namespace WindowTinter
             try { _appIcon = File.Exists(iconPath) ? new Icon(iconPath) : null; }
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
-            ClientSize = new Size(470, 666);
+            ClientSize = new Size(470, 740);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -214,6 +234,7 @@ namespace WindowTinter
         {
             var tracker = new TargetTracker();
             var plate = new BlackPlate();
+            plate.CornerRadius = _settings.GlobalCornerRadius ? _settings.CornerRadius : info.CornerRadius;
 
             byte _lastBgAlpha = 255;
 
