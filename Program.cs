@@ -66,10 +66,7 @@ namespace WindowTinter
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
         private Icon _appIcon;
-        private float _dpiScale = 1f;   // 系统 DPI 缩放比（GetDpiForSystem/96）；用于手动放大整体布局
-
-        [DllImport("user32.dll")]
-        private static extern int GetDpiForSystem();
+        private float _dpiScale = 1f;   // 系统 DPI 缩放比（DeviceDpi/96）；用于手动换算运行时动态添加的面板尺寸
 
         private static readonly string AppVersion = GetAppVersion();
         private static string GetAppVersion()
@@ -98,6 +95,12 @@ namespace WindowTinter
 
         public MainForm()
         {
+            // Win11 高 DPI：以 96 DPI 为设计基准，运行时由 AutoScaleMode.Dpi 按屏幕真实 DPI 自动缩放全部静态控件。
+            // 关键：控件必须在 CreateControl（即本构造函数）阶段建好，自动缩放才会作用于它们——
+            // 因此 BuildUI() 放在这里而非 OnLoad。BlackPlate 是物理像素分层窗，单独用 AutoScaleMode.None，不受影响。
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
+
             _settings = Settings.Load();
 
             Text = $"暗幕 v{AppVersion}";
@@ -106,9 +109,6 @@ namespace WindowTinter
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
             ClientSize = new Size(470, 740);
-            // 关闭 WinForms 自动 DPI 缩放（本项目手写布局下自动缩放不生效），
-            // 改为在 OnLoad 中按系统 DPI 手动整体放大（见 BuildUI 之后）。
-            AutoScaleMode = AutoScaleMode.None;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -117,24 +117,20 @@ namespace WindowTinter
             Activated += OnActivated;
             FormClosing += OnFormClosing;
             FormClosed += (_, _) => Quit();
+
+            BuildUI();
         }
 
         private void OnLoad(object sender, EventArgs e)
         {
+            // 句柄已创建，DeviceDpi 为真实屏幕 DPI（进程已 PerMonitorV2 感知）。
+            // 静态控件已由 AutoScaleMode.Dpi 自动缩放；运行时动态添加的面板按此因子换算尺寸。
+            _dpiScale = Math.Max(DeviceDpi / 96f, 1f);
+
             // 启动时清除上次强制退出可能残留的透明效果
             RestoreAllTargets();
 
             BuildTray();
-            BuildUI();
-
-            // 手动按系统缩放比放大整窗：自动高 DPI 缩放在本项目（手写布局）下不生效，
-            // 故检测系统 DPI 后整体 Scale，保证缩放屏下间距、字体足够，不拥挤。
-            // 进程已声明 PerMonitorV2，GetDpiForSystem 能返回真实系统 DPI（如 150% → 144）。
-            int sysDpi = GetDpiForSystem();
-            _dpiScale = Math.Max(sysDpi / 96f, 1f);
-            if (_dpiScale > 1.0001f)
-                Scale(new SizeF(_dpiScale, _dpiScale));
-
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -418,8 +414,7 @@ namespace WindowTinter
         {
             int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
-            int ph = (int)(32 * _dpiScale);
-            var pnl = new Panel { Size = new Size(w, ph), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
+            var pnl = new Panel { Size = new Size(w, (int)(32 * _dpiScale)), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(entry.Info);
@@ -455,8 +450,7 @@ namespace WindowTinter
             if (_pendingPanels.ContainsKey(info)) return;
             int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
-            int ph = (int)(32 * _dpiScale);
-            var pnl = new Panel { Size = new Size(w, ph), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
+            var pnl = new Panel { Size = new Size(w, (int)(32 * _dpiScale)), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(info);
@@ -464,7 +458,7 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  ⏳ 待激活 — {info}",
-                AutoSize = true, Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
+                AutoSize = true,                 Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
                 MaximumSize = new Size((int)(250 * _dpiScale), (int)(20 * _dpiScale)),
                 ForeColor = Color.FromArgb(120, 120, 120),
                 Cursor = Cursors.Hand
@@ -557,8 +551,8 @@ namespace WindowTinter
         [STAThread]
         static void Main()
         {
-            // 必须在 EnableVisualStyles 之前设置，否则静默失效——进程无法进入 PerMonitorV2，
-            // DeviceDpi 永远返回 96，无法检测真实缩放比。
+            // PerMonitorV2 必须在 EnableVisualStyles 之前设置，否则静默失效（进程退化为系统 DPI 感知，
+            // DeviceDpi 永远返回 96，主界面无法按缩放比缩放）。csproj 的 ApplicationHighDpiMode 也会注入相同声明作为兜底。
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
