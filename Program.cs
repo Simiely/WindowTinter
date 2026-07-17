@@ -102,6 +102,10 @@ namespace WindowTinter
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
             ClientSize = new Size(470, 740);
+            // 高 DPI 自动缩放：以 96 DPI 为设计基准，运行时按屏幕缩放比放大控件与坐标，
+            // 避免缩放屏（如 150%）下主界面控件偏小、布局拥挤。（BlackPlate 另设 None 用物理像素，不受影响）
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
