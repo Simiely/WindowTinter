@@ -62,8 +62,8 @@ namespace WindowTinter
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
         private bool _reallyQuit;
-        private float _scaleDpi = 96f;            // 当前已生效的 DPI（设计基准 96 = 100%）
-        private float DpiFactor => _scaleDpi / 96f;
+        // 动态添加的目标面板按当前屏幕 DPI 换算自身固定尺寸（静态控件由 WinForms 自动缩放处理）
+        private float DpiFactor => DeviceDpi / 96f;
         private Timer _autoBindTimer;
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
@@ -104,42 +104,32 @@ namespace WindowTinter
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
             ClientSize = new Size(470, 740);
-            // 关闭 WinForms 自动缩放，改为按当前屏幕 DPI 主动缩放整个控件树（见 ApplyDpiScaling）。
-            // 原因：本窗体是手写布局（无设计器 InitializeComponent），BuildUI 在 OnLoad 才添加控件，
-            // 而 WinForms 自动缩放在 CreateControl 时执行——那时控件还不存在，缩放等于无效。
-            // 主动缩放保证缩放屏（如 150%）下主界面清晰放大而非被系统模糊拉伸。BlackPlate 同理设 None（物理像素）。
-            AutoScaleMode = AutoScaleMode.None;
+            // 高 DPI 自适应（WinForms 标准做法）：以 96 DPI 为设计基准（本窗体所有坐标是 100% 下写的），
+            // 运行时 WinForms 按窗体所在屏幕的缩放比自动放大窗体及全部控件；跨屏拖动由 AutoScaleMode.Dpi
+            // 自动处理 WM_DPICHANGED，无需手写缩放。
+            // 关键点：BuildUI() 必须在构造函数中调用（早于 CreateControl 的自动缩放）。若放到 OnLoad，
+            // 控件在缩放早已跑完后才创建，自动缩放对其无效——这正是此前"界面毫无变化"的根因。
+            // BlackPlate 另设 AutoScaleMode.None（物理像素分层窗，由 AlignBehind 用原始像素定位，不受影响）。
+            AutoScaleMode = AutoScaleMode.Dpi;
+            AutoScaleDimensions = new SizeF(96F, 96F);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
+            // 窗体句柄创建后再设置沉浸式深色标题栏（构造函数阶段句柄尚未建立，此时设会无效）
+            HandleCreated += (_, _) =>
+            {
+                int dark = 1;
+                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
+            };
             Load += OnLoad;
             Shown += OnShown;
             Activated += OnActivated;
             FormClosing += OnFormClosing;
             FormClosed += (_, _) => Quit();
-        }
 
-        private const int WM_DPICHANGED = 0x02E0;
-
-        /// <summary>按屏幕 DPI 主动缩放整个控件树。factor = newDpi / 上次DPI，增量缩放避免 WM_DPICHANGED 重复累积。</summary>
-        private void ApplyDpiScaling(float newDpi)
-        {
-            if (newDpi <= 0) return;
-            float factor = newDpi / _scaleDpi;
-            if (Math.Abs(factor - 1f) < 0.01f) return;
-            Scale(new SizeF(factor, factor));
-            _scaleDpi = newDpi;
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == WM_DPICHANGED)
-            {
-                // wParam 低字 = 新 X DPI；按新 DPI 增量缩放窗体及全部控件（与 BlackPlate 吞掉该消息相反）。
-                int newDpi = (int)(m.WParam.ToInt64() & 0xFFFF);
-                ApplyDpiScaling(newDpi);
-            }
-            base.WndProc(ref m);
+            // 必须在设置 AutoScaleMode/Dimensions 之后、CreateControl 之前构建静态 UI，
+            // 这样 WinForms 的自动 DPI 缩放才会作用于全部控件。
+            BuildUI();
         }
 
         private void OnLoad(object sender, EventArgs e)
@@ -148,7 +138,6 @@ namespace WindowTinter
             RestoreAllTargets();
 
             BuildTray();
-            BuildUI();
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -214,8 +203,8 @@ namespace WindowTinter
 
         private void OnShown(object _, EventArgs __)
         {
-            // 初次按窗体所在屏幕 DPI 缩放（若创建时已在缩放屏，如 150%，则放大到对应尺寸）
-            ApplyDpiScaling(DeviceDpi);
+            // 静态控件已在 CreateControl 阶段由 AutoScaleMode.Dpi 自动缩放；
+            // 此处无需再手动缩放，仅刷新目标遮罩状态。
             foreach (var e in _entries) e.Tracker.RefreshNow();
             // 用一次性定时器推迟 100ms，确保消息泵完整运转后 UpdateLayeredWindow 稳定
             _onShownTimer = new Timer { Interval = 100 };
