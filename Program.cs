@@ -66,6 +66,10 @@ namespace WindowTinter
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
         private Icon _appIcon;
+        private float _dpiScale = 1f;   // 系统 DPI 缩放比（GetDpiForSystem/96）；用于手动放大整体布局
+
+        [DllImport("user32.dll")]
+        private static extern int GetDpiForSystem();
 
         private static readonly string AppVersion = GetAppVersion();
         private static string GetAppVersion()
@@ -102,6 +106,9 @@ namespace WindowTinter
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
             ClientSize = new Size(470, 740);
+            // 关闭 WinForms 自动 DPI 缩放（本项目手写布局下自动缩放不生效），
+            // 改为在 OnLoad 中按系统 DPI 手动整体放大（见 BuildUI 之后）。
+            AutoScaleMode = AutoScaleMode.None;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -119,6 +126,15 @@ namespace WindowTinter
 
             BuildTray();
             BuildUI();
+
+            // 手动按系统缩放比放大整窗：自动高 DPI 缩放在本项目（手写布局）下不生效，
+            // 故检测系统 DPI 后整体 Scale，保证缩放屏下间距、字体足够，不拥挤。
+            // 进程已声明 PerMonitorV2，GetDpiForSystem 能返回真实系统 DPI（如 150% → 144）。
+            int sysDpi = GetDpiForSystem();
+            _dpiScale = Math.Max(sysDpi / 96f, 1f);
+            if (_dpiScale > 1.0001f)
+                Scale(new SizeF(_dpiScale, _dpiScale));
+
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -400,9 +416,10 @@ namespace WindowTinter
 
         private void AddTargetUI(TargetEntry entry)
         {
-            int w = _pnlTargets.ClientSize.Width - 6;
+            int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
-            var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
+            int ph = (int)(32 * _dpiScale);
+            var pnl = new Panel { Size = new Size(w, ph), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(entry.Info);
@@ -410,7 +427,7 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  {entry.Info}", AutoSize = true,
-                Location = new Point(4, 8), MaximumSize = new Size(270, 20),
+                Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)), MaximumSize = new Size((int)(270 * _dpiScale), (int)(20 * _dpiScale)),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Cursor = Cursors.Hand
             };
@@ -436,9 +453,10 @@ namespace WindowTinter
         private void AddPendingUI(TargetInfo info)
         {
             if (_pendingPanels.ContainsKey(info)) return;
-            int w = _pnlTargets.ClientSize.Width - 6;
+            int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
-            var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
+            int ph = (int)(32 * _dpiScale);
+            var pnl = new Panel { Size = new Size(w, ph), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(info);
@@ -446,8 +464,8 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  ⏳ 待激活 — {info}",
-                AutoSize = true, Location = new Point(4, 8),
-                MaximumSize = new Size(250, 20),
+                AutoSize = true, Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
+                MaximumSize = new Size((int)(250 * _dpiScale), (int)(20 * _dpiScale)),
                 ForeColor = Color.FromArgb(120, 120, 120),
                 Cursor = Cursors.Hand
             };
@@ -539,9 +557,11 @@ namespace WindowTinter
         [STAThread]
         static void Main()
         {
+            // 必须在 EnableVisualStyles 之前设置，否则静默失效——进程无法进入 PerMonitorV2，
+            // DeviceDpi 永远返回 96，无法检测真实缩放比。
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.Run(new MainForm());
         }
     }
