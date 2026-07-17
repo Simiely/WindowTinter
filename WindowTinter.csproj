@@ -12,6 +12,9 @@
     <AssemblyVersion>5.3.1</AssemblyVersion>
     <FileVersion>5.3.1</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 高 DPI 感知：PerMonitorV2 —— 每个显示器按各自缩放比正确渲染/缩放 WinForms 控件，
+         避免缩放屏（如 150%）上 UI 被系统 DPI 虚拟化导致模糊或错位。 -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
