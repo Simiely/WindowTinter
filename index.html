@@ -405,7 +405,7 @@ var CONFIG = {
 
   pageTitle: "暗幕 WindowTinter — Windows 窗口暗色工具",
   brand: "暗幕",
-  version: "v5.1.0",
+  version: "v5.3.1",
   accentColor: "#FF9292",
   repoUrl: "https://github.com/Simiely/WindowTinter",
   issuesUrl: "https://github.com/Simiely/WindowTinter/issues",
@@ -418,12 +418,12 @@ var CONFIG = {
     titleLine2: "WindowTinter",
     titleEmphasis: "窗口压暗",
     featureLabel: "核心能力",
-    featureText: "给任意 Windows 窗口<b>直接控制透明度</b>，可选在正下方<b>垫纯黑底板</b>，半透明时稳定呈现压暗效果",
-    subtitle: "轻量级 Windows 常驻小工具 · 支持<b>多窗口独立配置</b> · <b>.NET 6 WinForms</b> 原生实现",
+    featureText: "给任意 Windows 窗口<b>直接控制透明度</b>，可选在正下方<b>垫纯黑底板</b>并<b>设置圆角</b>，半透明时稳定呈现压暗效果",
+    subtitle: "轻量级 Windows 常驻小工具 · 支持<b>多窗口独立配置</b> · 底板<b>圆角贴合</b> Win11 窗口 · <b>.NET 6 WinForms</b> 原生实现",
     badgeLabel: "Platform",
     badgeIcon: "⬛",
     tags: ["Windows 10/11", ".NET 6 Desktop", "WinForms", "MIT"],
-    tickerItems: ["窗口透明度直接控制", "纯黑底板稳定压暗", "无限窗口同时监控", "十字光标精准拾取", "开机自启后台静默", "窗口移动底板实时同步", "全局或单独配置"]
+    tickerItems: ["窗口透明度直接控制", "纯黑底板稳定压暗", "底板圆角 0~20px", "无限窗口同时监控", "十字光标精准拾取", "开机自启后台静默", "窗口移动底板实时同步", "全局或单独配置"]
   },
 
   problem: {
@@ -444,7 +444,8 @@ var CONFIG = {
     items: [
       { icon: "🎯", name: "窗口透明度", desc: "直接控制目标窗口自身透明度，0~100% 实时调节" },
       { icon: "⬛", name: "纯黑下层遮罩", desc: "在目标正下方垫不透明纯黑底板，半透明时稳定压暗，不露桌面" },
-      { icon: "🎛️", name: "全局/单独", desc: "全局统一透明度或每个窗口独立配置，灵活切换" },
+      { icon: "🔄", name: "底板圆角", desc: "底板支持 0~20px 圆角，贴合 Win11 窗口圆角，可全局或逐窗口设置" },
+      { icon: "🎛️", name: "全局/单独", desc: "透明度与圆角各有独立全局开关，关闭后可逐窗口独立配置" },
       { icon: "📋", name: "多窗口支持", desc: "不限数量，任意添加需要暗化处理的目标窗口" },
       { icon: "🔗", name: "自动绑定", desc: "目标程序关闭后重新启动自动绑定，无需手动重新添加" },
       { icon: "🌙", name: "深色主题", desc: "原生暗色 UI 配合沉浸式深色标题栏" },
@@ -462,9 +463,9 @@ var CONFIG = {
       { icon: "📥", name: "下载解压", desc: "从 Release 下载 ZIP 包，解压到任意目录即可运行", accent: true },
       { icon: "🎯", name: "添加窗口", desc: "点击「+ 添加窗口」，十字光标左键选择目标窗口", accent: false },
       { icon: "🎚️", name: "调节透明度", desc: "拖动「窗口透明度」滑块控制压暗程度，实时预览效果", accent: false },
-      { icon: "⬛", name: "开启垫黑", desc: "勾选「下方垫黑色」，窗口半透明时背后稳定纯黑", accent: true }
+      { icon: "⬛", name: "开启垫黑 + 圆角", desc: "勾选「下方垫黑色」并滑动「圆角半径」贴合窗口边缘", accent: true }
     ],
-    flowLabels: ["下载解压", "→", "添加窗口", "→", "调节透明度", "→", "开启垫黑", "→", "后台静默"]
+    flowLabels: ["下载解压", "→", "添加窗口", "→", "调节透明度", "→", "垫黑+圆角", "→", "后台静默"]
   },
 
   install: {
@@ -472,7 +473,7 @@ var CONFIG = {
     title: "安装",
     titleEmphasis: "指南",
     steps: [
-      { title: "下载 Release", desc: "前往 GitHub Release 页面，下载最新 WindowTinter_v5.x.x.zip" },
+      { title: "下载 Release", desc: "前往 GitHub Release 页面，下载最新 WindowTinter_v5.3.1.zip" },
       { title: "解压运行", desc: "解压到任意目录，双击 WindowTinter.exe 即可运行（需 .NET 6 Desktop Runtime）" },
       { title: "首次配置", desc: "默认开启纯黑下层遮罩，配置文件 WindowTinter.settings.json 在 exe 同目录" },
       { title: "源码构建", desc: "需要 .NET 6+ SDK 和 Windows 环境，dotnet build -c Release" }
@@ -514,7 +515,7 @@ var CONFIG = {
   </div>
   <div class="nav__meta">
     <a href="#" target="_blank" id="nav-github-link" class="nav__link-text">GitHub</a>
-    <a href="#" target="_blank" id="nav-version-link" style="text-decoration:none;color:inherit"><span class="nav__ver" id="nav-version">v5.1.0</span></a>
+    <a href="#" target="_blank" id="nav-version-link" style="text-decoration:none;color:inherit"><span class="nav__ver" id="nav-version">v5.3.1</span></a>
   </div>
 </nav>
 
