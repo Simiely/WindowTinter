@@ -539,9 +539,10 @@ namespace WindowTinter
         [STAThread]
         static void Main()
         {
+            // DPI 感知模式（PerMonitorV2）由 csproj 的 <ApplicationHighDpiMode> 控制（构建时注入清单）；
+            // 每个显示器按各自缩放比正确渲染/缩放 WinForms 控件，避免缩放屏 UI 模糊或错位。
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.Run(new MainForm());
         }
     }
