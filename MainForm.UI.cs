@@ -16,103 +16,125 @@ namespace WindowTinter
 
         private void BuildUI()
         {
-            int y = 10, pad = 10;
-            const int GW = 434; // group box width
-
-            AddGroup("状态", pad, ref y, 50, GW, gb =>
+            // 可滚动布局容器：承载所有“卡片”。控件尺寸固定，仅卡片间距随窗口变化。
+            _layout = new Panel
             {
-                _lblStatus = AddLabel(gb, pad, 20, FontStyle.Bold, 10f);
+                Dock = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor = Color.FromArgb(30, 30, 30)
+            };
+            Controls.Add(_layout);
+
+            const int INNER = 10;   // 卡片内边距
+            const int HEAD = 28;    // 卡片头部高度
+
+            // ── 卡片：状态 ──
+            var cStatus = MakeCard("状态", 56);
+            _lblStatus = new Label
+            {
+                Location = new Point(INNER, HEAD + 8), AutoSize = true,
+                Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(224, 224, 224)
+            };
+            cStatus.Controls.Add(_lblStatus);
+
+            // ── 卡片：开关 ──
+            var cToggles = MakeCard("开关", 64);
+            _chkEnabled = new CheckBox
+            {
+                Text = "启用覆盖", Location = new Point(INNER + 4, HEAD + 8),
+                AutoSize = true, Checked = _settings.Enabled,
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold)
+            };
+            _chkEnabled.CheckedChanged += (_, _) => ToggleEnabled();
+            _chkBackdropPlate = new CheckBox
+            {
+                Text = "下方垫黑色（下层遮罩）", Location = new Point(150, HEAD + 8),
+                AutoSize = true, Checked = _settings.BackdropBlackPlate
+            };
+            _chkBackdropPlate.CheckedChanged += (_, _) =>
+            {
+                _settings.BackdropBlackPlate = _chkBackdropPlate.Checked; _settings.Save();
+                foreach (var e in _entries) e.Tracker.RefreshForeground();
+            };
+            cToggles.Controls.Add(_chkEnabled);
+            cToggles.Controls.Add(_chkBackdropPlate);
+
+            // ── 卡片：目标窗口 ──
+            var cTargets = MakeCard("目标窗口", 300);
+            _pnlTargets = new FlowLayoutPanel
+            {
+                Location = new Point(INNER, HEAD + 6), Size = new Size(416, 210),
+                AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false,
+                BackColor = Color.FromArgb(32, 32, 32), ForeColor = Color.White
+            };
+            _pnlTargets.HandleCreated += (_, _) =>
+                Native.SetWindowTheme(_pnlTargets.Handle, "DarkMode_Explorer", null);
+            cTargets.Controls.Add(_pnlTargets);
+            _btnRefind = AddButton(cTargets, "🔄 重新查找", 115, HEAD + 224, 95, RefindAllWindows);
+            AddButton(cTargets, "+ 添加窗口", INNER, HEAD + 224, 95, PickWindow);
+
+            // ── 卡片：窗口控制 ──
+            var cCtrl = MakeCard("窗口控制", 220);
+            _chkGlobalTransparency = AddCheck(cCtrl, "全局统一透明度（关闭后每个窗口单独配置）", INNER, HEAD + 8, FontStyle.Bold,
+                _settings.GlobalTransparency, ToggleGlobalTransparency);
+            cCtrl.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(INNER, HEAD + 44), AutoSize = true });
+            _tbBgAlpha = new JumpTrackBar
+            {
+                Location = new Point(100, HEAD + 42), Size = new Size(260, 24),
+                Minimum = 0, Maximum = 100, TickFrequency = 10,
+                SmallChange = 5, LargeChange = 20,
+                Value = _settings.BackgroundAlpha
+            };
+            _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
+            cCtrl.Controls.Add(_tbBgAlpha);
+            _lblBgAlpha = new Label { Location = new Point(366, HEAD + 44), AutoSize = true };
+            cCtrl.Controls.Add(_lblBgAlpha);
+
+            _chkGlobalCornerRadius = AddCheck(cCtrl, "全局统一圆角（关闭后每个窗口单独配置）", INNER, HEAD + 80, FontStyle.Bold,
+                _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
+            cCtrl.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(INNER, HEAD + 116), AutoSize = true });
+            _tbCornerRadius = new JumpTrackBar
+            {
+                Location = new Point(100, HEAD + 114), Size = new Size(260, 24),
+                Minimum = 0, Maximum = 20, TickFrequency = 5,
+                SmallChange = 1, LargeChange = 5,
+                Value = _settings.CornerRadius
+            };
+            _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
+            cCtrl.Controls.Add(_tbCornerRadius);
+            _lblCornerRadius = new Label { Location = new Point(366, HEAD + 116), AutoSize = true,
+                Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px" };
+            cCtrl.Controls.Add(_lblCornerRadius);
+            cCtrl.Controls.Add(new Label
+            {
+                Text = "关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置",
+                Location = new Point(INNER, HEAD + 152), AutoSize = true,
+                ForeColor = Color.FromArgb(150, 150, 160), Font = new Font("Microsoft YaHei UI", 8.5f)
             });
 
-            _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y + 2, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
-            _chkBackdropPlate = AddCheck(this, "下方垫黑色（下层遮罩）", 140, y + 2, FontStyle.Regular,
-                _settings.BackdropBlackPlate, () => { _settings.BackdropBlackPlate = _chkBackdropPlate.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
-            y += 28;
-
-            AddGroup("目标窗口", pad, ref y, 260, GW, gb =>
-            {
-                _pnlTargets = new FlowLayoutPanel
-                {
-                    Location = new Point(pad, 18), Size = new Size(416, 210),
-                    AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false,
-                    BackColor = Color.FromArgb(32, 32, 32), ForeColor = Color.White
-                };
-                _pnlTargets.HandleCreated += (_, _) =>
-                    Native.SetWindowTheme(_pnlTargets.Handle, "DarkMode_Explorer", null);
-                gb.Controls.Add(_pnlTargets);
-            });
-
-            AddButton(this, "+ 添加窗口", pad, y + 2, 95, PickWindow);
-            _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
-            y += 38;
-
-            AddGroup("窗口控制", pad, ref y, 170, GW, gb =>
-            {
-                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 30, FontStyle.Bold,
-                    _settings.GlobalTransparency, ToggleGlobalTransparency);
-
-                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 37), AutoSize = true });
-                _tbBgAlpha = new JumpTrackBar
-                {
-                    Location = new Point(90, 35), Size = new Size(260, 24),
-                    Minimum = 0, Maximum = 100, TickFrequency = 10,
-                    SmallChange = 5, LargeChange = 20,
-                    Value = _settings.BackgroundAlpha
-                };
-                _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
-                gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(356, 37), AutoSize = true };
-                gb.Controls.Add(_lblBgAlpha);
-
-                _chkGlobalCornerRadius = AddCheck(gb, "全局统一圆角（关闭后每个窗口单独配置）", pad, 72, FontStyle.Bold,
-                    _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
-
-                gb.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(pad, 104), AutoSize = true });
-                _tbCornerRadius = new JumpTrackBar
-                {
-                    Location = new Point(90, 102), Size = new Size(260, 24),
-                    Minimum = 0, Maximum = 20, TickFrequency = 5,
-                    SmallChange = 1, LargeChange = 5,
-                    Value = _settings.CornerRadius
-                };
-                _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
-                gb.Controls.Add(_tbCornerRadius);
-                _lblCornerRadius = new Label { Location = new Point(356, 104), AutoSize = true,
-                    Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px" };
-                gb.Controls.Add(_lblCornerRadius);
-
-                gb.Controls.Add(new Label
-                {
-                    Text = "关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置",
-                    Location = new Point(pad, 139), AutoSize = true,
-                    ForeColor = Color.FromArgb(150, 150, 160),
-                    Font = new Font("Microsoft YaHei UI", 8.5f)
-                });
-            });
-
-            // 系统选项
-            int rowY = y + 2;
-            _chkStartup = AddCheck(this, "开机自启", pad + 4, rowY, FontStyle.Regular, _settings.StartWithWindows,
+            // ── 卡片：系统选项 ──
+            var cSys = MakeCard("系统选项", 96);
+            _chkStartup = AddCheck(cSys, "开机自启", INNER + 4, HEAD + 8, FontStyle.Regular, _settings.StartWithWindows,
                 () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); });
-            _chkMinimizeTray = AddCheck(this, "关闭窗口时最小化到托盘（不勾选则直接退出）", pad + 4, rowY + 24, FontStyle.Regular,
+            _chkMinimizeTray = AddCheck(cSys, "关闭窗口时最小化到托盘（不勾选则直接退出）", INNER + 4, HEAD + 34, FontStyle.Regular,
                 _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); });
-            rowY += 52;
 
-            AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
-            AddButton(this, "ℹ 关于", 134, rowY, 70, ShowAbout);
-            AddButton(this, "💾 保存配置", 210, rowY, 110, SaveSettings);
-            AddButton(this, "🚪 退出", 326, rowY, 70, () => { _reallyQuit = true; Close(); });
-
+            // ── 卡片：操作 ──
+            var cActions = MakeCard("操作", 110);
+            AddButton(cActions, "📂 配置文件夹", INNER, HEAD + 8, 120, OpenConfigFolder);
+            AddButton(cActions, "ℹ 关于", 134, HEAD + 8, 70, ShowAbout);
+            AddButton(cActions, "💾 保存配置", 210, HEAD + 8, 110, SaveSettings);
+            AddButton(cActions, "🚪 退出", 326, HEAD + 8, 70, () => { _reallyQuit = true; Close(); });
             var link = new LinkLabel
             {
                 Text = "20260714 / 世界的风吹向你 / 开源软件",
-                Location = new Point(pad, rowY + 38),
-                AutoSize = true,
+                Location = new Point(INNER, HEAD + 44), AutoSize = true,
                 LinkColor = Color.FromArgb(160, 160, 170),
                 ActiveLinkColor = Color.FromArgb(200, 200, 220)
             };
             link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://github.com/Simiely/WindowTinter") { UseShellExecute = true });
-            Controls.Add(link);
+            cActions.Controls.Add(link);
 
             // 恢复已有条目（活跃 + 待激活）
             for (int i = 0; i < _entries.Count; i++)
@@ -122,25 +144,40 @@ namespace WindowTinter
                     AddPendingUI(t);
 
             ApplyDarkTheme();
+            // ThemeAll 会把 Panel 染成 panelBg，这里把容器还原为表单底色，并把目标列表还原为深色
+            _layout.BackColor = Color.FromArgb(30, 30, 30);
+            _pnlTargets.BackColor = Color.FromArgb(32, 32, 32);
         }
 
         // ── 控件辅助方法 ──────────────────────────────────────────
 
-        private void AddGroup(string text, int x, ref int y, int h, int w, Action<GroupBox> build)
+        /// <summary>创建一张卡片（带头部色带与边框的固定尺寸容器），并加入布局容器与卡片列表。</summary>
+        private Panel MakeCard(string title, int height)
         {
-            var gb = new GroupBox { Text = text, Location = new Point(x, y), Size = new Size(w, h) };
-            // WinForms GroupBox 内部区域由系统主题绘制，BackColor 无效，需自绘填充
-            var groupBg = Color.FromArgb(40, 40, 40);
-            gb.Paint += (_, e) =>
+            var p = new Panel
             {
-                using var brush = new SolidBrush(groupBg);
-                // 用 Font.Height 动态计算标题高度，避免高 DPI 下填充错位
-                int headerH = gb.Font.Height + 3;
-                e.Graphics.FillRectangle(brush, 3, headerH, w - 6, h - headerH - 3);
+                BackColor = Color.FromArgb(40, 40, 40),
+                Size = new Size(CARD_W_BASE, height),
+                Margin = new Padding(0)
             };
-            build(gb);
-            Controls.Add(gb);
-            y += h + 6;
+            p.Paint += (_, e) =>
+            {
+                using var hb = new SolidBrush(Color.FromArgb(52, 52, 60));
+                e.Graphics.FillRectangle(hb, 1, 1, p.Width - 2, 26);     // 头部色带
+                using var pen = new Pen(Color.FromArgb(80, 80, 92));
+                e.Graphics.DrawRectangle(pen, 0, 0, p.Width - 1, p.Height - 1); // 边框
+            };
+            var t = new Label
+            {
+                Text = title, Location = new Point(10, 6), AutoSize = true,
+                ForeColor = Color.FromArgb(210, 210, 220),
+                Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold),
+                BackColor = Color.Transparent
+            };
+            p.Controls.Add(t);
+            _cards.Add(new Card { Panel = p, FixedHeight = height });
+            _layout.Controls.Add(p);
+            return p;
         }
 
         private static Label AddLabel(Control parent, int x, int y, FontStyle style, float size = 9f)
@@ -171,13 +208,15 @@ namespace WindowTinter
             return chk;
         }
 
-        /// <summary>创建目标面板中的 ○/● 选中按钮。</summary>
-        private static Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
+        /// <summary>创建目标面板中的 ○/● 选中按钮。尺寸/位置使用固定基准值（面板整体不缩放）。</summary>
+        private Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
         {
             var btn = new Button
             {
-                Text = selected ? "●" : "○", Size = new Size(30, 24),
-                Location = new Point(w - 68, 4), FlatStyle = FlatStyle.Flat,
+                Text = selected ? "●" : "○",
+                Size = new Size(30, 24),
+                Location = new Point(w - 68, 4),
+                FlatStyle = FlatStyle.Flat,
                 BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Enabled = enabled
@@ -187,14 +226,16 @@ namespace WindowTinter
             return btn;
         }
 
-        /// <summary>创建目标面板中的 × 删除按钮。</summary>
-        private static Button CreateRemoveButton(int w, EventHandler onClick)
+        /// <summary>创建目标面板中的 × 删除按钮。尺寸/位置使用基准值。</summary>
+        private Button CreateRemoveButton(int w, EventHandler onClick)
         {
             var btn = new Button
             {
-                Text = "×", Size = new Size(28, 24),
-                Location = new Point(w - 34, 4), FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 60), ForeColor = Color.FromArgb(224, 224, 224)
+                Text = "×",
+                Size = new Size(28, 24),
+                Location = new Point(w - 34, 4),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(60, 60, 60),                 ForeColor = Color.FromArgb(224, 224, 224)
             };
             btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
             btn.Click += onClick;

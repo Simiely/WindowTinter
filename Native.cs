@@ -148,7 +148,9 @@ namespace WindowTinter
         [DllImport("dwmapi.dll")]
         public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
-        /// <summary>取真实可见矩形（排除 DWM 阴影），失败时回退 GetWindowRect。</summary>
+        /// <summary>取真实可见矩形（排除 DWM 阴影），失败时回退 GetWindowRect。
+        /// 进程为 PerMonitorV2 时，这些 API 返回的就是物理像素（PerMonitor 下逻辑坐标==物理坐标），
+        /// 因此可直接用于分层窗的 SetWindowPos / UpdateLayeredWindow 物理定位，无需任何 DPI 上下文切换。</summary>
         public static RECT GetVisibleWindowRect(IntPtr hwnd)
         {
             var r = default(RECT);

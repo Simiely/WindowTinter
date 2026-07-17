@@ -7,4 +7,7 @@
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
+  <!-- 注意：WinForms 构建会自动剥离自定义清单里的 dpiAware/dpiAwareness（WFAC010），
+       并要求改由 csproj 的 <ApplicationHighDpiMode> 注入。DPI 感知仅用于“主界面在缩放屏下清晰”，
+       界面为固定尺寸、正好覆盖全部内容（不拉伸）；黑色底板（BlackPlate）单独用物理像素坐标系，互不干扰。 -->
 </assembly>

@@ -66,6 +66,14 @@ namespace WindowTinter
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
         private Icon _appIcon;
+        // 布局参数：控件与卡片尺寸固定不变，窗口为固定尺寸、正好覆盖全部内容（不拖动拉伸、间距不随窗口变化）。
+        private const int CARD_W_BASE = 446;  // 卡片固定宽度（控件永不缩放，故卡片宽度也固定）
+        private const int BASE_MY = 12;       // 顶部/底部外边距（固定）
+        private const int BASE_GAP_Y = 14;    // 卡片之间垂直间距（固定）
+        private const int SIDE_MARGIN = 12;   // 左右外边距（固定；窗口宽 = 卡片宽 + 2*SIDE_MARGIN）
+        private Panel _layout;                // 布局容器，承载所有卡片
+        private readonly List<Card> _cards = new();
+        private int _targetPanelBaseW;        // 目标列表面板内部基准宽度（设计基准 416-6）
 
         private static readonly string AppVersion = GetAppVersion();
         private static string GetAppVersion()
@@ -94,6 +102,11 @@ namespace WindowTinter
 
         public MainForm()
         {
+            // 不启用 WinForms 自动 DPI 缩放（AutoScaleMode.None）：控件与卡片尺寸固定，只由 Relayout 用固定间距排版。
+            // 进程的 DPI 感知由 csproj 的 <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode> 声明式启用，
+            // 保证主界面在缩放屏下清晰；黑色底板（BlackPlate）单独用物理像素坐标系，互不干扰。
+            AutoScaleMode = AutoScaleMode.None;
+
             _settings = Settings.Load();
 
             Text = $"暗幕 v{AppVersion}";
@@ -101,8 +114,10 @@ namespace WindowTinter
             try { _appIcon = File.Exists(iconPath) ? new Icon(iconPath) : null; }
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
+            // 初始尺寸仅占位，Relayout() 会按内容实际高度精确设置（窗口固定、不拉伸）。
             ClientSize = new Size(470, 740);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            FormBorderStyle = FormBorderStyle.FixedDialog;   // 固定窗口：正好覆盖全部内容，不拖动拉伸
+            MinimizeBox = true;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             Load += OnLoad;
@@ -114,11 +129,16 @@ namespace WindowTinter
 
         private void OnLoad(object sender, EventArgs e)
         {
+            BuildUI();
+            // 记录目标列表面板内部基准宽度（控件尺寸固定，不随窗口变化）。
+            _targetPanelBaseW = _pnlTargets.ClientSize.Width - 6;
+            // 布局：控件尺寸固定，仅间距随窗口变化（见 Relayout）。
+            Relayout();
+
             // 启动时清除上次强制退出可能残留的透明效果
             RestoreAllTargets();
 
             BuildTray();
-            BuildUI();
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -206,6 +226,35 @@ namespace WindowTinter
             }));
         }
 
+        /// <summary>重排布局：控件与卡片尺寸均固定，窗口为固定尺寸、正好覆盖全部内容（不拉伸、间距不随窗口变化）。
+        /// 卡片按固定上下间距顺序排布，最后把窗口 ClientSize 设为刚好容纳所有卡片的高度。</summary>
+        private void Relayout()
+        {
+            int cardW = CARD_W_BASE;          // 卡片宽度固定
+            int mx = SIDE_MARGIN;             // 左右外边距固定
+            int my = BASE_MY;                 // 顶部/底部外边距固定
+            int gapY = BASE_GAP_Y;            // 卡片间垂直间距固定
+
+            int top = my;
+            foreach (var card in _cards)
+            {
+                card.Panel.Location = new Point(mx, top);
+                card.Panel.Width = cardW;
+                card.Panel.Height = card.FixedHeight;
+                top += card.FixedHeight + gapY;
+            }
+            int totalH = top - gapY + my;     // 末张卡片下方再留一个底部外边距
+
+            // 目标面板之间的垂直间距固定（控件本身尺寸不变）
+            if (_pnlTargets != null)
+                foreach (Control p in _pnlTargets.Controls)
+                    p.Margin = new Padding(0, 0, 0, 3);
+
+            int winW = cardW + 2 * mx;
+            ClientSize = new Size(winW, totalH);
+            _layout.AutoScrollMinSize = new Size(winW, totalH);
+        }
+
         /// <summary>启动时遍历所有已配置目标，恢复透明度——处理上次强制杀进程残留。</summary>
         private void RestoreAllTargets()
         {
@@ -227,6 +276,13 @@ namespace WindowTinter
             public TargetTracker Tracker;
             public BlackPlate Plate;
             public Panel UIPanel;
+        }
+
+        /// <summary>卡片：固定尺寸的布局块，承载一组相关控件。卡片之间用间距隔开，永不重叠。</summary>
+        private class Card
+        {
+            public Panel Panel;
+            public int FixedHeight;
         }
 
         /// <summary>创建条目并挂载 OnUpdate——所有蒙版显示逻辑的唯一入口。</summary>
@@ -259,9 +315,10 @@ namespace WindowTinter
                 }
                 if (_settings.BackdropBlackPlate)
                 {
-                    // 用 DWM 扩展框架边界（去阴影）对齐底板，避免微信等程序遮罩外溢
-                    var visibleRect = Native.GetVisibleWindowRect(tracker.TargetHandle);
-                    plate.AlignBehind(tracker.TargetHandle, visibleRect);
+                    // PerMonitorV2 的 SetWindowPos/UpdateLayeredWindow 以 DIP 为坐标空间，
+                    // 因此直接使用 GetWindowRect(DIP) 对齐，而非 DWM 的物理像素（后者会被系统再缩放一次导致错位）。
+                    Native.GetWindowRect(tracker.TargetHandle, out Native.RECT rect);
+                    plate.AlignBehind(tracker.TargetHandle, rect);
                 }
                 else plate.HidePlate();
             };
@@ -400,7 +457,7 @@ namespace WindowTinter
 
         private void AddTargetUI(TargetEntry entry)
         {
-            int w = _pnlTargets.ClientSize.Width - 6;
+            int w = _targetPanelBaseW;
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
             var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
@@ -430,13 +487,14 @@ namespace WindowTinter
             // 将新面板排在倒数第二（在最后添加的控件之前）
             if (_pnlTargets.Controls.Count >= 2)
                 _pnlTargets.Controls.SetChildIndex(pnl, _pnlTargets.Controls.Count - 2);
+            // 控件尺寸固定不变，仅间距（Margin）随窗口高度变化，由 Relayout 统一处理
         }
 
         /// <summary>为尚未启动的目标窗口创建灰色"待激活"面板。</summary>
         private void AddPendingUI(TargetInfo info)
         {
             if (_pendingPanels.ContainsKey(info)) return;
-            int w = _pnlTargets.ClientSize.Width - 6;
+            int w = _targetPanelBaseW;
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
             var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
@@ -446,7 +504,7 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  ⏳ 待激活 — {info}",
-                AutoSize = true, Location = new Point(4, 8),
+                AutoSize = true,                 Location = new Point(4, 8),
                 MaximumSize = new Size(250, 20),
                 ForeColor = Color.FromArgb(120, 120, 120),
                 Cursor = Cursors.Hand
@@ -466,6 +524,7 @@ namespace WindowTinter
             _pnlTargets.Controls.Add(pnl);
             if (_pnlTargets.Controls.Count >= 2)
                 _pnlTargets.Controls.SetChildIndex(pnl, _pnlTargets.Controls.Count - 2);
+            // 控件尺寸固定不变，仅间距（Margin）随窗口高度变化，由 Relayout 统一处理
         }
 
         private void RemovePendingUI(TargetInfo info)
@@ -539,9 +598,9 @@ namespace WindowTinter
         [STAThread]
         static void Main()
         {
+            // DPI 感知改由 app.manifest 声明式启用（PerMonitorV2），更可靠；此处不再调用 SetHighDpiMode。
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.Run(new MainForm());
         }
     }

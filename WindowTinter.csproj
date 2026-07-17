@@ -13,6 +13,9 @@
     <FileVersion>5.3.1</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- WinForms 构建会把 DPI 声明注入清单（进程启动即生效）。仅用于缩放屏下清晰，
+         界面间距由窗口尺寸驱动，不依赖 DeviceDpi。 -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
   <ItemGroup>
     <None Update="app.ico">
