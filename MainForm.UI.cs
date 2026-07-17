@@ -441,6 +441,8 @@ namespace WindowTinter
                 else AddPendingUI(info);
             }
             else AddPendingUI(info);
+            // 非全局模式下，自动选中刚添加的窗口
+            if (!_settings.GlobalTransparency) _selectedTarget = info;
             UpdateUI();
         }
 
