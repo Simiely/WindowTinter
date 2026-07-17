@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -36,6 +37,8 @@ namespace WindowTinter
         private readonly Settings _settings;
         private readonly List<TargetEntry> _entries = new();
         private readonly Dictionary<TargetInfo, Panel> _pendingPanels = new();
+        private readonly Dictionary<TargetInfo, Button> _selectButtons = new();
+        private TargetInfo _selectedTarget;   // 非全局模式下，滑块当前编辑的目标
 
         private NotifyIcon _tray;
         private ContextMenuStrip _menu;
@@ -60,6 +63,7 @@ namespace WindowTinter
         private CheckBox _chkStartup;
         private CheckBox _chkKeepTransparency;
         private CheckBox _chkMinimizeTray;
+        private CheckBox _chkGlobalTransparency;
 
         // ── 窗口 ───────────────────────────────────────────────────
 
@@ -67,11 +71,12 @@ namespace WindowTinter
         {
             _settings = Settings.Load();
 
-            Text = "暗幕 v3.6.2";
+            Text = "暗幕 v3.9.0";
             var iconPath = Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "app.ico");
-            _appIcon = new Icon(iconPath);
-            Icon = _appIcon;
-            ClientSize = new Size(470, 608);
+            try { _appIcon = File.Exists(iconPath) ? new Icon(iconPath) : null; }
+            catch { _appIcon = null; }
+            Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
+            ClientSize = new Size(470, 666);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
@@ -108,6 +113,7 @@ namespace WindowTinter
                         e.MaskDark.HideMask(); e.Tracker.Dispose(); e.MaskDark.Dispose();
                         _entries.RemoveAt(i);
                         if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
+                        _selectButtons.Remove(e.Info);
                         AddPendingUI(e.Info); // 放回待激活
                         anyChange = true;
                     }
@@ -138,6 +144,10 @@ namespace WindowTinter
                 foreach (var entry in _entries)
                     RemovePendingUI(entry.Info);
             }
+
+            // 非全局模式下，默认选中第一个目标
+            if (!_settings.GlobalTransparency && _selectedTarget == null)
+                _selectedTarget = _settings.Targets.FirstOrDefault();
 
             _settings.ApplyStartWithWindows();
             UpdateUI();
@@ -200,6 +210,10 @@ namespace WindowTinter
 
             tracker.OnUpdate += (r, visible) =>
             {
+                // 全局模式用全局透明度，否则用该目标自己的配置
+                int maskA = _settings.GlobalTransparency ? _settings.Alpha : info.Alpha;
+                int bgPct = _settings.GlobalTransparency ? _settings.BackgroundAlpha : info.BackgroundAlpha;
+
                 bool fg = Native.GetForegroundWindow() == tracker.TargetHandle;
                 if (!_settings.Enabled || !visible)
                 {
@@ -212,7 +226,7 @@ namespace WindowTinter
                 if (_settings.KeepTransparency)
                 {
                     maskDark.HideMask();
-                    byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
+                    byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
                     if (_lastBgAlpha != targetAlpha)
                     {
                         SetTargetAlpha(tracker.TargetHandle, targetAlpha);
@@ -223,7 +237,7 @@ namespace WindowTinter
 
                 if (fg || _previewMask)
                 {
-                    maskDark.Alpha = (byte)(_settings.Alpha * 255 / 100);
+                    maskDark.Alpha = (byte)(maskA * 255 / 100);
                     maskDark.AlignTo(r);
                     if (_lastBgAlpha != 255)
                     {
@@ -248,7 +262,7 @@ namespace WindowTinter
                 }
                 else
                 {
-                    byte targetAlpha = (byte)((100 - _settings.BackgroundAlpha) * 255 / 100);
+                    byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
                     if (_lastBgAlpha != targetAlpha)
                     {
                         SetTargetAlpha(tracker.TargetHandle, targetAlpha);
@@ -296,6 +310,60 @@ namespace WindowTinter
             catch (Exception ex) { Debug.WriteLine($"SetTargetAlpha failed for 0x{hwnd:X}: {ex.Message}"); }
         }
 
+        // ── 提权检测：目标窗口以管理员运行、本程序非提权时无法修改其透明度 ──
+
+        private bool _elevationWarned;
+
+        private static bool? IsTargetElevated(IntPtr hwnd)
+        {
+            try
+            {
+                Native.GetWindowThreadProcessId(hwnd, out uint pid);
+                IntPtr hProc = Native.OpenProcess(Native.PROCESS_QUERY_INFORMATION, false, pid);
+                if (hProc == IntPtr.Zero) return null;
+                try
+                {
+                    if (!Native.OpenProcessToken(hProc, Native.TOKEN_QUERY, out IntPtr hToken)) return null;
+                    try
+                    {
+                        if (Native.GetTokenInformation(hToken, 20 /*TokenElevation*/,
+                                out Native.TOKEN_ELEVATION te,
+                                (uint)Marshal.SizeOf<Native.TOKEN_ELEVATION>(), out uint _))
+                            return te.TokenIsElevated != 0;
+                    }
+                    finally { Native.CloseHandle(hToken); }
+                }
+                finally { Native.CloseHandle(hProc); }
+            }
+            catch { }
+            return null;
+        }
+
+        private static bool IsCurrentProcessElevated()
+        {
+            try
+            {
+                using var p = Process.GetCurrentProcess();
+                IntPtr hProc = Native.OpenProcess(Native.PROCESS_QUERY_INFORMATION, false, (uint)p.Id);
+                if (hProc == IntPtr.Zero) return false;
+                try
+                {
+                    if (!Native.OpenProcessToken(hProc, Native.TOKEN_QUERY, out IntPtr hToken)) return false;
+                    try
+                    {
+                        if (Native.GetTokenInformation(hToken, 20 /*TokenElevation*/,
+                                out Native.TOKEN_ELEVATION te,
+                                (uint)Marshal.SizeOf<Native.TOKEN_ELEVATION>(), out uint _))
+                            return te.TokenIsElevated != 0;
+                    }
+                    finally { Native.CloseHandle(hToken); }
+                }
+                finally { Native.CloseHandle(hProc); }
+            }
+            catch { }
+            return false;
+        }
+
         /// <summary>触发刷新——走 OnUpdate 完整路径（前景蒙版/后台透明）。</summary>
         private void ApplyMaskNow(TargetEntry e)
         {
@@ -327,21 +395,48 @@ namespace WindowTinter
             _entries.Add(entry);
 
             AddTargetUI(entry);
+
+            // 提权提示：目标以管理员身份运行而本程序未提权时，改透明度会静默失败
+            if (!_elevationWarned && !IsCurrentProcessElevated())
+            {
+                bool? elevated = IsTargetElevated(h);
+                if (elevated == true)
+                {
+                    _elevationWarned = true;
+                    _tray?.ShowBalloonTip(5000, "无法修改此窗口透明度",
+                        "目标窗口以管理员身份运行，而本程序不是。请右键“以管理员身份运行”本程序。",
+                        ToolTipIcon.Warning);
+                }
+            }
         }
 
         private void AddTargetUI(TargetEntry entry)
         {
             int w = _pnlTargets.ClientSize.Width - 6;
+            bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
             var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
-                BackColor = Color.FromArgb(40, 40, 40) };
+                BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40) };
 
             var lbl = new Label
             {
                 Text = $"  {entry.Info}", AutoSize = true,
-                Location = new Point(4, 8), MaximumSize = new Size(300, 20),
+                Location = new Point(4, 8), MaximumSize = new Size(270, 20),
                 ForeColor = Color.FromArgb(224, 224, 224)
             };
             pnl.Controls.Add(lbl);
+
+            var btnSelect = new Button
+            {
+                Text = sel ? "●" : "○", Size = new Size(30, 24),
+                Location = new Point(w - 68, 4), FlatStyle = FlatStyle.Flat,
+                BackColor = sel ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
+                ForeColor = Color.FromArgb(224, 224, 224),
+                Enabled = !_settings.GlobalTransparency
+            };
+            btnSelect.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+            btnSelect.Click += (_, _) => SelectTarget(entry.Info);
+            pnl.Controls.Add(btnSelect);
+            _selectButtons[entry.Info] = btnSelect;
 
             var btnRemove = new Button
             {
@@ -365,17 +460,31 @@ namespace WindowTinter
         {
             if (_pendingPanels.ContainsKey(info)) return;
             int w = _pnlTargets.ClientSize.Width - 6;
+            bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
             var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
-                BackColor = Color.FromArgb(40, 40, 40) };
+                BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40) };
 
             var lbl = new Label
             {
                 Text = $"  ⏳ 待激活 — {info}",
                 AutoSize = true, Location = new Point(4, 8),
-                MaximumSize = new Size(280, 20),
+                MaximumSize = new Size(250, 20),
                 ForeColor = Color.FromArgb(120, 120, 120)
             };
             pnl.Controls.Add(lbl);
+
+            var btnSelect = new Button
+            {
+                Text = sel ? "●" : "○", Size = new Size(30, 24),
+                Location = new Point(w - 68, 4), FlatStyle = FlatStyle.Flat,
+                BackColor = sel ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
+                ForeColor = Color.FromArgb(224, 224, 224),
+                Enabled = !_settings.GlobalTransparency
+            };
+            btnSelect.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+            btnSelect.Click += (_, _) => SelectTarget(info);
+            pnl.Controls.Add(btnSelect);
+            _selectButtons[info] = btnSelect;
 
             var btnRemove = new Button
             {
@@ -405,6 +514,8 @@ namespace WindowTinter
         private void RemovePendingTarget(TargetInfo info, Panel pnl)
         {
             RemovePendingUI(info);
+            _selectButtons.Remove(info);
+            if (_selectedTarget != null && _selectedTarget.Equals(info)) _selectedTarget = null;
             // 也清理可能已绑定的条目
             var entry = _entries.FirstOrDefault(e => e.Info == info);
             if (entry != null) RemoveEntry(entry, entry.UIPanel);
@@ -417,6 +528,8 @@ namespace WindowTinter
         {
             _entries.Remove(entry);
             _pnlTargets.Controls.Remove(pnl);
+            _selectButtons.Remove(entry.Info);
+            if (_selectedTarget != null && _selectedTarget.Equals(entry.Info)) _selectedTarget = null;
             SetTargetAlpha(entry.Tracker.TargetHandle, 255);
             entry.Tracker.Dispose();
             entry.MaskDark.Dispose();
@@ -431,6 +544,7 @@ namespace WindowTinter
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pendingPanels.Clear();
+            _selectButtons.Clear();
         }
 
         // ════════════════════════════════════════════════════════════
@@ -469,12 +583,15 @@ namespace WindowTinter
             _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
             y += 38;
 
-            AddGroup("透明度", pad, ref y, 90, GW, gb =>
+            AddGroup("透明度", pad, ref y, 144, GW, gb =>
             {
-                gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 18), AutoSize = true });
+                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 14, FontStyle.Bold,
+                    _settings.GlobalTransparency, ToggleGlobalTransparency);
+
+                gb.Controls.Add(new Label { Text = "蒙版 (前台):", Location = new Point(pad, 44), AutoSize = true });
                 _tbAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 16), Size = new Size(280, 40),
+                    Location = new Point(90, 42), Size = new Size(280, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.Alpha
@@ -484,21 +601,29 @@ namespace WindowTinter
                 _tbAlpha.MouseUp += (_, _) => ClearPreview();
                 MouseUp += (_, _) => ClearPreview(); // 兜底：滑块外释放
                 gb.Controls.Add(_tbAlpha);
-                _lblAlpha = new Label { Location = new Point(376, 24), AutoSize = true };
+                _lblAlpha = new Label { Location = new Point(376, 50), AutoSize = true };
                 gb.Controls.Add(_lblAlpha);
 
-                gb.Controls.Add(new Label { Text = "窗口 (后台):", Location = new Point(pad, 56), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "窗口 (后台):", Location = new Point(pad, 82), AutoSize = true });
                 _tbBgAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 54), Size = new Size(280, 40),
+                    Location = new Point(90, 80), Size = new Size(280, 40),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
-                _tbBgAlpha.ValueChanged += (_, _) => { _settings.BackgroundAlpha = Math.Clamp(_tbBgAlpha.Value, 0, 100); _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%"; };
+                _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
                 gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(376, 62), AutoSize = true };
+                _lblBgAlpha = new Label { Location = new Point(376, 88), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
+
+                gb.Controls.Add(new Label
+                {
+                    Text = "关闭上方开关后，用每个窗口前的 ○ 选中要单独配置的窗口",
+                    Location = new Point(pad, 124), AutoSize = true,
+                    ForeColor = Color.FromArgb(150, 150, 160),
+                    Font = new Font("Microsoft YaHei UI", 8.5f)
+                });
             });
 
             // 系统选项
@@ -630,17 +755,78 @@ namespace WindowTinter
                 : $"● 监控中 — {active} 个窗口";
 
             _chkEnabled.Checked = _settings.Enabled;
+            _chkGlobalTransparency.Checked = _settings.GlobalTransparency;
 
-            int sv = _settings.Alpha;
-            if (_tbAlpha.Value != sv) _tbAlpha.Value = sv;
+            // 非全局模式下，若选中目标已不在列表中则清空
+            if (!_settings.GlobalTransparency && _selectedTarget != null && !_settings.Targets.Any(t => t.Equals(_selectedTarget)))
+                _selectedTarget = null;
+
+            if (_settings.GlobalTransparency)
+            {
+                if (_tbAlpha.Value != _settings.Alpha) _tbAlpha.Value = _settings.Alpha;
+                if (_tbBgAlpha.Value != _settings.BackgroundAlpha) _tbBgAlpha.Value = _settings.BackgroundAlpha;
+            }
+            else
+            {
+                int a = _selectedTarget?.Alpha ?? 0;
+                int b = _selectedTarget?.BackgroundAlpha ?? 0;
+                if (_tbAlpha.Value != a) _tbAlpha.Value = a;
+                if (_tbBgAlpha.Value != b) _tbBgAlpha.Value = b;
+            }
+            UpdateSliderEnabled();
             _lblAlpha.Text = $"{_tbAlpha.Value}%";
-            if (_tbBgAlpha.Value != _settings.BackgroundAlpha) _tbBgAlpha.Value = _settings.BackgroundAlpha;
-            _lblBgAlpha.Text = $"{_settings.BackgroundAlpha}%";
+            _lblBgAlpha.Text = $"{_tbBgAlpha.Value}%";
 
             _chkStartup.Checked = _settings.StartWithWindows;
             _chkKeepTransparency.Checked = _settings.KeepTransparency;
             _chkMinimizeTray.Checked = _settings.MinimizeToTray;
+            UpdateSelectButtons();
             RefreshTrayMenu();
+        }
+
+        // ════════════════════════════════════════════════════════════
+        // 选中目标（非全局模式）
+        // ════════════════════════════════════════════════════════════
+
+        private void SelectTarget(TargetInfo info)
+        {
+            if (_settings.GlobalTransparency) return; // 全局模式无需选中
+            _selectedTarget = info;
+            UpdateSelectButtons();
+            int a = info.Alpha, b = info.BackgroundAlpha;
+            if (_tbAlpha.Value != a) _tbAlpha.Value = a;
+            if (_tbBgAlpha.Value != b) _tbBgAlpha.Value = b;
+            _lblAlpha.Text = $"{a}%";
+            _lblBgAlpha.Text = $"{b}%";
+            UpdateSliderEnabled();
+        }
+
+        private void UpdateSelectButtons()
+        {
+            bool global = _settings.GlobalTransparency;
+            foreach (var kv in _selectButtons)
+            {
+                bool sel = !global && _selectedTarget != null && _selectedTarget.Equals(kv.Key);
+                kv.Value.Text = sel ? "●" : "○";
+                kv.Value.Enabled = !global;
+                kv.Value.BackColor = sel ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60);
+            }
+            // 高亮选中面板
+            foreach (var e in _entries)
+                if (e.UIPanel != null)
+                    e.UIPanel.BackColor = (!global && _selectedTarget != null && _selectedTarget.Equals(e.Info))
+                        ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40);
+            foreach (var kv in _pendingPanels)
+                kv.Value.BackColor = (!global && _selectedTarget != null && _selectedTarget.Equals(kv.Key))
+                    ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40);
+        }
+
+        /// <summary>非全局模式且未选中任何目标时，禁用手动滑块避免“空转”（此时调节无效果）。</summary>
+        private void UpdateSliderEnabled()
+        {
+            bool enabled = _settings.GlobalTransparency || _selectedTarget != null;
+            _tbAlpha.Enabled = enabled;
+            _tbBgAlpha.Enabled = enabled;
         }
 
         // ════════════════════════════════════════════════════════════
@@ -650,7 +836,7 @@ namespace WindowTinter
         private void BuildTray()
         {
             _menu = new ContextMenuStrip();
-            _tray = new NotifyIcon { Icon = _appIcon, Text = "暗幕 v3.6.2", ContextMenuStrip = _menu, Visible = true };
+            _tray = new NotifyIcon { Icon = _appIcon, Text = "暗幕 v3.9.0", ContextMenuStrip = _menu, Visible = true };
             _tray.DoubleClick += (_, _) => ToggleWindow();
             RefreshTrayMenu();
         }
@@ -713,12 +899,54 @@ namespace WindowTinter
             UpdateUI();
         }
 
+        private void ToggleGlobalTransparency()
+        {
+            bool g = _chkGlobalTransparency.Checked;
+            _settings.GlobalTransparency = g;
+            if (!g)
+            {
+                // 关闭全局：把当前全局值写入每个目标作为各自起点
+                foreach (var t in _settings.Targets)
+                {
+                    t.Alpha = _settings.Alpha;
+                    t.BackgroundAlpha = _settings.BackgroundAlpha;
+                }
+                _selectedTarget = _settings.Targets.FirstOrDefault();
+            }
+            _settings.Save();
+            UpdateSelectButtons();
+            UpdateUI();
+            foreach (var e in _entries) ApplyMaskNow(e);
+        }
+
         private void SetAlpha(int value)
         {
-            _settings.Alpha = Math.Clamp(value, 0, 100);
+            value = Math.Clamp(value, 0, 100);
+            if (_settings.GlobalTransparency)
+                _settings.Alpha = value;
+            else
+            {
+                if (_selectedTarget == null) return; // 非全局模式但没选中目标，不处理
+                _selectedTarget.Alpha = value;
+            }
             _settings.Save();
             foreach (var e in _entries) ApplyMaskNow(e);
-            _lblAlpha.Text = $"{_settings.Alpha}%";
+            _lblAlpha.Text = $"{value}%";
+        }
+
+        private void SetBgAlpha(int value)
+        {
+            value = Math.Clamp(value, 0, 100);
+            if (_settings.GlobalTransparency)
+                _settings.BackgroundAlpha = value;
+            else
+            {
+                if (_selectedTarget == null) return;
+                _selectedTarget.BackgroundAlpha = value;
+            }
+            _settings.Save();
+            foreach (var e in _entries) ApplyMaskNow(e);
+            _lblBgAlpha.Text = $"{value}%";
         }
 
         private void ClearPreview()
@@ -748,6 +976,10 @@ namespace WindowTinter
                 Native.GetWindowText(picker.SelectedHandle, sb, len + 1);
                 info.WindowTitle = sb.ToString();
             }
+
+            // 以当前全局值作为该窗口独立配置的起点（仅“全局统一透明度”关闭时生效）
+            info.Alpha = _settings.Alpha;
+            info.BackgroundAlpha = _settings.BackgroundAlpha;
 
             if (_settings.Targets.Contains(info))
             {
@@ -789,7 +1021,7 @@ namespace WindowTinter
         private void ShowAbout()
         {
             MessageBox.Show(
-                "暗幕 v3.6.2\n\n" +
+                "暗幕 v3.9.0\n\n" +
                 "给任意窗口叠加深色半透明蒙版的常驻小工具。\n" +
                 "支持多窗口同时覆盖。\n\n" +
                 "• 配置: 与 exe 同目录 WindowTinter.settings.json\n" +

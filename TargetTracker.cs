@@ -73,11 +73,25 @@ namespace WindowTinter
             return r.Width >= MIN_TARGET_SIZE && r.Height >= MIN_TARGET_SIZE;
         }
 
+        /// <summary>
+        /// 按标题+进程名查找目标窗口。
+        /// 先精确匹配（保持原有行为），找不到时退回“标题包含”匹配，
+        /// 以兼容浏览器/编辑器等运行时标题会动态变化的程序。
+        /// 公开签名保持不变，调用方无感知。
+        /// </summary>
         public static IntPtr FindByTitleAndProcess(string title, string processName, HashSet<IntPtr> excludeHandles = null)
         {
             if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(processName))
                 return IntPtr.Zero;
 
+            IntPtr found = FindByPredicate(title, processName, excludeHandles, exact: true);
+            if (found == IntPtr.Zero)
+                found = FindByPredicate(title, processName, excludeHandles, exact: false);
+            return found;
+        }
+
+        private static IntPtr FindByPredicate(string title, string processName, HashSet<IntPtr> excludeHandles, bool exact)
+        {
             string proc = processName.ToLowerInvariant();
             if (proc.EndsWith(".exe")) proc = proc[..^4]; // 兼容旧配置带 .exe 后缀
             string kw = title.ToLowerInvariant();
@@ -90,7 +104,10 @@ namespace WindowTinter
                 if (len == 0) return true;
                 var sb = new StringBuilder(len + 1);
                 Native.GetWindowText(hwnd, sb, len + 1);
-                if (!sb.ToString().ToLowerInvariant().Equals(kw)) return true;
+                string wtitle = sb.ToString().ToLowerInvariant();
+                // 精确模式要求完全一致；模糊模式允许标题包含关键词
+                bool titleMatch = exact ? wtitle.Equals(kw) : wtitle.Contains(kw);
+                if (!titleMatch) return true;
                 Native.GetWindowThreadProcessId(hwnd, out uint pid);
                 try
                 {

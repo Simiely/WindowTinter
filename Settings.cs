@@ -12,6 +12,9 @@ namespace WindowTinter
     {
         public string ProcessName { get; set; } = "";
         public string WindowTitle { get; set; } = "";
+        public int Alpha { get; set; } = 75;            // 该目标前台蒙版暗度（0~100），仅“全局统一透明度”关闭时生效
+        public int BackgroundAlpha { get; set; } = 50;  // 该目标退到后台时的透明度（0~100），仅“全局统一透明度”关闭时生效
+
         public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
 
         public bool Equals(TargetInfo other) =>
@@ -34,7 +37,7 @@ namespace WindowTinter
 
     /// <summary>
     /// 持久化设置。支持多窗口目标列表。
-    /// 配置存储于 %AppData%/WindowTinter/WindowTinter.settings.json
+    /// 配置存储于 exe 同目录 WindowTinter.settings.json
     /// </summary>
     internal class Settings
     {
@@ -45,6 +48,7 @@ namespace WindowTinter
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
         public bool KeepTransparency { get; set; } = false;  // 开启后不用蒙版，窗口保持恒定透明度
+        public bool GlobalTransparency { get; set; } = true; // true=所有应用统一用全局透明度；false=每个目标单独配置
 
         // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -95,6 +99,7 @@ namespace WindowTinter
 
             // 迁移旧 Alpha 格式（0-255 → 0-100）
             if (s.Alpha > 100) s.Alpha = s.Alpha * 100 / 255;
+            if (s.BackgroundAlpha > 100) s.BackgroundAlpha = s.BackgroundAlpha * 100 / 255;
 
             // 迁移旧格式：单窗口 → 列表
             if (s.Targets.Count == 0 && !string.IsNullOrEmpty(s.TargetProcessName))

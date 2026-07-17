@@ -1,6 +1,6 @@
 # DEV.md — 开发笔记
 
-> 本项目从 v1 到 v3.6.2 的完整踩坑记录。以后做「窗口覆盖 / 蒙版 / 暗化」类工具时直接参考。
+> 本项目从 v1 到 v3.9.0 的完整踩坑记录。以后做「窗口覆盖 / 蒙版 / 暗化」类工具时直接参考。
 
 ---
 
@@ -483,6 +483,95 @@ jobs:
 
 ---
 
+## 26. 近期迭代踩坑（v3.7.0 → v3.9.0）
+
+以下为本次迭代新增功能与排障经验，单独成节便于日后检索。
+
+### 26.1 目标框架必须匹配运行环境（net9 vs net6）
+
+**现象**：用 `net9.0-windows` 编译出的 exe，在只装了 .NET 6 运行时的机器上「双击无法运行 / 打不开」。
+**根因**：`<TargetFramework>` 决定 exe 依赖的共享运行时版本。net9 产物需要 .NET 9 运行时；用户机器只有 .NET 6 → 启动即失败（无报错弹窗，只有事件日志）。
+**结论 / 教训**：交付前务必确认目标机运行时版本。`dotnet --list-runtimes` 看本机装了哪些。本项目用户环境是 .NET 6，所以始终用 `net6.0-windows`。SDK 版本（如 9.0.300）可以高于目标框架——用高版本 SDK 编译 net6 完全没问题，关键是目标框架别超运行时。
+
+### 26.2 依赖框架发布必须带齐附属文件
+
+**现象**：只把单个 `WindowTinter.exe` 发给用户 → 用户说「程序坏了 / 打不开」。
+**根因**：`dotnet publish` 依赖框架（framework-dependent）模式产出的不是一个 exe，而是一堆文件：`WindowTinter.exe` + `WindowTinter.dll` + `WindowTinter.deps.json` + `WindowTinter.runtimeconfig.json` + 一堆 `*.dll`。**只发 exe 会缺失依赖清单与程序集**，运行时找不到入口而失败。此外 `app.ico` 也必须同目录（否则图标加载失败，见第 9 / 20 节）。
+**结论**：发布压缩包时把整个 `publish/` 目录内容（含 app.ico）一起打进 zip，而不是只挑 exe。自包含（`--self-contained`）会把运行时也打进单文件，包体大但免装运行时——本项目用户机器已有 .NET 6，故采用依赖框架 + 完整文件发布。
+
+### 26.3 图标要用真实资源，勿用占位图
+
+**现象**：编译时用了脚本生成的占位 `app.ico`，与产品真实图标不一致，用户一眼看出「图标不对」。
+**正确做法**：仓库里本就有真实 `app.ico`（多分辨率 ICO），直接用。csproj 里 `<ApplicationIcon>app.ico</ApplicationIcon>` + `<None Update="app.ico"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>` 即可随 exe 输出。
+**取仓库原始资源**：受限环境 `raw.githubusercontent.com` 被 TLS 拦截时，改走 GitHub REST：`GET api.github.com/repos/{owner}/{repo}/git/blobs/{sha}`，请求头 `Accept: application/vnd.github.v3.raw` 直接拿文件字节（见 26.10）。
+
+### 26.4 UI 文字被遮挡：新增控件要重算 GroupBox 高度与 ClientSize
+
+**现象**：在「透明度」分组里新增一行注释 Label（放 y=104），被同组的背景透明度滑块（y=80~120）遮住一部分，文字显示不全。
+**根因**：GroupBox 内部区域是固定高度画的（见第 21 节 / `AddGroup`），新增控件超出原高度却没调大 GroupBox `Size` 和 `ClientSize`，于是被裁切。
+**修复 / 教训**：每增加一行控件，记得同步把所在 GroupBox 的 `Size.Height` 调大、必要时把窗体 `ClientSize.Height` 调大，留出底部边距。WinForms 不会自动为你扩展父容器。
+
+### 26.5 离线 NuGet 还原（沙箱无外网时）
+
+**场景**：CI/沙箱机无法访问 nuget.org，或缺少对应目标框架的引用包时，`dotnet restore` 报错。
+**办法**：临时放一个 `nuget.config`：
+
+```xml
+<configuration>
+  <packageSources><clear /></packageSources>
+  <fallbackPackageFolders><clear />
+    <add key="local" value="C:\Users\2504\.nuget\packages" />
+  </fallbackPackageFolders>
+</configuration>
+```
+
+本地 NuGet 缓存 `C:\Users\<用户>\.nuget\packages` 里通常有历史拉取的 net6.0 引用包（`Microsoft.NETCore.App.Ref`、`Microsoft.WindowsDesktop.App.Ref` 等），`fallbackPackageFolders` 让还原从这里取。
+**⚠️ 切勿把此 nuget.config 提交到仓库**：`<clear/>` 会**移除 nuget.org 源**，普通用户 clone 后 `dotnet build` 会因无包源而失败。它只是本地 / 沙箱的临时手段，构建完即删。
+
+### 26.6 动态标题窗口匹配：精确匹配 + 「标题包含」回退
+
+**问题**：`FindByTitleAndProcess` 原要求标题**精确相等**。浏览器、带实时时间的播放器等标题会动态变化 → 标题一变就掉回「待激活」。
+**修复**：先按「进程名 + 精确标题」匹配；匹配不到时，回退到「标题包含（子串）」匹配（同进程名下任一窗口标题含目标串即命中）。这样动态标题窗口能稳定保持绑定。
+**代价**：子串匹配可能误命中同进程的多窗口，但本工具监控粒度本就是「进程 + 标题」，可接受。
+
+### 26.7 GDI 位图缓存：HBITMAP 复用
+
+**问题**：`MaskOverlay.RenderLayered` 每次渲染都 `Bitmap.GetHbitmap()` 新建位图、用完 `DeleteObject` 释放。移动蒙版时每帧新建/释放，GDI 句柄抖动明显。
+**修复**：缓存 `_hBmp` 字段，**仅在蒙版尺寸变化时才重建**位图；`Dispose` 里统一 `DeleteObject(_hBmp)` 释放。句柄数稳定，移动更顺。
+
+### 26.8 提权检测（管理员目标 vs 普通权限工具）
+
+**现象**：目标程序以管理员身份运行，而本工具以普通权限运行时，给它设透明度**静默失败**（跨完整性级别改窗口样式被系统拒绝，且无异常抛出）。
+**修复**：新增 `Native` P/Invoke：`OpenProcess(PROCESS_QUERY_INFORMATION)` → `OpenProcessToken(hProc, TOKEN_QUERY, out hToken)` → `GetTokenInformation(hToken, TokenElevation=20, out TOKEN_ELEVATION, ...)` 读出目标是否提权；本进程同样取一次自身是否提权。当「目标提权 && 本程序未提权」时弹托盘气泡提示：「请右键以管理员身份运行本程序」。
+**教训**：跨完整性级别（IL）的窗口样式修改会被系统静默拒绝，UI 上看就是「设了透明度没反应」。这类问题要主动探测并提示用户，而不是让用户瞎猜。
+
+### 26.9 全局 / 单窗口透明度功能设计
+
+**需求**：一个总开关「全局统一透明度」。
+
+- **开启（默认）**：所有监控窗口共用上方「蒙版 / 后台」两套滑块值（`Settings.Alpha` / `Settings.BackgroundAlpha`）。
+- **关闭**：进入「单窗口配置」模式——每个目标前出现「○ / ●」选中按钮，选中后上方双滑块只改该窗口；不同程序可各自设定暗度。每个 `TargetInfo` 增加 `Alpha` / `BackgroundAlpha` 字段。
+
+**关键一致性处理**：
+
+- 关闭全局开关时，把当前全局值**写入每个目标**作为各自起点，避免突然跳变；
+- 非全局模式且未选中任何目标时，**禁用手动滑块**（避免「空转」调了却没效果），`UpdateSliderEnabled()` 处理；
+- 切换「选中目标」时把该目标的值刷进滑块（`SelectTarget`）。
+
+**OnUpdate 统一取值**：`int maskA = GlobalTransparency ? Settings.Alpha : info.Alpha;` 一处分支贯穿前台蒙版 / 后台透明 / 保持透明度三条路径。
+
+### 26.10 沙箱网络限制：api.github.com 可用，raw.githubusercontent.com 被拦
+
+**现象**：`git clone` / `curl` 直连 `raw.githubusercontent.com` 被 TLS 拦截失败；但 `api.github.com` 各接口（含 blob 原始内容）正常。
+**应对**：
+
+- 取仓库原始文件 → 用 `GET api.github.com/repos/{owner}/{repo}/git/blobs/{sha}` + `Accept: application/vnd.github.v3.raw`；
+- 推代码 → `git` 走 `https://<token>@github.com/...` 正常（ls-remote / clone / push 均通）。
+
+**教训**：同一域名家族下不同子域的 TLS 策略可能不同，一条路不通就换 REST API。
+
+---
+
 ## 架构演进
 
 | 版本 | 变化 |
@@ -496,6 +585,8 @@ jobs:
 | v3.0.1 | BeginInvoke 闪白修复 + .exe 兼容迁移 + CloseReason 修复 + TargetInfo 值语义 + 设置即时持久化 + app.ico 绝对路径 + KeepTransparency + 超椭圆图标 + 深色滚动条 + 8 轮审计 |
 | v3.2.2 | 配置路径迁移（exe 同目录）+ 启动透明度恢复 + 后台点击激活 + 拾取器零闪烁方案 + 提示窗修复 + DebugLog 清理 |
 | v3.6.2 | UI 重构（按钮下移+状态栏整合）+ GitHub Actions CI/CD + GitHub Pages 落地页 + 多项稳定性修复 |
+| v3.7.0 | 全局/单窗口透明度开关 + 目标选中按钮 + 动态标题子串匹配 + GDI 位图缓存 + 提权检测气泡 + UI 遮挡修复 |
+| v3.9.0 | 版本号推进 3.9.0 + README/DEV.md 文档更新 + 清理仓库游离文件 + 确保仓库可直接 dotnet build |
 
 ---
 

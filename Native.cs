@@ -173,5 +173,28 @@ namespace WindowTinter
         public const uint RDW_ERASE = 0x0004;
         public const uint RDW_FRAME = 0x0400;
         public const uint RDW_ALLCHILDREN = 0x0080;
+
+        // ---- 提权检测：目标窗口以管理员运行、本程序非提权时无法修改其透明度 ----
+        public const uint PROCESS_QUERY_INFORMATION = 0x0400;
+        public const uint TOKEN_QUERY = 0x0008;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_ELEVATION
+        {
+            public uint TokenIsElevated;
+        }
+
+        [DllImport("advapi32.dll")]
+        public static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess, out IntPtr tokenHandle);
+
+        [DllImport("advapi32.dll")]
+        public static extern bool GetTokenInformation(IntPtr tokenHandle, int tokenInformationClass,
+            out TOKEN_ELEVATION tokenInformation, uint tokenInformationLength, out uint returnLength);
+
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr OpenProcess(uint desiredAccess, bool inheritHandle, uint processId);
+
+        [DllImport("kernel32.dll")]
+        public static extern bool CloseHandle(IntPtr hObject);
     }
 }

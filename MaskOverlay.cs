@@ -14,6 +14,7 @@ namespace WindowTinter
         private byte _alpha = 75;
         private Bitmap _cachedBmp;
         private int _cachedW, _cachedH;
+        private IntPtr _hBmp = IntPtr.Zero;   // 由 _cachedBmp 派生的 GDI 位图句柄，跨帧缓存以减少句柄抖动
 
         public MaskOverlay()
         {
@@ -40,7 +41,11 @@ namespace WindowTinter
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) _cachedBmp?.Dispose();
+            if (disposing)
+            {
+                if (_hBmp != IntPtr.Zero) { Native.DeleteObject(_hBmp); _hBmp = IntPtr.Zero; }
+                _cachedBmp?.Dispose();
+            }
             base.Dispose(disposing);
         }
 
@@ -70,6 +75,8 @@ namespace WindowTinter
         {
             if (_cachedBmp == null || w != _cachedW || h != _cachedH)
             {
+                // 尺寸变化：旧 GDI 位图随之失效，先释放再重建
+                if (_hBmp != IntPtr.Zero) { Native.DeleteObject(_hBmp); _hBmp = IntPtr.Zero; }
                 _cachedBmp?.Dispose();
                 _cachedBmp = new Bitmap(w, h, PixelFormat.Format32bppRgb);
                 using (var g = Graphics.FromImage(_cachedBmp))
@@ -83,12 +90,13 @@ namespace WindowTinter
             IntPtr hdcMem = Native.CreateCompatibleDC(hdcScreen);
             if (hdcMem == IntPtr.Zero) { Native.ReleaseDC(IntPtr.Zero, hdcScreen); return; }
 
-            IntPtr hBmp = IntPtr.Zero;
+            // 缓存 GDI 位图：仅在尺寸变化时重建（见上方），避免每帧 GetHbitmap/DeleteObject 抖动
+            if (_hBmp == IntPtr.Zero)
+                _hBmp = _cachedBmp.GetHbitmap();
             IntPtr hOld = IntPtr.Zero;
             try
             {
-                hBmp = _cachedBmp.GetHbitmap();
-                hOld = Native.SelectObject(hdcMem, hBmp);
+                hOld = Native.SelectObject(hdcMem, _hBmp);
 
                 var ptDst = new Point(x, y);
                 var ptSrc = new Point(0, 0);
@@ -106,7 +114,7 @@ namespace WindowTinter
             finally
             {
                 if (hOld != IntPtr.Zero) Native.SelectObject(hdcMem, hOld);
-                if (hBmp != IntPtr.Zero) Native.DeleteObject(hBmp);
+                // 注意：_hBmp 已缓存跨帧复用，此处不释放；仅在尺寸变化或 Dispose 时释放
                 Native.DeleteDC(hdcMem);
                 Native.ReleaseDC(IntPtr.Zero, hdcScreen);
             }
