@@ -171,13 +171,13 @@ namespace WindowTinter
             return chk;
         }
 
-        /// <summary>创建目标面板中的 ○/● 选中按钮。</summary>
-        private static Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
+        /// <summary>创建目标面板中的 ○/● 选中按钮。w 为面板宽度（已是缩放后像素），仅固定尺寸/垂直偏移按 DPI 因子换算。</summary>
+        private Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
         {
             var btn = new Button
             {
-                Text = selected ? "●" : "○", Size = new Size(30, 24),
-                Location = new Point(w - 68, 4), FlatStyle = FlatStyle.Flat,
+                Text = selected ? "●" : "○", Size = new Size((int)(30 * DpiFactor), (int)(24 * DpiFactor)),
+                Location = new Point(w - (int)(68 * DpiFactor), (int)(4 * DpiFactor)), FlatStyle = FlatStyle.Flat,
                 BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Enabled = enabled
@@ -188,12 +188,12 @@ namespace WindowTinter
         }
 
         /// <summary>创建目标面板中的 × 删除按钮。</summary>
-        private static Button CreateRemoveButton(int w, EventHandler onClick)
+        private Button CreateRemoveButton(int w, EventHandler onClick)
         {
             var btn = new Button
             {
-                Text = "×", Size = new Size(28, 24),
-                Location = new Point(w - 34, 4), FlatStyle = FlatStyle.Flat,
+                Text = "×", Size = new Size((int)(28 * DpiFactor), (int)(24 * DpiFactor)),
+                Location = new Point(w - (int)(34 * DpiFactor), (int)(4 * DpiFactor)), FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(60, 60, 60), ForeColor = Color.FromArgb(224, 224, 224)
             };
             btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
