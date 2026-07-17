@@ -171,14 +171,16 @@ namespace WindowTinter
             return chk;
         }
 
-        /// <summary>创建目标面板中的 ○/● 选中按钮（按 _dpiScale 放大尺寸/位置）。</summary>
+        /// <summary>创建目标面板中的 ○/● 选中按钮。尺寸/位置按 _dpiScale 换算（面板为 AutoScaleMode.None，避免重复缩放）。</summary>
         private Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
         {
-            int bw = (int)(30 * _dpiScale), bh = (int)(24 * _dpiScale), off = (int)(68 * _dpiScale);
+            float s = _dpiScale;
             var btn = new Button
             {
-                Text = selected ? "●" : "○", Size = new Size(bw, bh),
-                Location = new Point(w - off, (int)(4 * _dpiScale)), FlatStyle = FlatStyle.Flat,
+                Text = selected ? "●" : "○",
+                Size = new Size((int)(30 * s), (int)(24 * s)),
+                Location = new Point(w - (int)(68 * s), (int)(4 * s)),
+                FlatStyle = FlatStyle.Flat,
                 BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Enabled = enabled
@@ -188,15 +190,17 @@ namespace WindowTinter
             return btn;
         }
 
-        /// <summary>创建目标面板中的 × 删除按钮（按 _dpiScale 放大尺寸/位置）。</summary>
+        /// <summary>创建目标面板中的 × 删除按钮。尺寸/位置按 _dpiScale 换算。</summary>
         private Button CreateRemoveButton(int w, EventHandler onClick)
         {
-            int bw = (int)(28 * _dpiScale), bh = (int)(24 * _dpiScale), off = (int)(34 * _dpiScale);
+            float s = _dpiScale;
             var btn = new Button
             {
-                Text = "×", Size = new Size(bw, bh),
-                Location = new Point(w - off, (int)(4 * _dpiScale)), FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 60), ForeColor = Color.FromArgb(224, 224, 224)
+                Text = "×",
+                Size = new Size((int)(28 * s), (int)(24 * s)),
+                Location = new Point(w - (int)(34 * s), (int)(4 * s)),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(60, 60, 60),                 ForeColor = Color.FromArgb(224, 224, 224)
             };
             btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
             btn.Click += onClick;
