@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <AssemblyName>WindowTinter</AssemblyName>
+    <RootNamespace>WindowTinter</RootNamespace>
+    <AssemblyTitle>暗幕</AssemblyTitle>
+    <Description>暗幕 — 给任意窗口叠加深色半透明蒙版的 Windows 常驻小工具</Description>
+    <Version>5.3.1</Version>
+    <AssemblyVersion>5.3.1</AssemblyVersion>
+    <FileVersion>5.3.1</FileVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
