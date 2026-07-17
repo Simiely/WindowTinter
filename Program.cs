@@ -62,8 +62,6 @@ namespace WindowTinter
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
         private bool _reallyQuit;
-        // 动态添加的目标面板按当前屏幕 DPI 换算自身固定尺寸（静态控件由 WinForms 自动缩放处理）
-        private float DpiFactor => DeviceDpi / 96f;
         private Timer _autoBindTimer;
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
@@ -104,32 +102,14 @@ namespace WindowTinter
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
             ClientSize = new Size(470, 740);
-            // 高 DPI 自适应（WinForms 标准做法）：以 96 DPI 为设计基准（本窗体所有坐标是 100% 下写的），
-            // 运行时 WinForms 按窗体所在屏幕的缩放比自动放大窗体及全部控件；跨屏拖动由 AutoScaleMode.Dpi
-            // 自动处理 WM_DPICHANGED，无需手写缩放。
-            // 关键点：BuildUI() 必须在构造函数中调用（早于 CreateControl 的自动缩放）。若放到 OnLoad，
-            // 控件在缩放早已跑完后才创建，自动缩放对其无效——这正是此前"界面毫无变化"的根因。
-            // BlackPlate 另设 AutoScaleMode.None（物理像素分层窗，由 AlignBehind 用原始像素定位，不受影响）。
-            AutoScaleMode = AutoScaleMode.Dpi;
-            AutoScaleDimensions = new SizeF(96F, 96F);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            // 窗体句柄创建后再设置沉浸式深色标题栏（构造函数阶段句柄尚未建立，此时设会无效）
-            HandleCreated += (_, _) =>
-            {
-                int dark = 1;
-                Native.DwmSetWindowAttribute(Handle, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, 4);
-            };
             Load += OnLoad;
             Shown += OnShown;
             Activated += OnActivated;
             FormClosing += OnFormClosing;
             FormClosed += (_, _) => Quit();
-
-            // 必须在设置 AutoScaleMode/Dimensions 之后、CreateControl 之前构建静态 UI，
-            // 这样 WinForms 的自动 DPI 缩放才会作用于全部控件。
-            BuildUI();
         }
 
         private void OnLoad(object sender, EventArgs e)
@@ -138,6 +118,7 @@ namespace WindowTinter
             RestoreAllTargets();
 
             BuildTray();
+            BuildUI();
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -203,8 +184,6 @@ namespace WindowTinter
 
         private void OnShown(object _, EventArgs __)
         {
-            // 静态控件已在 CreateControl 阶段由 AutoScaleMode.Dpi 自动缩放；
-            // 此处无需再手动缩放，仅刷新目标遮罩状态。
             foreach (var e in _entries) e.Tracker.RefreshNow();
             // 用一次性定时器推迟 100ms，确保消息泵完整运转后 UpdateLayeredWindow 稳定
             _onShownTimer = new Timer { Interval = 100 };
@@ -423,7 +402,7 @@ namespace WindowTinter
         {
             int w = _pnlTargets.ClientSize.Width - 6;
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
-            var pnl = new Panel { Size = new Size(w, (int)(32 * DpiFactor)), Margin = new Padding(0, 0, 0, (int)(3 * DpiFactor)),
+            var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(entry.Info);
@@ -431,7 +410,7 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  {entry.Info}", AutoSize = true,
-                Location = new Point((int)(4 * DpiFactor), (int)(8 * DpiFactor)), MaximumSize = new Size((int)(270 * DpiFactor), (int)(20 * DpiFactor)),
+                Location = new Point(4, 8), MaximumSize = new Size(270, 20),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Cursor = Cursors.Hand
             };
@@ -459,7 +438,7 @@ namespace WindowTinter
             if (_pendingPanels.ContainsKey(info)) return;
             int w = _pnlTargets.ClientSize.Width - 6;
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
-            var pnl = new Panel { Size = new Size(w, (int)(32 * DpiFactor)), Margin = new Padding(0, 0, 0, (int)(3 * DpiFactor)),
+            var pnl = new Panel { Size = new Size(w, 32), Margin = new Padding(0, 0, 0, 3),
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(info);
@@ -467,8 +446,8 @@ namespace WindowTinter
             var lbl = new Label
             {
                 Text = $"  ⏳ 待激活 — {info}",
-                AutoSize = true, Location = new Point((int)(4 * DpiFactor), (int)(8 * DpiFactor)),
-                MaximumSize = new Size((int)(250 * DpiFactor), (int)(20 * DpiFactor)),
+                AutoSize = true, Location = new Point(4, 8),
+                MaximumSize = new Size(250, 20),
                 ForeColor = Color.FromArgb(120, 120, 120),
                 Cursor = Cursors.Hand
             };
@@ -560,10 +539,9 @@ namespace WindowTinter
         [STAThread]
         static void Main()
         {
-            // DPI 感知模式（PerMonitorV2）由 csproj 的 <ApplicationHighDpiMode> 控制（构建时注入清单）；
-            // 每个显示器按各自缩放比正确渲染/缩放 WinForms 控件，避免缩放屏 UI 模糊或错位。
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.Run(new MainForm());
         }
     }
