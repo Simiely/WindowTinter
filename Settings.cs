@@ -133,7 +133,7 @@ namespace WindowTinter
                     @"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (key == null) return;
                 if (StartWithWindows)
-                    key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\"");
+                    key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\" --tray");
                 else
                     key.DeleteValue("WindowTinter", false);
             }

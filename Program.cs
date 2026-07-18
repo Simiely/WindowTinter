@@ -62,6 +62,7 @@ namespace WindowTinter
         private IntPtr _winEventHook;
         private Native.WinEventProc _winEventProc;
         private bool _reallyQuit;
+        private bool _startInTray;
         private Timer _autoBindTimer;
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
@@ -100,8 +101,9 @@ namespace WindowTinter
 
         // ── 窗口 ───────────────────────────────────────────────────
 
-        public MainForm()
+        public MainForm(bool startInTray = false)
         {
+            _startInTray = startInTray;
             // 不启用 WinForms 自动 DPI 缩放（AutoScaleMode.None）：控件与卡片尺寸固定，只由 Relayout 用固定间距排版。
             // 进程的 DPI 感知由 csproj 的 <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode> 声明式启用，
             // 保证主界面在缩放屏下清晰；黑色底板（BlackPlate）单独用物理像素坐标系，互不干扰。
@@ -139,6 +141,11 @@ namespace WindowTinter
             RestoreAllTargets();
 
             BuildTray();
+
+            // 开机启动时隐藏主窗口（--tray），仅显示托盘图标
+            if (_startInTray)
+                BeginInvoke(new Action(() => { Hide(); }));
+
             InstallWinEventHook();
 
             // 3 秒一次检查是否有目标窗口新启动但未绑定
@@ -601,7 +608,8 @@ namespace WindowTinter
             // DPI 感知改由 app.manifest 声明式启用（PerMonitorV2），更可靠；此处不再调用 SetHighDpiMode。
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            bool startInTray = Environment.GetCommandLineArgs().Any(a => a == "--tray");
+            Application.Run(new MainForm(startInTray));
         }
     }
 }
