@@ -1,4 +1,4 @@
-# 暗幕 (WindowTinter) v5.3.1
+# 暗幕 (WindowTinter) v5.5.1
 
 **给任意窗口设置透明度、并在其正下方垫纯黑的 Windows 常驻小工具。**
 

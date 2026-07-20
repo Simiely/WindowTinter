@@ -1,4 +1,4 @@
-# 暗幕 开发笔记 — DEV_README (v5.3.1)
+# 暗幕 开发笔记 — DEV_README (v5.5.1)
 
 ## 项目概况
 
@@ -161,9 +161,9 @@ dotnet build -c Release
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
 
 # 3. 标签 + Release
-git tag v5.3.1
-git push origin v5.3.1
-gh release create v5.3.1 bin/Release/net6.0-windows/win-x64/publish/WindowTinter.exe --notes "xxx"
+git tag v5.5.1
+git push origin v5.5.1
+gh release create v5.5.1 bin/Release/net6.0-windows/win-x64/publish/WindowTinter.exe --notes "xxx"
 ```
 
 ---

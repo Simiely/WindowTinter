@@ -105,7 +105,7 @@ namespace WindowTinter
 
             var link = new LinkLabel
             {
-                Text = "20260714 / 世界的风吹向你 / 开源软件",
+                Text = "20260720 / 世界的风吹向你 / 开源软件",
                 Location = new Point(pad, rowY + 38),
                 AutoSize = true,
                 LinkColor = Color.FromArgb(160, 160, 170),
@@ -567,7 +567,7 @@ namespace WindowTinter
         private void ShowAbout()
         {
             var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.1.0";
+            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.1";
             MessageBox.Show(
                 $"暗幕 v{v}\n\n" +
                 "给任意窗口设置透明度、并在其正下方垫纯黑的常驻小工具。\n" +
