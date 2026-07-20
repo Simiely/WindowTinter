@@ -46,45 +46,45 @@ namespace WindowTinter
             _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
             y += 38;
 
-            AddGroup("窗口控制", pad, ref y, 170, GW, gb =>
+            AddGroup("窗口控制", pad, ref y, 176, GW, gb =>
             {
-                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 30, FontStyle.Bold,
+                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 22, FontStyle.Bold,
                     _settings.GlobalTransparency, ToggleGlobalTransparency);
 
-                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 37), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 54), AutoSize = true });
                 _tbBgAlpha = new JumpTrackBar
                 {
-                    Location = new Point(90, 35), Size = new Size(260, 24),
+                    Location = new Point(90, 52), Size = new Size(260, 24),
                     Minimum = 0, Maximum = 100, TickFrequency = 10,
                     SmallChange = 5, LargeChange = 20,
                     Value = _settings.BackgroundAlpha
                 };
                 _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
                 gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(356, 37), AutoSize = true };
+                _lblBgAlpha = new Label { Location = new Point(356, 54), AutoSize = true };
                 gb.Controls.Add(_lblBgAlpha);
 
-                _chkGlobalCornerRadius = AddCheck(gb, "全局统一圆角（关闭后每个窗口单独配置）", pad, 72, FontStyle.Bold,
+                _chkGlobalCornerRadius = AddCheck(gb, "全局统一圆角（关闭后每个窗口单独配置）", pad, 86, FontStyle.Bold,
                     _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
 
-                gb.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(pad, 104), AutoSize = true });
+                gb.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(pad, 118), AutoSize = true });
                 _tbCornerRadius = new JumpTrackBar
                 {
-                    Location = new Point(90, 102), Size = new Size(260, 24),
+                    Location = new Point(90, 116), Size = new Size(260, 24),
                     Minimum = 0, Maximum = 20, TickFrequency = 5,
                     SmallChange = 1, LargeChange = 5,
                     Value = _settings.CornerRadius
                 };
                 _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
                 gb.Controls.Add(_tbCornerRadius);
-                _lblCornerRadius = new Label { Location = new Point(356, 104), AutoSize = true,
+                _lblCornerRadius = new Label { Location = new Point(356, 118), AutoSize = true,
                     Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px" };
                 gb.Controls.Add(_lblCornerRadius);
 
                 gb.Controls.Add(new Label
                 {
                     Text = "关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置",
-                    Location = new Point(pad, 139), AutoSize = true,
+                    Location = new Point(pad, 152), AutoSize = true,
                     ForeColor = Color.FromArgb(150, 150, 160),
                     Font = new Font("Microsoft YaHei UI", 8.5f)
                 });
