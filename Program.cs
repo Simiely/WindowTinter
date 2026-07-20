@@ -108,7 +108,7 @@ namespace WindowTinter
             try { _appIcon = File.Exists(iconPath) ? new Icon(iconPath) : null; }
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
-            ClientSize = new Size(470, 740);
+            ClientSize = new Size(470, 695);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
