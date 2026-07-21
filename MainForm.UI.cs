@@ -358,22 +358,37 @@ namespace WindowTinter
                 : $"● 监控中 — {active} 窗口";
             _menu.Items.Add(s).Enabled = false;
             _menu.Items.Add("-");
-            _menu.Items.Add(Visible ? "最小化到托盘" : "打开设置窗口", null, (_, _) => ToggleWindow());
+            _menu.Items.Add(IsWindowOpen() ? "最小化到托盘" : "打开设置窗口", null, (_, _) => ToggleWindow());
             _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (_, _) => _chkEnabled.Checked = !_chkEnabled.Checked);
             _menu.Items.Add("-");
             _menu.Items.Add("退出", null, (_, _) => { _reallyQuit = true; Close(); });
         }
 
+        /// <summary>窗口是否真正"打开"（可见且非最小化）。用于托盘菜单文案与开合判断，
+        /// 这样开机自启以最小化态驻留时，双击托盘会正确地"打开"而非"再最小化"。</summary>
+        private bool IsWindowOpen() => Visible && WindowState != FormWindowState.Minimized;
+
         private void ToggleWindow()
         {
-            if (Visible) Hide();
-            else { Show(); WindowState = FormWindowState.Normal; BringToFront(); Activate(); }
+            if (IsWindowOpen())
+            {
+                Hide();
+                ShowInTaskbar = false;
+            }
+            else
+            {
+                ShowInTaskbar = true;
+                Show();
+                WindowState = FormWindowState.Normal;
+                BringToFront();
+                Activate();
+            }
         }
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
             if (!_reallyQuit && _settings.MinimizeToTray && e.CloseReason == CloseReason.UserClosing)
-            { _settings.Save(); e.Cancel = true; Hide(); }
+            { _settings.Save(); e.Cancel = true; Hide(); ShowInTaskbar = false; }
         }
 
         // ════════════════════════════════════════════════════════════

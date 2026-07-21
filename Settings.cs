@@ -133,7 +133,8 @@ namespace WindowTinter
                     @"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (key == null) return;
                 if (StartWithWindows)
-                    key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\"");
+                    // 带 /startup 参数：开机自启时只驻留托盘、不弹主窗口（手动双击 exe 不带参数则正常显示）
+                    key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\" /startup");
                 else
                     key.DeleteValue("WindowTinter", false);
             }

@@ -93,7 +93,7 @@ namespace WindowTinter
 
         // ── 窗口 ───────────────────────────────────────────────────
 
-        public MainForm()
+        public MainForm(bool startHidden = false)
         {
             // Win11 高 DPI：以 96 DPI 为设计基准，运行时由 AutoScaleMode.Dpi 按屏幕真实 DPI 自动缩放全部静态控件。
             // 关键：控件必须在 CreateControl（即本构造函数）阶段建好，自动缩放才会作用于它们——
@@ -112,6 +112,14 @@ namespace WindowTinter
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
+
+            // 开机自启：直接最小化到托盘（WindowState 在句柄创建前设置，窗口以最小化态创建，无闪烁），
+            // 且不显示任务栏按钮——仅托盘图标驻留。用户双击托盘即可打开设置窗口。
+            if (startHidden)
+            {
+                WindowState = FormWindowState.Minimized;
+                ShowInTaskbar = false;
+            }
             Load += OnLoad;
             Shown += OnShown;
             Activated += OnActivated;
@@ -556,7 +564,16 @@ namespace WindowTinter
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+
+            // 开机自启（注册表 Run 项带 /startup 参数）时只驻留托盘、不弹主窗口；
+            // 手动双击 exe 不带参数，则正常显示主窗口。
+            bool startHidden = Environment.GetCommandLineArgs().Skip(1)
+                .Any(a => a.Equals("/startup", StringComparison.OrdinalIgnoreCase)
+                       || a.Equals("/silent", StringComparison.OrdinalIgnoreCase)
+                       || a.Equals("/minimized", StringComparison.OrdinalIgnoreCase)
+                       || a.Equals("/background", StringComparison.OrdinalIgnoreCase)
+                       || a.Equals("/tray", StringComparison.OrdinalIgnoreCase));
+            Application.Run(new MainForm(startHidden));
         }
     }
 }
