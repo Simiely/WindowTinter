@@ -582,7 +582,7 @@ namespace WindowTinter
         private void ShowAbout()
         {
             var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.1";
+            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.2";
             MessageBox.Show(
                 $"暗幕 v{v}\n\n" +
                 "给任意窗口设置透明度、并在其正下方垫纯黑的常驻小工具。\n" +

@@ -72,7 +72,7 @@ namespace WindowTinter
         private static string GetAppVersion()
         {
             var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.1";
+            return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.2";
         }
 
         // ── UI 控件 ────────────────────────────────────────────────
