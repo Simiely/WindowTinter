@@ -47,3 +47,10 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 
 ---
 
+## 文档索引
+
+| 文档 | 给谁看 | 内容 |
+|---|---|---|
+| [`AGENTS.md`](./AGENTS.md) | AI / 未来的你 | 技术栈、12 条关键坑（Win32 窗口操作/托盘生命周期）、构建命令 |
+| [`DEV.md`](./DEV.md) | 开发者 | 26 条问题记录 + 架构演进 + 代码审计清单 |
+| [`CHANGELOG.md`](./CHANGELOG.md) | 所有人 | 版本变更记录 |
