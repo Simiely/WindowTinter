@@ -310,6 +310,38 @@ namespace WindowTinter
         public static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFO lpmi);
 
         public const uint MONITOR_DEFAULTTONEAREST = 2;
+
+        // ---- user32：托盘菜单（Win32 原生菜单 CreatePopupMenu + TrackPopupMenu，
+        //      微软官方推荐的托盘菜单模式；文字色/主题由系统自动处理，永不失明）----
+        [DllImport("user32.dll")]
+        public static extern IntPtr CreatePopupMenu();
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern bool AppendMenuW(IntPtr hMenu, uint uFlags, uint uIDNewItem, string lpNewItem);
+
+        [DllImport("user32.dll")]
+        public static extern uint TrackPopupMenu(IntPtr hMenu, uint uFlags, int x, int y, int nReserved, IntPtr hWnd, IntPtr prcRect);
+
+        [DllImport("user32.dll")]
+        public static extern bool DestroyMenu(IntPtr hMenu);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+        // 菜单项标志
+        public const uint MF_STRING = 0x0;
+        public const uint MF_SEPARATOR = 0x800;
+        public const uint MF_GRAYED = 0x1;
+        public const uint MF_DISABLED = 0x2;
+
+        // TrackPopupMenu 标志
+        public const uint TPM_LEFTBUTTON = 0x0;
+        public const uint TPM_RIGHTBUTTON = 0x2;
+        public const uint TPM_RETURNCMD = 0x100;
+        public const uint TPM_NONOTIFY = 0x80;
     }
 }
 
