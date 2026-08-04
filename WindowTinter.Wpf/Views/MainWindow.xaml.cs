@@ -36,8 +36,7 @@ namespace WindowTinter.Views
                 vm.SelectCommand.Execute(null);
         }
 
-        private void BuildTray() => _tray = new TrayService(_vm, IsWindowOpen, ToggleWindow,
-            () => new WindowInteropHelper(this).Handle);
+        private void BuildTray() => _tray = new TrayService(_vm, IsWindowOpen, ToggleWindow);
 
         /// <summary>窗口是否真正"打开"（可见且非最小化）——托盘菜单文案与开合判断。</summary>
         private bool IsWindowOpen() => IsVisible && WindowState != WindowState.Minimized;
