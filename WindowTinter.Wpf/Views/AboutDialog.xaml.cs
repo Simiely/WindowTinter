@@ -9,6 +9,7 @@ namespace WindowTinter.Views
         public AboutDialog()
         {
             InitializeComponent();
+            WindowTheme.EnableDarkTitleBar(this);
         }
 
         private void OnOk(object sender, RoutedEventArgs e)

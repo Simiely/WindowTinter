@@ -14,6 +14,7 @@ namespace WindowTinter.Views
         public RenameDialog(string currentName)
         {
             InitializeComponent();
+            WindowTheme.EnableDarkTitleBar(this);
             Input.Text = currentName ?? "";
             Loaded += (_, _) => { Input.SelectAll(); Input.Focus(); };
         }

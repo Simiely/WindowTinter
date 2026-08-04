@@ -25,15 +25,7 @@ namespace WindowTinter.Views
             Closing += OnClosing;
             Loaded += (_, _) => BuildTray();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
-            SourceInitialized += (_, _) =>
-            {
-                var hwnd = new WindowInteropHelper(this).Handle;
-                if (hwnd != IntPtr.Zero)
-                {
-                    int attr = 1;
-                    Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref attr, sizeof(int));
-                }
-            };
+            WindowTheme.EnableDarkTitleBar(this);
         }
 
         /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（✎/× 按钮点击除外）。</summary>
