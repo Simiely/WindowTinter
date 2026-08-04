@@ -69,7 +69,8 @@
     <!-- ═══ 圆角按钮（Primary · 主色调强调）═══ -->
     <Style TargetType="Button" x:Key="BtnPrimary" BasedOn="{StaticResource BtnBase}">
         <Setter Property="Background" Value="{StaticResource TealDark}"/>
-        <Setter Property="Foreground" Value="{StaticResource Card}"/>
+        <!-- #FF9292 主色调最佳文字色：#1C1B18 近黑（对比 9.8:1 AAA，配色工具推荐） -->
+        <Setter Property="Foreground" Value="#1C1B18"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Template">
             <Setter.Value>

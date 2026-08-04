@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Windows;
 using System.Windows.Controls;
 using Hardcodet.Wpf.TaskbarNotification;
 using WindowTinter.ViewModels;
@@ -42,6 +43,14 @@ namespace WindowTinter
         public void RefreshMenu()
         {
             var menu = new ContextMenu();
+
+            // 托盘菜单脱离应用主题：系统浅色菜单必须用系统文字色。
+            // 否则 Dark.xaml 的全局 TextBlock 隐式样式（浅色 #E8EAF0）会应用到菜单文字，
+            // 造成"浅字 + 系统浅色底"文字看不见（局部资源优先级高于 Application 资源）。
+            var menuTextStyle = new Style(typeof(TextBlock));
+            menuTextStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, System.Windows.SystemColors.MenuTextBrush));
+            menu.Resources[typeof(TextBlock)] = menuTextStyle;
+
             menu.Items.Add(MenuStatus());
             menu.Items.Add(new Separator());
             menu.Items.Add(MenuItem(_isWindowOpen() ? "最小化到托盘" : "打开设置窗口", (_, _) => _toggleWindow()));
