@@ -361,7 +361,7 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(IsCornerSliderEnabled));
         }
 
-        // ── 状态文案（对齐 WinForms GetStatusText / UpdateTargetBadge）──
+        // ── 状态文案（对齐 UI_REDESIGN：无 ● 前缀、无 — 破折号，状态由左侧/右侧圆点表达）──
         public string StatusText
         {
             get
@@ -370,9 +370,9 @@ namespace WindowTinter.ViewModels
                 int active = _entries.Count;
                 int pending = total - active;
                 return !_settings.Enabled ? "⏸ 已暂停"
-                    : total == 0 ? "○ 等待选择窗口…"
-                    : pending > 0 ? $"● {active} 个监控中, {pending} 个待激活"
-                    : $"● 监控中 — {active} 个窗口";
+                    : total == 0 ? "等待选择窗口…"
+                    : pending > 0 ? $"{active} 个监控中, {pending} 个待激活"
+                    : $"监控中 {active} 个窗口";
             }
         }
 
@@ -385,7 +385,7 @@ namespace WindowTinter.ViewModels
                 int a = _entries.Count;
                 int p = _settings.Targets.Count - a;
                 return _settings.Targets.Count == 0 ? ""
-                    : p > 0 ? $"● {a} 监控 · {p} 待激活" : $"● {a} 监控";
+                    : p > 0 ? $"{a} 监控 · {p} 待激活" : $"{a} 监控";
             }
         }
 

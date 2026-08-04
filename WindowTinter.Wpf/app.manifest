@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="WindowTinter" />
+  <!--
+    PerMonitorV2：进程级 DPI 感知（对齐 WinForms 主版 SetHighDpiMode(PerMonitorV2)）。
+    修复：System-DPI-aware 进程在系统 DPI 切换时，Windows 会对窗口做位图拉伸（DPI 虚拟化），
+    覆盖我们用 SetWindowPos 设定的物理几何，导致黑底错位/尺寸不对。
+    PerMonitorV2 后窗口自行响应 WM_DPICHANGED（BlackPlate 吞掉该消息，几何完全由 SetWindowPos 控制）。
+  -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>
