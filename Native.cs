@@ -165,6 +165,18 @@ namespace WindowTinter
 
         public const uint GA_ROOT = 2;
 
+        /// <summary>取指定屏幕点下 Z 序最靠前（且通过命中测试）的窗口，含子窗口。比 EnumWindows+矩形包含精确得多。</summary>
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(Point pt);
+
+        /// <summary>获取窗口类名（用于拾取过滤与重绑定匹配）。</summary>
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        /// <summary>取窗口所在监视器的 DPI（PerMonitorV2 进程下做物理↔逻辑坐标换算用）。失败返回 0。</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
         // ---- user32：WinEvent 钩子（事件驱动更新，替代高频轮询）----
         public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
         public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;

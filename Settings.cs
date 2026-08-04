@@ -7,11 +7,13 @@ using Microsoft.Win32;
 
 namespace WindowTinter
 {
-    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题重新查找）。</summary>
+    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题/类名重新查找）。</summary>
     internal class TargetInfo : IEquatable<TargetInfo>
     {
         public string ProcessName { get; init; } = "";
         public string WindowTitle { get; init; } = "";
+        /// <summary>窗口类名（拾取时记录）。重绑定主键之一：浏览器/编辑器标题变化时按 进程+类名 仍能找回。</summary>
+        public string WindowClass { get; init; } = "";
         public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
         public int CornerRadius { get; set; } = 15;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 

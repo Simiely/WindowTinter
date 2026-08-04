@@ -231,7 +231,7 @@ namespace WindowTinter
         {
             foreach (var t in _settings.Targets)
             {
-                var h = TargetTracker.FindByTitleAndProcess(t.WindowTitle, t.ProcessName);
+                var h = TargetTracker.FindByTitleAndProcess(t.WindowTitle, t.ProcessName, null, t.WindowClass);
                 if (h != IntPtr.Zero)
                     SetTargetAlpha(h, 255);
             }
@@ -381,21 +381,14 @@ namespace WindowTinter
         private void TryBindTarget(TargetInfo info)
         {
             var boundHandles = new HashSet<IntPtr>(_entries.Select(e => e.Tracker.TargetHandle));
-            var h = TargetTracker.FindByTitleAndProcess(info.WindowTitle, info.ProcessName, boundHandles);
+            var h = TargetTracker.FindByTitleAndProcess(info.WindowTitle, info.ProcessName, boundHandles, info.WindowClass);
             if (h == IntPtr.Zero) return;
 
             // 已绑定到同一个 handle → 跳过
             if (_entries.Any(e => e.Tracker.TargetHandle == h)) return;
 
-            // 有该目标的旧条目（窗口关闭后 reopen）→ 更新 handle 复用
-            var stale = _entries.FirstOrDefault(e => e.Info == info && !Native.IsWindow(e.Tracker.TargetHandle));
-            if (stale != null)
-            {
-                stale.Tracker.TargetHandle = h;
-                stale.Tracker.RefreshNow();
-                return;
-            }
-
+            // 说明：重绑定不在此处做"旧条目复用"——_autoBindTimer 每 3s 会先把已销毁的条目
+            // dispose 并从 _entries 移除（放回待激活），随后本方法新建条目，天然覆盖 reopen 场景。
             // 新绑定
             var entry = CreateEntry(info);
             entry.Tracker.TargetHandle = h;

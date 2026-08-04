@@ -534,7 +534,13 @@ namespace WindowTinter
                 Native.GetWindowText(picker.SelectedHandle, sb, len + 1);
                 title = sb.ToString();
             }
-            var info = new TargetInfo { ProcessName = procName, WindowTitle = title };
+            var info = new TargetInfo
+            {
+                ProcessName = procName,
+                WindowTitle = title,
+                // 记录窗口类名：重开后标题变化时仍可按 进程+类名 找回（见 TargetTracker.FindByTitleAndProcess）
+                WindowClass = TargetTracker.GetWindowClass(picker.SelectedHandle)
+            };
 
             // 以当前全局值作为该窗口独立配置的起点
             info.BackgroundAlpha = _settings.BackgroundAlpha;
