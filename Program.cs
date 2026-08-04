@@ -41,6 +41,7 @@ namespace WindowTinter
 
         private Label _lblStatus;
         private Label _lblTargetBadge;   // 目标卡头计数徽标
+        private ToolTip _tip;            // 说明文字悬停提示（设计稿 ⓘ）
         private FlowLayoutPanel _pnlTargets;
         private Button _btnRefind;
         private CheckBox _chkEnabled;
