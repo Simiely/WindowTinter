@@ -235,7 +235,8 @@ namespace WindowTinter.ViewModels
             entry.Tracker.TargetHandle = h;
             _entries.Add(entry);
             entry.Tracker.RefreshNow();
-            // 快照手动模式：绑定后不自动抓图，由「⟳ 刷新快照」统一触发
+            // 启动时绑定目标 → 自动快照（用户首次启动看到卡片即有图）
+            RefreshTargetSnapshot(info);
 
             if (refreshUI) SyncUI();
 
@@ -750,7 +751,10 @@ namespace WindowTinter.ViewModels
                             ReleaseTarget(match, "destroyed");
                         else
                         {
-                            match.Tracker.RefreshNow(); // 移动/显示只同步黑底几何，快照不自动刷（手动模式）
+                            match.Tracker.RefreshNow();
+                            // 目标窗口显示/启动 → 自动快照（用户运行时新启动的目标首次可见即有图）
+                            if (eventType == Native.EVENT_OBJECT_SHOW)
+                                RefreshTargetSnapshot(match.Info);
                         }
                     }));
                 }
