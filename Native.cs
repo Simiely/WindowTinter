@@ -17,6 +17,7 @@ namespace WindowTinter
         public const int WS_EX_TRANSPARENT = 0x20;
 
         // ---- SetWindowPos ----
+        public static readonly IntPtr HWND_TOP = new IntPtr(0);
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
         public const uint SWP_NOSIZE = 0x0001;

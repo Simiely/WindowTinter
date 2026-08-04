@@ -285,9 +285,14 @@ namespace WindowTinter
             if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
             _selectedTarget = info;
             UpdateSelectButtons();
-            // 选中目标即置顶并刷新效果：避免目标被上层窗口遮挡时半透明/黑底效果被破坏
+            // 选中目标时一次性带到前台（不抢焦点），便于查看半透明/黑底效果；
+            // 之后前后遮挡回归 Windows 默认逻辑，不永久置顶。
             var entry = _entries.FirstOrDefault(e => e.Info == info);
-            if (entry != null) ApplyMaskNow(entry);
+            if (entry != null)
+            {
+                BringTargetToTop(entry.Tracker.TargetHandle);
+                ApplyMaskNow(entry);
+            }
             if (!_settings.GlobalTransparency)
             {
                 int b = info.BackgroundAlpha;
@@ -561,7 +566,11 @@ namespace WindowTinter
             {
                 TryBindTarget(info);
                 var entry = _entries.FirstOrDefault(e => e.Info == info);
-                if (entry != null) ApplyMaskNow(entry);
+                if (entry != null)
+                {
+                    BringTargetToTop(entry.Tracker.TargetHandle); // 新指定目标：一次性带到前台查看效果
+                    ApplyMaskNow(entry);
+                }
                 else AddPendingUI(info);
             }
             else AddPendingUI(info);

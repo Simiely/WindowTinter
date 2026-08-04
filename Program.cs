@@ -269,13 +269,13 @@ namespace WindowTinter
                 if (!_settings.Enabled || !visible)
                 {
                     plate.HidePlate();
-                    SetTargetTopmost(tracker.TargetHandle, false); // 暂停/隐藏时取消置顶
+                    SetTargetTopmost(tracker.TargetHandle, false); // 清理可能的历史置顶残留
                     if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
                     return;
                 }
 
-                // 目标设半透明（前后台统一），正后方按需钉纯黑底板；同时置顶避免被上层窗口遮挡破坏效果
-                SetTargetTopmost(tracker.TargetHandle, true);
+                // 目标设半透明（前后台统一），正后方按需钉纯黑底板。
+                // 注意：不置顶——窗口前后遮挡遵循 Windows 默认逻辑，仅"选中目标"时一次性带到前台（见 BringTargetToTop）。
                 byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
                 if (_lastBgAlpha != targetAlpha)
                 {
@@ -295,8 +295,9 @@ namespace WindowTinter
         }
 
         /// <summary>
-        /// 置顶 / 取消置顶目标窗口。幂等：先查 WS_EX_TOPMOST 状态，已一致则跳过（250ms 轮询高频调用下开销极小）。
-        /// 选中目标时置顶：否则目标被其它窗口遮挡时，半透明+黑底的效果会被上层窗口破坏。
+        /// 取消目标窗口的置顶残留（TOPMOST 还原为普通 Z 序）。幂等。
+        /// 仅用于清理历史版本可能留下的置顶样式，正常流程不置顶任何窗口——
+        /// 窗口之间的前后遮挡关系完全遵循 Windows 默认逻辑。
         /// </summary>
         private static void SetTargetTopmost(IntPtr hwnd, bool topmost)
         {
@@ -312,6 +313,22 @@ namespace WindowTinter
                     Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
             }
             catch (Exception ex2) { Debug.WriteLine($"SetTargetTopmost failed for 0x{hwnd:X}: {ex2.Message}"); }
+        }
+
+        /// <summary>
+        /// 把目标窗口一次性带到 Z 序顶部（不激活、不抢焦点）。
+        /// 仅"选中/指定目标"的那一刻调用一次，之后前后遮挡交给 Windows 默认逻辑——
+        /// 其它窗口可以正常盖上来，目标不会霸占最前。
+        /// </summary>
+        private static void BringTargetToTop(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
+            try
+            {
+                Native.SetWindowPos(hwnd, Native.HWND_TOP, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            }
+            catch (Exception ex) { Debug.WriteLine($"BringTargetToTop failed for 0x{hwnd:X}: {ex.Message}"); }
         }
 
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
