@@ -1,0 +1,181 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ═══ 颜色 Tokens（对齐 UI_REDESIGN.html）═══ -->
+    <SolidColorBrush x:Key="Bg" Color="#1E2024"/>
+    <SolidColorBrush x:Key="Card" Color="#26292E"/>
+    <SolidColorBrush x:Key="CardHeader" Color="#2C3036"/>
+    <SolidColorBrush x:Key="Row" Color="#32363C"/>
+    <SolidColorBrush x:Key="RowHover" Color="#3A4048"/>
+    <SolidColorBrush x:Key="RowPending" Color="#26292E"/>
+    <SolidColorBrush x:Key="RowSel" Color="#2B3B52"/>
+    <SolidColorBrush x:Key="Border" Color="#3A3F46"/>
+    <SolidColorBrush x:Key="Text" Color="#E8EAF0"/>
+    <SolidColorBrush x:Key="Text2" Color="#9AA0AA"/>
+    <SolidColorBrush x:Key="Text3" Color="#6B7280"/>
+    <SolidColorBrush x:Key="Teal" Color="#3ECF8E"/>
+    <SolidColorBrush x:Key="TealDark" Color="#2A9D6E"/>
+    <SolidColorBrush x:Key="Blue" Color="#4A90D9"/>
+    <SolidColorBrush x:Key="Red" Color="#E5534B"/>
+    <SolidColorBrush x:Key="Amber" Color="#D9A44A"/>
+    <SolidColorBrush x:Key="ShotBg" Color="#1B1F26"/>
+    <SolidColorBrush x:Key="TooltipBg" Color="#101216"/>
+
+    <!-- ═══ 全局 TextBlock ═══ -->
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+    </Style>
+
+    <!-- ═══ ToolTip ═══ -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{StaticResource TooltipBg}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text2}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Border}"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Padding" Value="8,5"/>
+    </Style>
+
+    <!-- ═══ 圆角按钮（Base）═══ -->
+    <Style TargetType="Button" x:Key="BtnBase">
+        <Setter Property="Background" Value="{StaticResource Row}"/>
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Padding" Value="8,3"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource RowHover}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ 圆角按钮（Primary · teal 强调）═══ -->
+    <Style TargetType="Button" x:Key="BtnPrimary" BasedOn="{StaticResource BtnBase}">
+        <Setter Property="Background" Value="{StaticResource TealDark}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Teal}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ 圆角按钮（Danger · 退出）═══ -->
+    <Style TargetType="Button" x:Key="BtnDanger" BasedOn="{StaticResource BtnBase}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Red}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="bd" Property="Opacity" Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ 图标小按钮（卡片 ○✎×）═══ -->
+    <Style TargetType="Button" x:Key="BtnIcon" BasedOn="{StaticResource BtnBase}">
+        <Setter Property="Width" Value="22"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="FontSize" Value="10"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="2,0,0,0"/>
+    </Style>
+
+    <!-- ═══ teal 胶囊开关 ═══ -->
+    <Style TargetType="ToggleButton" x:Key="Switch">
+        <Setter Property="Width" Value="38"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border x:Name="bg" CornerRadius="10" Background="#3A3F46"/>
+                        <Ellipse x:Name="knob" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2,2,0,0"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="bg" Property="Background" Value="{StaticResource TealDark}"/>
+                            <Setter TargetName="knob" Property="HorizontalAlignment" Value="Right"/>
+                            <Setter TargetName="knob" Property="Margin" Value="0,2,2,0"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ 暗色复选框 ═══ -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal">
+                        <Border x:Name="box" Width="14" Height="14" CornerRadius="3" Background="#2A2D33"
+                                BorderBrush="{StaticResource Border}" BorderThickness="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="tick" Text="✓" FontSize="9" Foreground="White" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Visibility="Collapsed"/>
+                        </Border>
+                        <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="box" Property="Background" Value="{StaticResource TealDark}"/>
+                            <Setter TargetName="box" Property="BorderBrush" Value="{StaticResource TealDark}"/>
+                            <Setter TargetName="tick" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ═══ 滑块（蓝色强调）═══ -->
+    <Style TargetType="Slider">
+        <Setter Property="Foreground" Value="{StaticResource Blue}"/>
+    </Style>
+
+</ResourceDictionary>
