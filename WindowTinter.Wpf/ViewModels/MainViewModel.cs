@@ -434,6 +434,10 @@ namespace WindowTinter.ViewModels
                     foreach (var t in _settings.Targets) t.BackgroundAlpha = _settings.BackgroundAlpha;
                     SelectedTarget = Targets.FirstOrDefault();
                 }
+                else if (_settings.GlobalCornerRadius)
+                {
+                    SelectedTarget = null; // 进入全全局：卡片不可选，清空选中（无选中发光）
+                }
                 _settings.Save();
                 SyncUI();
                 foreach (var e in _entries) ApplyMaskNow(e);
@@ -451,6 +455,10 @@ namespace WindowTinter.ViewModels
                 {
                     foreach (var t in _settings.Targets) t.CornerRadius = _settings.CornerRadius;
                     SelectedTarget = Targets.FirstOrDefault();
+                }
+                else if (_settings.GlobalTransparency)
+                {
+                    SelectedTarget = null; // 进入全全局：卡片不可选，清空选中（无选中发光）
                 }
                 _settings.Save();
                 SyncUI();

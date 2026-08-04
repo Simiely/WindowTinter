@@ -158,8 +158,16 @@
                         <TextBlock Grid.Column="2" Text="{Binding BackgroundAlphaText}" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource Text}"
                                    HorizontalAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
-                    <CheckBox Grid.Row="2" Content="全局统一圆角" FontWeight="Bold" IsChecked="{Binding GlobalCornerRadius, Mode=TwoWay}" VerticalAlignment="Center"
-                              ToolTip="所有窗口共用同一圆角。关闭后可在目标列表点 ○ 选中窗口单独配置。"/>
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <CheckBox Content="全局统一圆角" FontWeight="Bold" IsChecked="{Binding GlobalCornerRadius, Mode=TwoWay}"
+                                      ToolTip="所有窗口共用同一圆角。关闭后可在目标列表点 ○ 选中窗口单独配置。"/>
+                        </StackPanel>
+                    </Grid>
                     <Grid Grid.Row="3">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="74.6"/>
