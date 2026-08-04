@@ -233,7 +233,10 @@ namespace WindowTinter
             {
                 var h = TargetTracker.FindByTitleAndProcess(t.WindowTitle, t.ProcessName, null, t.WindowClass);
                 if (h != IntPtr.Zero)
+                {
                     SetTargetAlpha(h, 255);
+                    SetTargetTopmost(h, false); // 清理上次强制退出可能残留的置顶
+                }
             }
         }
 
@@ -266,11 +269,13 @@ namespace WindowTinter
                 if (!_settings.Enabled || !visible)
                 {
                     plate.HidePlate();
+                    SetTargetTopmost(tracker.TargetHandle, false); // 暂停/隐藏时取消置顶
                     if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
                     return;
                 }
 
-                // 目标设半透明（前后台统一），正后方按需钉纯黑底板
+                // 目标设半透明（前后台统一），正后方按需钉纯黑底板；同时置顶避免被上层窗口遮挡破坏效果
+                SetTargetTopmost(tracker.TargetHandle, true);
                 byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
                 if (_lastBgAlpha != targetAlpha)
                 {
@@ -287,6 +292,26 @@ namespace WindowTinter
             };
 
             return new TargetEntry { Info = info, Tracker = tracker, Plate = plate };
+        }
+
+        /// <summary>
+        /// 置顶 / 取消置顶目标窗口。幂等：先查 WS_EX_TOPMOST 状态，已一致则跳过（250ms 轮询高频调用下开销极小）。
+        /// 选中目标时置顶：否则目标被其它窗口遮挡时，半透明+黑底的效果会被上层窗口破坏。
+        /// </summary>
+        private static void SetTargetTopmost(IntPtr hwnd, bool topmost)
+        {
+            if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
+            try
+            {
+                int ex = (int)Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE);
+                bool isTop = (ex & Native.WS_EX_TOPMOST) != 0;
+                if (isTop == topmost) return;
+
+                Native.SetWindowPos(hwnd, topmost ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST,
+                    0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            }
+            catch (Exception ex2) { Debug.WriteLine($"SetTargetTopmost failed for 0x{hwnd:X}: {ex2.Message}"); }
         }
 
         private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
@@ -510,6 +535,7 @@ namespace WindowTinter
             _selectButtons.Remove(entry.Info);
             if (_selectedTarget != null && _selectedTarget.Equals(entry.Info)) _selectedTarget = null;
             SetTargetAlpha(entry.Tracker.TargetHandle, 255);
+            SetTargetTopmost(entry.Tracker.TargetHandle, false);
             entry.Plate.HidePlate();
             entry.Tracker.Dispose();
             entry.Plate.Dispose();
@@ -520,7 +546,7 @@ namespace WindowTinter
 
         private void UnbindAll()
         {
-            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Plate.HidePlate(); e.Tracker.Dispose(); e.Plate.Dispose(); }
+            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); e.Tracker.Dispose(); e.Plate.Dispose(); }
             _entries.Clear();
             _pnlTargets.Controls.Clear();
             _pendingPanels.Clear();
@@ -538,7 +564,7 @@ namespace WindowTinter
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
             foreach (var e in _entries)
             {
-                try { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Plate.HidePlate(); e.Plate.Dispose(); e.Tracker.Dispose(); }
+                try { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); e.Plate.Dispose(); e.Tracker.Dispose(); }
                 catch { /* 单条清理失败不阻塞后续 */ }
             }
             _pendingPanels.Clear();

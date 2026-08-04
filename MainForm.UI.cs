@@ -285,6 +285,9 @@ namespace WindowTinter
             if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
             _selectedTarget = info;
             UpdateSelectButtons();
+            // 选中目标即置顶并刷新效果：避免目标被上层窗口遮挡时半透明/黑底效果被破坏
+            var entry = _entries.FirstOrDefault(e => e.Info == info);
+            if (entry != null) ApplyMaskNow(entry);
             if (!_settings.GlobalTransparency)
             {
                 int b = info.BackgroundAlpha;
@@ -414,7 +417,7 @@ namespace WindowTinter
             }
             else
             {
-                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Plate.HidePlate(); }
+                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); }
             }
             UpdateUI();
         }
