@@ -6,7 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WindowTinter.Views;
 
@@ -43,6 +45,9 @@ namespace WindowTinter.ViewModels
         private readonly DispatcherTimer _autoBindTimer;    // 3s 兜底重绑
         private readonly DispatcherTimer _saveDebounceTimer; // 200ms 滑块防抖写盘
         private readonly DispatcherTimer _snapshotTimer;    // 3s 快照定时刷新
+
+        // UI 线程 Dispatcher（构造时捕获；后台快照线程回投用）
+        private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
 
         // ── WinEvent 钩子（前台切换/移动/销毁即时响应）──
         private Native.WinEventProc _winEventProc;
@@ -652,14 +657,43 @@ namespace WindowTinter.ViewModels
         // 快照
         // ════════════════════════════════════════════════════════════════
 
-        /// <summary>刷新单张卡片快照（绑定即时 / 移动即时 / 定时 / 手动全量）。卡片快照区约 100×48。</summary>
+        /// <summary>
+        /// 刷新单张卡片快照（绑定即时 / 移动即时 / 定时 / 手动全量）。
+        /// 性能：抓图（PrintWindow GDI）+ 缩放 + 转 BitmapSource 全部放后台线程（Task.Run），
+        /// UI 线程只收尾设置已 Freeze 的 BitmapSource——消除每 3s 全量刷新造成的界面卡顿。
+        /// </summary>
         public void RefreshTargetSnapshot(TargetInfo info)
         {
             var entry = _entries.FirstOrDefault(e => e.Info == info);
             var vm = FindVm(info);
-            var bmp = entry != null ? SnapshotService.Capture(entry.Tracker.TargetHandle, 100, 48) : null;
-            if (vm == null) { bmp?.Dispose(); return; }
-            vm.SetShot(bmp); // 内部消费并释放
+            if (vm == null) return;
+            if (entry == null || entry.Tracker.TargetHandle == IntPtr.Zero || !Native.IsWindow(entry.Tracker.TargetHandle))
+            {
+                vm.SetShotSource(null);
+                return;
+            }
+            IntPtr h = entry.Tracker.TargetHandle;
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                var bmp = SnapshotService.Capture(h, 100, 48);
+                if (bmp == null) return;
+                try
+                {
+                    IntPtr hbit = bmp.GetHbitmap();
+                    BitmapSource src;
+                    try
+                    {
+                        src = Imaging.CreateBitmapSourceFromHBitmap(
+                            hbit, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                    }
+                    finally { Native.DeleteObject(hbit); }
+                    src.Freeze(); // Freeze 后跨线程安全
+                    var target = vm;
+                    _dispatcher.BeginInvoke(new Action(() => target?.SetShotSource(src)));
+                }
+                catch { }
+                finally { bmp.Dispose(); }
+            });
         }
 
         /// <summary>全量刷新所有目标卡片快照（卡头「⟳ 刷新快照」/ 3s 定时）。</summary>

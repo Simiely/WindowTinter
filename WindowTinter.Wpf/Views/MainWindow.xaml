@@ -73,8 +73,9 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Width="133.9" Height="125.3" Background="{Binding CardBg}" CornerRadius="10" Margin="3"
-                                        BorderBrush="{Binding CardBorder}" BorderThickness="1">
+                                <Border Width="133.9" Height="136" Background="{Binding CardBg}" CornerRadius="10" Margin="3"
+                                        BorderBrush="{Binding CardBorder}" BorderThickness="1"
+                                        PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp">
                                     <StackPanel Margin="8,8,8,6">
                                         <Border Height="60.5" CornerRadius="6" Background="{StaticResource ShotBg}">
                                             <Grid>
@@ -101,8 +102,6 @@
                                             </StackPanel>
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                            <Button Content="{Binding SelText}" Style="{StaticResource BtnIcon}" Background="{Binding SelBg}"
-                                                    Command="{Binding SelectCommand}" IsEnabled="{Binding SelectEnabled}"/>
                                             <Button Content="✎" Style="{StaticResource BtnIcon}" Command="{Binding RenameCommand}"/>
                                             <Button Content="×" Style="{StaticResource BtnIcon}" Command="{Binding RemoveCommand}"/>
                                         </StackPanel>

@@ -1,6 +1,8 @@
 using System;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
 using WindowTinter.ViewModels;
 
@@ -32,6 +34,14 @@ namespace WindowTinter.Views
                     Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref attr, sizeof(int));
                 }
             };
+        }
+
+        /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（✎/× 按钮点击除外）。</summary>
+        private void Card_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.OriginalSource is ButtonBase) return; // 按钮自身操作，不触发选中
+            if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
+                vm.SelectCommand.Execute(null);
         }
 
         private void BuildTray() => _tray = new TrayService(_vm, IsWindowOpen, ToggleWindow);

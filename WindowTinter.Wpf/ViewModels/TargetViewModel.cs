@@ -37,15 +37,11 @@ namespace WindowTinter.ViewModels
         // ── 外观色板（对齐 Themes/Dark.xaml）──
         private static readonly Brush C_Card = Br("#32363C");
         private static readonly Brush C_CardPending = Br("#26292E");
-        private static readonly Brush C_CardSel = Br("#2B3B52");
         private static readonly Brush C_Border = Br("#3A3F46");
         private static readonly Brush C_BorderPending = Br("#555555");
-        private static readonly Brush C_BorderSel = Br("#4A90D9");
         private static readonly Brush C_Teal = Br("#FF9292");
         private static readonly Brush C_Dim = Br("#6E747C");
         private static readonly Brush C_Text = Br("#E8EAF0");
-        private static readonly Brush C_Btn = Br("#3A3F46");
-        private static readonly Brush C_BtnSel = Br("#4A90D9");
         private static readonly Brush C_Shot = Br("#2A2E36");
 
         // ── 状态派生 ──
@@ -59,12 +55,9 @@ namespace WindowTinter.ViewModels
         public Brush ShotColor => C_Shot;
         public Brush StateColor => IsPending ? C_Dim : C_Teal;
         public Brush NameColor => IsPending ? C_Dim : C_Text;
-        public Brush CardBg => IsSelected && !IsPending ? C_CardSel : IsPending ? C_CardPending : C_Card;
-        public Brush CardBorder => IsSelected && !IsPending ? C_BorderSel : IsPending ? C_BorderPending : C_Border;
-
-        public bool SelectEnabled => !IsPending && !_owner.GlobalTransparency;
-        public string SelText => IsSelected ? "●" : "○";
-        public Brush SelBg => IsSelected ? C_BtnSel : C_Btn;
+        // 整卡点击选中：无选中高亮视觉（选中仅驱动滑块编辑该卡，见 MainViewModel.SelectedTarget）
+        public Brush CardBg => IsPending ? C_CardPending : C_Card;
+        public Brush CardBorder => IsPending ? C_BorderPending : C_Border;
 
         // ── 快照（BitmapSource；null = 显示占位色块）──
         private ImageSource _shotImage;
@@ -90,7 +83,13 @@ namespace WindowTinter.ViewModels
             finally { bmp.Dispose(); }
         }
 
-        /// <summary>绑定状态变化 / 选中态变化时刷新卡片外观。由 MainViewModel 统一驱动。</summary>
+        /// <summary>后台抓图路径：直接设置已 Freeze 的 BitmapSource（UI 线程调用）。</summary>
+        public void SetShotSource(ImageSource src)
+        {
+            ShotImage = src;
+        }
+
+        /// <summary>绑定状态变化时刷新卡片外观。由 MainViewModel 统一驱动。</summary>
         public void RefreshCardVisuals()
         {
             OnPropertyChanged(nameof(IsPending));
@@ -102,9 +101,6 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(NameColor));
             OnPropertyChanged(nameof(CardBg));
             OnPropertyChanged(nameof(CardBorder));
-            OnPropertyChanged(nameof(SelectEnabled));
-            OnPropertyChanged(nameof(SelText));
-            OnPropertyChanged(nameof(SelBg));
         }
 
         /// <summary>由 RebuildTargetList 调用：绑定条目变化（活跃↔待激活）。</summary>
