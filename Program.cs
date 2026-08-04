@@ -94,6 +94,9 @@ namespace WindowTinter
             // 句柄已创建，DeviceDpi 为真实屏幕 DPI（进程已 PerMonitorV2 感知）。
             // 静态控件已由 AutoScaleMode.Dpi 自动缩放；运行时动态添加的面板按此因子换算尺寸。
             _dpiScale = Math.Max(DeviceDpi / 96f, 1f);
+            // 关键：_dpiScale 现在才拿到真实值（BuildUI 时为 1.0），立即重建一次列表，
+            // 让动态面板宽度按真实 DPI 统一（否则列表项先按 1.0 创建、启动后再重建会宽度跳变）。
+            RebuildTargetList();
 
             // 启动时清除上次强制退出可能残留的透明效果
             RestoreAllTargets();

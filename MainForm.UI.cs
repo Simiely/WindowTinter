@@ -130,9 +130,11 @@ namespace WindowTinter
             gb.Paint += (_, e) =>
             {
                 using var brush = new SolidBrush(groupBg);
-                // 用 Font.Height 动态计算标题高度，避免高 DPI 下填充错位
+                // 关键 DPI：用控件实际缩放后的尺寸（gb.Width/gb.Height），而非传入的原始 w/h——
+                // 高 DPI（125%/150%）下 AutoScaleMode.Dpi 会把 GroupBox 放大，若仍按原始值填充
+                // 会漏出右侧/底部系统浅色背景。Font.Height 动态计算标题高度同理。
                 int headerH = gb.Font.Height + 3;
-                e.Graphics.FillRectangle(brush, 3, headerH, w - 6, h - headerH - 3);
+                e.Graphics.FillRectangle(brush, 3, headerH, gb.Width - 6, gb.Height - headerH - 3);
             };
             build(gb);
             Controls.Add(gb);

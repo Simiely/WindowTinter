@@ -19,15 +19,11 @@ namespace WindowTinter
         public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
         public int CornerRadius { get; set; } = 15;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 
-        /// <summary>显示名兜底链：别名 → 窗口标题 → 进程名 → 窗口类名 → 占位。保证列表一定有名称。</summary>
-        public override string ToString()
-        {
-            if (!string.IsNullOrEmpty(Alias)) return Alias;
-            if (!string.IsNullOrEmpty(WindowTitle)) return WindowTitle;
-            if (!string.IsNullOrEmpty(ProcessName)) return ProcessName;
-            if (!string.IsNullOrEmpty(WindowClass)) return WindowClass;
-            return "未命名窗口";
-        }
+        /// <summary>显示名：别名（用户重命名）优先，其次窗口标题，再退回进程名。名称兜底交给用户重命名，不特殊处理无名称窗口。</summary>
+        public override string ToString() =>
+            !string.IsNullOrEmpty(Alias) ? Alias
+            : !string.IsNullOrEmpty(WindowTitle) ? WindowTitle
+            : ProcessName;
 
         public bool Equals(TargetInfo other) =>
             other != null &&
