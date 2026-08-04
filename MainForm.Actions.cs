@@ -227,5 +227,17 @@ namespace WindowTinter
         {
             _settings.Save();
         }
+
+        /// <summary>重命名目标窗口的显示名称（双击列表项或点 ✎ 触发）。输入空 = 清除别名恢复默认。</summary>
+        private void RenameTarget(TargetInfo info)
+        {
+            using var dlg = new RenameDialog(info.Alias);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            string alias = dlg.RenameText.Trim();
+            info.Alias = alias; // 空字符串 = 清除别名，ToString 回退到 标题/进程名 兜底链
+            _settings.Save();
+            RebuildTargetList(); // 重建列表刷新显示名
+            UpdateUI();
+        }
     }
 }

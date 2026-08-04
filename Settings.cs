@@ -14,10 +14,20 @@ namespace WindowTinter
         public string WindowTitle { get; init; } = "";
         /// <summary>窗口类名（拾取时记录）。重绑定主键之一：浏览器/编辑器标题变化时按 进程+类名 仍能找回。</summary>
         public string WindowClass { get; init; } = "";
+        /// <summary>自定义别名（用户重命名）。非空时 UI 列表优先显示它。JSON 缺省为空，旧配置向后兼容。</summary>
+        public string Alias { get; set; } = "";
         public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
         public int CornerRadius { get; set; } = 15;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 
-        public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
+        /// <summary>显示名兜底链：别名 → 窗口标题 → 进程名 → 窗口类名 → 占位。保证列表一定有名称。</summary>
+        public override string ToString()
+        {
+            if (!string.IsNullOrEmpty(Alias)) return Alias;
+            if (!string.IsNullOrEmpty(WindowTitle)) return WindowTitle;
+            if (!string.IsNullOrEmpty(ProcessName)) return ProcessName;
+            if (!string.IsNullOrEmpty(WindowClass)) return WindowClass;
+            return "未命名窗口";
+        }
 
         public bool Equals(TargetInfo other) =>
             other != null &&

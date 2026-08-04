@@ -72,18 +72,20 @@ namespace WindowTinter
         /// 把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。
         /// 原型 B：每次调用都 SetWindowPos 维护"Z 序不变式"（黑底 = 目标紧邻下方）；
         /// 渲染（ULW/圆角）仅在几何变化时执行，避免无谓 GDI 开销。
+        /// 
+        /// 关键 DPI 结论（2026-08 调研确认）：本进程是 PerMonitorV2，SetWindowPos /
+        /// UpdateLayeredWindow / GetWindowRect / DwmGetWindowAttribute 全部使用物理像素，
+        /// 坐标系一致，无需任何换算。曾经的 GetDpiScale(×96/dpi) 换算反而在 125%/150%
+        /// 缩放屏把黑底缩小/偏移（100% 屏 scale=1 看不出）——正是"高 DPI 下黑底错位、
+        /// 无法精准定位、尺寸不吻合窗口"的根因。
         /// </summary>
         public void AlignBehind(IntPtr targetHandle, Native.RECT r)
         {
-            // 关键 DPI 处理：GetWindowRect/DwmGetWindowAttribute 返回的是物理像素，
-            // 而本进程是 PerMonitorV2，SetWindowPos 与 UpdateLayeredWindow 都按逻辑像素解释坐标。
-            // 100% 缩放时两者相等看不出问题；125%/150% 等缩放屏若不换算，底板会偏移/尺寸不对。
-            double scale = GetDpiScale(targetHandle);
-            int w = (int)Math.Round(r.Width * scale);
-            int h = (int)Math.Round(r.Height * scale);
+            int w = r.Width;
+            int h = r.Height;
             if (w <= 0 || h <= 0) { HidePlate(); return; }
-            int x = (int)Math.Round(r.Left * scale);
-            int y = (int)Math.Round(r.Top * scale);
+            int x = r.Left;
+            int y = r.Top;
 
             if (!IsHandleCreated) CreateHandle();
 
@@ -104,18 +106,6 @@ namespace WindowTinter
 
             if (posChanged)
                 RenderSolidBlack(x, y, w, h);
-        }
-
-        /// <summary>物理→逻辑缩放系数（逻辑像素 = 物理像素 × scale）。API 缺失/异常时返回 1（不缩放）。</summary>
-        private static double GetDpiScale(IntPtr hwnd)
-        {
-            try
-            {
-                uint dpi = Native.GetDpiForWindow(hwnd);
-                return dpi == 0 ? 1.0 : 96.0 / dpi;
-            }
-            catch (EntryPointNotFoundException) { return 1.0; } // 老系统无此 API
-            catch { return 1.0; }
         }
 
         /// <summary>隐藏底板（不走 Control.Visible 状态机，避免额外重绘）。</summary>

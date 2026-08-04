@@ -175,11 +175,29 @@ namespace WindowTinter
             {
                 Text = selected ? "●" : "○",
                 Size = new Size((int)(30 * s), (int)(24 * s)),
-                Location = new Point(w - (int)(68 * s), (int)(4 * s)),
+                Location = new Point(w - (int)(98 * s), (int)(4 * s)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
                 ForeColor = Color.FromArgb(224, 224, 224),
                 Enabled = enabled
+            };
+            btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
+            btn.Click += onClick;
+            return btn;
+        }
+
+        /// <summary>创建目标面板中的 ✎ 重命名按钮。位于 选中按钮 与 删除按钮 之间。</summary>
+        private Button CreateRenameButton(int w, EventHandler onClick)
+        {
+            float s = _dpiScale;
+            var btn = new Button
+            {
+                Text = "✎",
+                Size = new Size((int)(28 * s), (int)(24 * s)),
+                Location = new Point(w - (int)(64 * s), (int)(4 * s)),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(60, 60, 60),
+                ForeColor = Color.FromArgb(224, 224, 224)
             };
             btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
             btn.Click += onClick;
@@ -194,7 +212,7 @@ namespace WindowTinter
             {
                 Text = "×",
                 Size = new Size((int)(28 * s), (int)(24 * s)),
-                Location = new Point(w - (int)(34 * s), (int)(4 * s)),
+                Location = new Point(w - (int)(32 * s), (int)(4 * s)),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(60, 60, 60),                 ForeColor = Color.FromArgb(224, 224, 224)
             };
@@ -375,6 +393,7 @@ namespace WindowTinter
                 BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
                 Cursor = Cursors.Hand };
             pnl.Click += (_, _) => SelectTarget(info);
+            pnl.DoubleClick += (_, _) => RenameTarget(info); // 双击面板 = 重命名
 
             var lbl = new Label
             {
@@ -386,12 +405,16 @@ namespace WindowTinter
                 Cursor = Cursors.Hand
             };
             lbl.Click += (_, _) => SelectTarget(info);
+            lbl.DoubleClick += (_, _) => RenameTarget(info); // 双击名称 = 重命名
             pnl.Controls.Add(lbl);
 
             bool btnEnabled = !_settings.GlobalTransparency;
             var btnSelect = CreateSelectButton(w, sel, btnEnabled, (_, _) => SelectTarget(info));
             pnl.Controls.Add(btnSelect);
             _selectButtons[info] = btnSelect;
+
+            var btnRename = CreateRenameButton(w, (_, _) => RenameTarget(info));
+            pnl.Controls.Add(btnRename);
 
             var btnRemove = CreateRemoveButton(w, (_, _) => RemoveTarget(info));
             pnl.Controls.Add(btnRemove);
