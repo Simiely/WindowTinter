@@ -1,9 +1,24 @@
-# WindowTinter 测试与 Bug 修复报告
+# WindowTinter 测试与修复报告
 
-- 仓库：`github.com/Simiely/WindowTinter`（v5.5.2 → 修复版 v5.5.3，main @ 157 commits）
+- 仓库：`github.com/Simiely/WindowTinter`（v5.5.2 → 重构版 **v5.6.0**）
 - 日期：2026-08-04
-- 环境：Windows + 隔离 .NET 6 SDK（6.0.428，本机无全局 dotnet，构建走 `C:\Users\260803\.workbuddy\binaries\dotnet6\dotnet.exe`）
-- 构建产物：`dist\WindowTinter-v5.5.3-win-x64\`（自包含、免装运行时）
+- 环境：Windows + 隔离 .NET 6 SDK（6.0.428）
+- 构建产物：`dist\WindowTinter-v5.6.0-win-x64\`（自包含、免装运行时）
+- 重构计划与验收：见 `REFACTOR_PLAN.md`（A~E 五阶段，全部完成）
+
+---
+
+## 〇、v5.6.0 主逻辑重构总结（本次）
+
+目标：一次理顺主逻辑，取代点对点打补丁。五大改动：
+
+| 阶段 | 改动 | 解决 |
+|------|------|------|
+| A 身份模型 | `TargetInfo` 身份纳入窗口类名（旧配置兼容）；匹配链：类名收窄候选池→标题精确→标题包含→唯一窗口→面积最大；**title 为空不再直接返回 Zero** | 无标题窗口可重绑；同进程多窗口不绑串 |
+| B 状态机 | 目标生命周期收敛为「待激活↔监控中」显式状态机，统一 `BindTarget / ReleaseTarget / RemoveTarget` 三个入口；WinEvent 销毁**事件即时迁移**（不再等 3s 定时器）；清理逻辑从 6 处收敛到 1 处 | 状态不再三处拷贝；删除/暂停/退出无重复清理代码 |
+| C 效果解耦 | `ApplyEntryEffect` 显式差异计算（entry 持 `LastAlpha`/`OriginallyLayered`）；`SetTargetAlpha` 兼容**原生分层窗口**：恢复时不粗暴移除其 `WS_EX_LAYERED` | 浏览器还原后无异常色块；拖动不高频刷新 |
+| D UI 整理 | `RebuildTargetList` + `CreateTargetPanel` 统一重建列表，删除 `AddTargetUI/AddPendingUI/RemovePendingUI` 三份代码与 `SetChildIndex` hack | 增删/重开列表顺序稳定 |
+| E 发布 | 版本号 5.6.0；构建 0 警告 0 错误；冒烟通过；产物 `dist/WindowTinter-v5.6.0-win-x64/` | — |
 
 ---
 

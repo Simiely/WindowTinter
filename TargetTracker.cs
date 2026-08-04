@@ -139,55 +139,57 @@ namespace WindowTinter
 
         /// <summary>
         /// 按标题+进程名查找目标窗口（重绑定 / 重新查找入口）。
-        /// 匹配策略按优先级递减：
-        ///   1) 标题完全一致 + 进程（保持原有精确行为）
-        ///   2) 标题包含关键词 + 进程（兼容浏览器/编辑器运行时标题动态变化）
-        ///   3) 进程 + 窗口类名（重开后标题彻底变化时也能找回；多窗口同类时取面积最大者）
-        ///   4) 仅进程兜底：该进程唯一可接受窗口直接绑；多个时优先标题含关键词者，否则取面积最大者
+        /// 匹配策略（title 为空时自动跳过标题条件，无标题窗口也能按 进程+类名/仅进程 绑回）：
+        ///   1) 窗口类名收窄候选池（配置了类名且能在该进程匹配到时，只在同类窗口里选）
+        ///   2) 标题完全一致（title 非空时）
+        ///   3) 标题包含关键词（title 非空时）
+        ///   4) 候选池唯一窗口直接绑
+        ///   5) 面积最大者（同进程多窗口启发式）
         /// </summary>
         public static IntPtr FindByTitleAndProcess(string title, string processName, HashSet<IntPtr> excludeHandles = null, string windowClass = null)
-        {
-            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(processName))
-                return IntPtr.Zero;
+            => FindByTitleAndProcessInternal(title, processName, excludeHandles, windowClass).Handle;
 
+        /// <summary>公开的匹配详情（句柄 + 匹配依据），供绑定流程记录日志、排查绑定结果。</summary>
+        public static (IntPtr Handle, string MatchKind) FindMatch(
+            string title, string processName, HashSet<IntPtr> excludeHandles, string windowClass)
+            => FindByTitleAndProcessInternal(title, processName, excludeHandles, windowClass);
+
+        /// <summary>内部实现：附带匹配依据（供日志排查绑到了哪个窗口、依据什么）。</summary>
+        private static (IntPtr Handle, string MatchKind) FindByTitleAndProcessInternal(
+            string title, string processName, HashSet<IntPtr> excludeHandles, string windowClass)
+        {
             string proc = NormalizeProcessName(processName);
-            if (proc.Length == 0) return IntPtr.Zero;
+            if (proc.Length == 0) return (IntPtr.Zero, "no-process");
 
             var candidates = EnumerateProcessWindows(proc, excludeHandles);
-            if (candidates.Count == 0) return IntPtr.Zero;
+            if (candidates.Count == 0) return (IntPtr.Zero, "no-window");
 
-            string kw = title.ToLowerInvariant();
-
-            // 1) 精确标题
-            var exact = candidates.Find(c => c.Title.Equals(kw, StringComparison.Ordinal));
-            if (exact.Handle != IntPtr.Zero) return exact.Handle;
-
-            // 2) 标题包含
-            var contains = candidates.Find(c => c.Title.Contains(kw));
-            if (contains.Handle != IntPtr.Zero) return contains.Handle;
-
-            // 3) 进程 + 窗口类名
+            // 类名收窄候选池：配置了类名且进程内有同类窗口时，只在同类里选，降低同进程多窗口绑错概率
+            var pool = candidates;
             if (!string.IsNullOrWhiteSpace(windowClass))
             {
                 var byClass = candidates.Where(c =>
                     string.Equals(c.Class, windowClass, StringComparison.OrdinalIgnoreCase)).ToList();
-                if (byClass.Count == 1) return byClass[0].Handle;
-                if (byClass.Count > 1)
-                {
-                    var hit = byClass.Find(c => c.Title.Contains(kw));
-                    if (hit.Handle != IntPtr.Zero) return hit.Handle;
-                    // 同进程同类多窗口：取面积最大者（用户关注的主窗口通常最大）
-                    byClass.Sort((a, b) => b.Area.CompareTo(a.Area));
-                    return byClass[0].Handle;
-                }
+                if (byClass.Count > 0) pool = byClass;
             }
 
-            // 4) 仅进程兜底
-            if (candidates.Count == 1) return candidates[0].Handle;
-            var kwHit = candidates.Find(c => c.Title.Contains(kw));
-            if (kwHit.Handle != IntPtr.Zero) return kwHit.Handle;
-            candidates.Sort((a, b) => b.Area.CompareTo(a.Area));
-            return candidates[0].Handle;
+            string kw = title?.Trim().ToLowerInvariant() ?? "";
+            bool hasTitle = kw.Length > 0;
+
+            if (hasTitle)
+            {
+                var exact = pool.Find(c => c.Title.Equals(kw, StringComparison.Ordinal));
+                if (exact.Handle != IntPtr.Zero) return (exact.Handle, "exact-title");
+
+                var contains = pool.Find(c => c.Title.Contains(kw));
+                if (contains.Handle != IntPtr.Zero) return (contains.Handle, "contains-title");
+            }
+
+            if (pool.Count == 1) return (pool[0].Handle, "unique-window");
+
+            var sorted = new List<WinCandidate>(pool);
+            sorted.Sort((a, b) => b.Area.CompareTo(a.Area));
+            return (sorted[0].Handle, "largest-area");
         }
 
         public void Dispose()

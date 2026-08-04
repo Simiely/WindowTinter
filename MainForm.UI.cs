@@ -114,12 +114,8 @@ namespace WindowTinter
             link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://github.com/Simiely/WindowTinter") { UseShellExecute = true });
             Controls.Add(link);
 
-            // 恢复已有条目（活跃 + 待激活）
-            for (int i = 0; i < _entries.Count; i++)
-                AddTargetUI(_entries[i]);
-            foreach (var t in _settings.Targets)
-                if (!_entries.Any(e => e.Info == t))
-                    AddPendingUI(t);
+            // 按当前状态统一重建目标列表（活跃 + 待激活）
+            RebuildTargetList();
 
             ApplyDarkTheme();
         }
@@ -414,15 +410,13 @@ namespace WindowTinter
                 foreach (var t in _settings.Targets)
                 {
                     if (_entries.Any(e => e.Info == t)) continue;
-                    TryBindTarget(t);
-                    if (_entries.Any(e => e.Info == t)) RemovePendingUI(t);
-                    else if (!_pendingPanels.ContainsKey(t)) AddPendingUI(t);
+                    BindTarget(t); // 内部已同步 UI（RebuildTargetList）
                 }
                 foreach (var e in _entries) ApplyMaskNow(e);
             }
             else
             {
-                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); }
+                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255, e.OriginallyLayered ?? false); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); }
             }
             UpdateUI();
         }
@@ -564,16 +558,18 @@ namespace WindowTinter
 
             if (_settings.Enabled)
             {
-                TryBindTarget(info);
-                var entry = _entries.FirstOrDefault(e => e.Info == info);
-                if (entry != null)
+                if (BindTarget(info))
                 {
-                    BringTargetToTop(entry.Tracker.TargetHandle); // 新指定目标：一次性带到前台查看效果
-                    ApplyMaskNow(entry);
+                    var entry = _entries.FirstOrDefault(e => e.Info == info);
+                    if (entry != null)
+                    {
+                        BringTargetToTop(entry.Tracker.TargetHandle); // 新指定目标：一次性带到前台查看效果
+                        ApplyMaskNow(entry);
+                    }
                 }
-                else AddPendingUI(info);
+                else RebuildTargetList();
             }
-            else AddPendingUI(info);
+            else RebuildTargetList();
             // 非全局模式下，自动选中刚添加的窗口
             if (!_settings.GlobalTransparency || !_settings.GlobalCornerRadius) _selectedTarget = info;
             UpdateUI();
@@ -583,10 +579,7 @@ namespace WindowTinter
         {
             UnbindAll();
             foreach (var t in _settings.Targets)
-            {
-                TryBindTarget(t);
-                if (!_entries.Any(e => e.Info == t)) AddPendingUI(t);
-            }
+                BindTarget(t); // 内部已同步 UI（RebuildTargetList），未绑定的自然显示"待激活"
             UpdateUI();
         }
 
@@ -650,7 +643,11 @@ namespace WindowTinter
                 try { BeginInvoke(new Action(() =>
                 {
                     var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
-                    if (match != null) match.Tracker.RefreshNow();
+                    if (match == null) return;
+                    if (eventType == Native.EVENT_OBJECT_DESTROY)
+                        ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活，不再等 3s 定时器
+                    else
+                        match.Tracker.RefreshNow();
                 })); }
                 catch (ObjectDisposedException) { }
                 catch (InvalidOperationException) { }

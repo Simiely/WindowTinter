@@ -141,43 +141,16 @@ namespace WindowTinter
             BuildTray();
             InstallWinEventHook();
 
-            // 3 秒一次检查是否有目标窗口新启动但未绑定
+            // 兜底定时器（3s）：只做"尝试绑定未绑定目标"；条目清理由 WinEvent 事件驱动（见 WinEventProcCallback）
             _autoBindTimer = new Timer { Interval = 3000 };
             _autoBindTimer.Tick += (_, _) =>
             {
                 if (!_settings.Enabled) return;
-
-                // 清理窗口已销毁的条目——放回待激活列表
-                bool anyChange = false;
-                for (int i = _entries.Count - 1; i >= 0; i--)
-                {
-                    var e = _entries[i];
-                    // 窗口已销毁 → 放回待激活列表
-                    if (!Native.IsWindow(e.Tracker.TargetHandle))
-                    {
-                        e.Plate.HidePlate(); e.Tracker.Dispose(); e.Plate.Dispose();
-                        _entries.RemoveAt(i);
-                        if (e.UIPanel != null) _pnlTargets.Controls.Remove(e.UIPanel);
-                        _selectButtons.Remove(e.Info);
-                        AddPendingUI(e.Info); // 放回待激活
-                        anyChange = true;
-                    }
-                }
-
-                // 查找未绑定目标（包括待激活目标）
                 foreach (var t in _settings.Targets)
                 {
                     if (_entries.Any(e => e.Info == t)) continue;
-                    TryBindTarget(t);
-                    var entry = _entries.FirstOrDefault(e => e.Info == t);
-                    if (entry != null)
-                    {
-                        RemovePendingUI(t);
-                        ApplyMaskNow(entry);
-                        anyChange = true;
-                    }
+                    BindTarget(t);
                 }
-                if (anyChange) BeginInvoke(() => UpdateUI());
             };
             _autoBindTimer.Start();
 
@@ -188,10 +161,10 @@ namespace WindowTinter
             if (_settings.Enabled)
             {
                 foreach (var t in _settings.Targets)
-                    TryBindTarget(t);
-                // 移除已成功绑定的待激活面板
-                foreach (var entry in _entries)
-                    RemovePendingUI(entry.Info);
+                {
+                    if (_entries.Any(e => e.Info == t)) continue;
+                    BindTarget(t); // BindTarget 内部已 RebuildTargetList，无需手动同步待激活面板
+                }
             }
 
             // 非全局模式下，默认选中第一个目标
@@ -234,7 +207,7 @@ namespace WindowTinter
                 var h = TargetTracker.FindByTitleAndProcess(t.WindowTitle, t.ProcessName, null, t.WindowClass);
                 if (h != IntPtr.Zero)
                 {
-                    SetTargetAlpha(h, 255);
+                    SetTargetAlpha(h, 255, true); // 启动恢复：保留 layered 分支，不破坏原生分层窗口
                     SetTargetTopmost(h, false); // 清理上次强制退出可能残留的置顶
                 }
             }
@@ -250,6 +223,9 @@ namespace WindowTinter
             public TargetTracker Tracker;
             public BlackPlate Plate;
             public Panel UIPanel;
+            public bool IsBound;                 // 是否处于"监控中"状态
+            public byte LastAlpha = 255;         // 最近一次应用到目标窗口的 alpha（差异计算用）
+            public bool? OriginallyLayered;      // 目标窗口原生是否 WS_EX_LAYERED（首次置透明前记录，用于恢复时决定是否可移除该样式）
         }
 
         /// <summary>创建条目并挂载 OnUpdate——所有蒙版显示逻辑的唯一入口。</summary>
@@ -257,41 +233,57 @@ namespace WindowTinter
         {
             var tracker = new TargetTracker();
             var plate = new BlackPlate();
+            var entry = new TargetEntry { Info = info, Tracker = tracker, Plate = plate };
             plate.CornerRadius = _settings.GlobalCornerRadius ? _settings.CornerRadius : info.CornerRadius;
+            tracker.OnUpdate += (r, visible) => ApplyEntryEffect(entry, visible);
+            return entry;
+        }
 
-            byte _lastBgAlpha = 255;
+        /// <summary>
+        /// 效果应用（唯一入口）：差异计算 alpha/黑底，有变化才落系统调用。
+        /// 取代原先写在闭包里的逻辑，状态由 entry 显式持有，可测试、可复用。
+        /// </summary>
+        private void ApplyEntryEffect(TargetEntry entry, bool visible)
+        {
+            IntPtr h = entry.Tracker.TargetHandle;
+            if (h == IntPtr.Zero) return;
 
-            tracker.OnUpdate += (r, visible) =>
+            // 全局模式用全局透明度，否则用该目标自己的配置
+            int bgPct = _settings.GlobalTransparency ? _settings.BackgroundAlpha : entry.Info.BackgroundAlpha;
+
+            if (!_settings.Enabled || !visible)
             {
-                // 全局模式用全局透明度，否则用该目标自己的配置
-                int bgPct = _settings.GlobalTransparency ? _settings.BackgroundAlpha : info.BackgroundAlpha;
-
-                if (!_settings.Enabled || !visible)
+                entry.Plate.HidePlate();
+                SetTargetTopmost(h, false); // 清理可能的历史置顶残留
+                if (entry.LastAlpha != 255)
                 {
-                    plate.HidePlate();
-                    SetTargetTopmost(tracker.TargetHandle, false); // 清理可能的历史置顶残留
-                    if (_lastBgAlpha != 255) { SetTargetAlpha(tracker.TargetHandle, 255); _lastBgAlpha = 255; }
-                    return;
+                    SetTargetAlpha(h, 255, entry.OriginallyLayered ?? false);
+                    entry.LastAlpha = 255;
                 }
+                return;
+            }
 
-                // 目标设半透明（前后台统一），正后方按需钉纯黑底板。
-                // 注意：不置顶——窗口前后遮挡遵循 Windows 默认逻辑，仅"选中目标"时一次性带到前台（见 BringTargetToTop）。
-                byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
-                if (_lastBgAlpha != targetAlpha)
+            // 目标设半透明（前后台统一），正后方按需钉纯黑底板。
+            // 注意：不置顶——窗口前后遮挡遵循 Windows 默认逻辑，仅"选中目标"时一次性带到前台（见 BringTargetToTop）。
+            byte targetAlpha = (byte)((100 - bgPct) * 255 / 100);
+            if (entry.LastAlpha != targetAlpha)
+            {
+                // 首次置透明前记录窗口原生 layered 状态，供恢复时判断能否安全移除该样式
+                if (targetAlpha < 255 && entry.OriginallyLayered == null)
                 {
-                    SetTargetAlpha(tracker.TargetHandle, targetAlpha);
-                    _lastBgAlpha = targetAlpha;
+                    long ex = Native.GetWindowLongPtr(h, Native.GWL_EXSTYLE).ToInt64();
+                    entry.OriginallyLayered = (ex & Native.WS_EX_LAYERED) != 0;
                 }
-                if (_settings.BackdropBlackPlate)
-                {
-                    // 用 DWM 扩展框架边界（去阴影）对齐底板，避免微信等程序遮罩外溢
-                    var visibleRect = Native.GetVisibleWindowRect(tracker.TargetHandle);
-                    plate.AlignBehind(tracker.TargetHandle, visibleRect);
-                }
-                else plate.HidePlate();
-            };
-
-            return new TargetEntry { Info = info, Tracker = tracker, Plate = plate };
+                SetTargetAlpha(h, targetAlpha, entry.OriginallyLayered ?? false);
+                entry.LastAlpha = targetAlpha;
+            }
+            if (_settings.BackdropBlackPlate)
+            {
+                // 用 DWM 扩展框架边界（去阴影）对齐底板，避免微信等程序遮罩外溢
+                var visibleRect = Native.GetVisibleWindowRect(h);
+                entry.Plate.AlignBehind(h, visibleRect);
+            }
+            else entry.Plate.HidePlate();
         }
 
         /// <summary>
@@ -331,7 +323,15 @@ namespace WindowTinter
             catch (Exception ex) { Debug.WriteLine($"BringTargetToTop failed for 0x{hwnd:X}: {ex.Message}"); }
         }
 
-        private static void SetTargetAlpha(IntPtr hwnd, byte alpha)
+        /// <summary>
+        /// 设置目标窗口整体透明度。
+        /// <paramref name="originallyLayered"/>：目标窗口"原生"（首次置透明前）是否已是 WS_EX_LAYERED。
+        /// - alpha&lt;255：加 WS_EX_LAYERED + LWA_ALPHA；
+        /// - alpha=255 且窗口原本就是分层窗口（浏览器等原生合成）：不粗暴移除样式，只把 alpha 设回 255，
+        ///   避免破坏其原有合成状态（此前"透明度没反应/异常色块"的一类根因）；
+        /// - alpha=255 且样式是我们加的：移除样式并 RedrawWindow 还原。
+        /// </summary>
+        private static void SetTargetAlpha(IntPtr hwnd, byte alpha, bool originallyLayered = false)
         {
             if (hwnd == IntPtr.Zero || !Native.IsWindow(hwnd)) return;
             try
@@ -341,12 +341,19 @@ namespace WindowTinter
 
                 if (alpha >= 255)
                 {
-                    if (hasLayered)
+                    if (hasLayered && !originallyLayered)
                     {
+                        // 样式是本程序加的 → 移除并重绘，彻底还原
                         Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, (IntPtr)(ex & ~Native.WS_EX_LAYERED));
                         // MSDN: 移除 WS_EX_LAYERED 后用 RedrawWindow 而非 InvalidateRect
                         Native.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero,
                             Native.RDW_INVALIDATE | Native.RDW_ERASE | Native.RDW_FRAME | Native.RDW_ALLCHILDREN);
+                    }
+                    else if (hasLayered)
+                    {
+                        // 原生分层窗口：保留样式，仅恢复全可见，避免破坏其合成
+                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                        Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                     }
                 }
                 else
@@ -357,7 +364,7 @@ namespace WindowTinter
                     Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                 }
             }
-            catch (Exception ex) { Debug.WriteLine($"SetTargetAlpha failed for 0x{hwnd:X}: {ex.Message}"); }
+            catch (Exception ex2) { Debug.WriteLine($"SetTargetAlpha failed for 0x{hwnd:X}: {ex2.Message}"); }
         }
 
         // ── 提权检测：目标窗口以管理员运行、本程序非提权时无法修改其透明度 ──
@@ -420,24 +427,25 @@ namespace WindowTinter
             e.Tracker.RefreshForeground();
         }
 
-        private void TryBindTarget(TargetInfo info)
+        /// <summary>统一绑定入口：查找目标窗口 → 创建条目 → 挂 UI → 生效。返回是否绑定成功。</summary>
+        private bool BindTarget(TargetInfo info)
         {
+            if (_entries.Any(e => e.Info == info)) return true; // 已绑定
+
             var boundHandles = new HashSet<IntPtr>(_entries.Select(e => e.Tracker.TargetHandle));
-            var h = TargetTracker.FindByTitleAndProcess(info.WindowTitle, info.ProcessName, boundHandles, info.WindowClass);
-            if (h == IntPtr.Zero) return;
+            var (h, matchKind) = TargetTracker.FindMatch(info.WindowTitle, info.ProcessName, boundHandles, info.WindowClass);
+            if (h == IntPtr.Zero) return false;
+            if (_entries.Any(e => e.Tracker.TargetHandle == h)) return false; // 该窗口已被其它目标占用
 
-            // 已绑定到同一个 handle → 跳过
-            if (_entries.Any(e => e.Tracker.TargetHandle == h)) return;
+            Debug.WriteLine($"BindTarget: [{info}] -> 0x{h:X} (依据:{matchKind})");
 
-            // 说明：重绑定不在此处做"旧条目复用"——_autoBindTimer 每 3s 会先把已销毁的条目
-            // dispose 并从 _entries 移除（放回待激活），随后本方法新建条目，天然覆盖 reopen 场景。
-            // 新绑定
             var entry = CreateEntry(info);
             entry.Tracker.TargetHandle = h;
             entry.Tracker.RefreshNow();
+            entry.IsBound = true;
             _entries.Add(entry);
-
-            AddTargetUI(entry);
+            RebuildTargetList();
+            UpdateUI();
 
             // 提权提示：目标以管理员身份运行而本程序未提权时，改透明度会静默失败
             if (!_elevationWarned && !IsCurrentProcessElevated())
@@ -451,46 +459,81 @@ namespace WindowTinter
                         ToolTipIcon.Warning);
                 }
             }
+            return true;
         }
 
-        private void AddTargetUI(TargetEntry entry)
+        /// <summary>
+        /// 统一释放入口：还原效果 → 释放资源 → 同步 UI（由 RebuildTargetList 按状态自动呈现"待激活"）。
+        /// 生命周期内唯一允许"从监控中离开"的路径；窗口销毁 / 删除 / 暂停 / 解绑 / 退出全部走这里。
+        /// </summary>
+        private void ReleaseTarget(TargetEntry entry, string reason, bool updateUI = true)
         {
-            int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
-            bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(entry.Info);
-            var pnl = new Panel { Size = new Size(w, (int)(32 * _dpiScale)), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
-                BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
-                Cursor = Cursors.Hand };
-            pnl.Click += (_, _) => SelectTarget(entry.Info);
+            Debug.WriteLine($"ReleaseTarget: [{entry.Info}] ({reason})");
 
-            var lbl = new Label
+            // 1) 还原目标窗口效果（逐项 try，单条失败不阻塞后续）
+            try
             {
-                Text = $"  {entry.Info}", AutoSize = true,
-                Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)), MaximumSize = new Size((int)(270 * _dpiScale), (int)(20 * _dpiScale)),
-                ForeColor = Color.FromArgb(224, 224, 224),
-                Cursor = Cursors.Hand
-            };
-            lbl.Click += (_, _) => SelectTarget(entry.Info);
-            pnl.Controls.Add(lbl);
+                if (entry.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(entry.Tracker.TargetHandle))
+                {
+                    SetTargetAlpha(entry.Tracker.TargetHandle, 255, entry.OriginallyLayered ?? false);
+                    SetTargetTopmost(entry.Tracker.TargetHandle, false);
+                }
+            }
+            catch { }
+            try { entry.Plate.HidePlate(); } catch { }
 
-            bool btnEnabled = !_settings.GlobalTransparency;
-            var btnSelect = CreateSelectButton(w, sel, btnEnabled, (_, _) => SelectTarget(entry.Info));
-            pnl.Controls.Add(btnSelect);
-            _selectButtons[entry.Info] = btnSelect;
+            // 2) 释放资源
+            try { entry.Tracker.Dispose(); } catch { }
+            try { entry.Plate.Dispose(); } catch { }
+            entry.IsBound = false;
 
-            var btnRemove = CreateRemoveButton(w, (_, _) => RemoveEntry(entry, pnl));
-            pnl.Controls.Add(btnRemove);
+            _entries.Remove(entry);
 
-            entry.UIPanel = pnl;
-            _pnlTargets.Controls.Add(pnl);
-            // 将新面板排在倒数第二（在最后添加的控件之前）
-            if (_pnlTargets.Controls.Count >= 2)
-                _pnlTargets.Controls.SetChildIndex(pnl, _pnlTargets.Controls.Count - 2);
+            // 3) 同步 UI（窗体关闭等场景可跳过）
+            if (updateUI)
+            {
+                try { RebuildTargetList(); } catch { }
+                UpdateUI();
+            }
         }
 
-        /// <summary>为尚未启动的目标窗口创建灰色"待激活"面板。</summary>
-        private void AddPendingUI(TargetInfo info)
+        /// <summary>统一删除入口：从配置移除 + 解绑（若有）+ 同步 UI + 保存。</summary>
+        private void RemoveTarget(TargetInfo info)
         {
-            if (_pendingPanels.ContainsKey(info)) return;
+            _selectButtons.Remove(info);
+            if (_selectedTarget != null && _selectedTarget.Equals(info)) _selectedTarget = null;
+
+            _settings.Targets.Remove(info); // 先移出配置，后续 Rebuild 才不会残留该目标面板
+            var entry = _entries.FirstOrDefault(e => e.Info == info);
+            if (entry != null) ReleaseTarget(entry, "removed");
+            else RebuildTargetList();
+            _settings.Save();
+        }
+
+        /// <summary>
+        /// 按状态统一重建目标列表 UI（活跃 + 待激活，按配置顺序）。
+        /// 取代原先 AddTargetUI/AddPendingUI 双份构建与 SetChildIndex 排序 hack。
+        /// </summary>
+        private void RebuildTargetList()
+        {
+            _pnlTargets.Controls.Clear();
+            _pendingPanels.Clear();
+            _selectButtons.Clear();
+
+            foreach (var t in _settings.Targets)
+            {
+                var entry = _entries.FirstOrDefault(e => e.Info == t);
+                var pnl = CreateTargetPanel(t, pending: entry == null);
+                if (entry != null) entry.UIPanel = pnl;
+                else _pendingPanels[t] = pnl;
+                _pnlTargets.Controls.Add(pnl);
+            }
+            UpdateSelectButtons();
+        }
+
+        /// <summary>创建单个目标面板（活跃或待激活）。</summary>
+        private Panel CreateTargetPanel(TargetInfo info, bool pending)
+        {
             int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
             bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
             var pnl = new Panel { Size = new Size(w, (int)(32 * _dpiScale)), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
@@ -500,10 +543,11 @@ namespace WindowTinter
 
             var lbl = new Label
             {
-                Text = $"  ⏳ 待激活 — {info}",
-                AutoSize = true,                 Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
+                Text = pending ? $"  ⏳ 待激活 — {info}" : $"  {info}",
+                AutoSize = true,
+                Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
                 MaximumSize = new Size((int)(250 * _dpiScale), (int)(20 * _dpiScale)),
-                ForeColor = Color.FromArgb(120, 120, 120),
+                ForeColor = pending ? Color.FromArgb(120, 120, 120) : Color.FromArgb(224, 224, 224),
                 Cursor = Cursors.Hand
             };
             lbl.Click += (_, _) => SelectTarget(info);
@@ -514,60 +558,17 @@ namespace WindowTinter
             pnl.Controls.Add(btnSelect);
             _selectButtons[info] = btnSelect;
 
-            var btnRemove = CreateRemoveButton(w, (_, _) => RemovePendingTarget(info, pnl));
+            var btnRemove = CreateRemoveButton(w, (_, _) => RemoveTarget(info));
             pnl.Controls.Add(btnRemove);
 
-            _pendingPanels[info] = pnl;
-            _pnlTargets.Controls.Add(pnl);
-            if (_pnlTargets.Controls.Count >= 2)
-                _pnlTargets.Controls.SetChildIndex(pnl, _pnlTargets.Controls.Count - 2);
+            return pnl;
         }
 
-        private void RemovePendingUI(TargetInfo info)
-        {
-            if (_pendingPanels.TryGetValue(info, out var pnl))
-            {
-                _pnlTargets.Controls.Remove(pnl);
-                _pendingPanels.Remove(info);
-            }
-        }
-
-        private void RemovePendingTarget(TargetInfo info, Panel pnl)
-        {
-            RemovePendingUI(info);
-            _selectButtons.Remove(info);
-            if (_selectedTarget != null && _selectedTarget.Equals(info)) _selectedTarget = null;
-            // 也清理可能已绑定的条目
-            var entry = _entries.FirstOrDefault(e => e.Info == info);
-            if (entry != null) RemoveEntry(entry, entry.UIPanel);
-            _settings.Targets.Remove(info);
-            _settings.Save();
-            UpdateUI();
-        }
-
-        private void RemoveEntry(TargetEntry entry, Panel pnl)
-        {
-            _entries.Remove(entry);
-            _pnlTargets.Controls.Remove(pnl);
-            _selectButtons.Remove(entry.Info);
-            if (_selectedTarget != null && _selectedTarget.Equals(entry.Info)) _selectedTarget = null;
-            SetTargetAlpha(entry.Tracker.TargetHandle, 255);
-            SetTargetTopmost(entry.Tracker.TargetHandle, false);
-            entry.Plate.HidePlate();
-            entry.Tracker.Dispose();
-            entry.Plate.Dispose();
-            _settings.Targets.Remove(entry.Info);
-            _settings.Save();
-            UpdateUI();
-        }
-
+        /// <summary>全部解绑（保留配置，转待激活）。供"重新查找"使用。</summary>
         private void UnbindAll()
         {
-            foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); e.Tracker.Dispose(); e.Plate.Dispose(); }
-            _entries.Clear();
-            _pnlTargets.Controls.Clear();
-            _pendingPanels.Clear();
-            _selectButtons.Clear();
+            foreach (var e in _entries.ToList())
+                ReleaseTarget(e, "unbind"); // 每次 Release 都会 RebuildTargetList，最终全部呈现"待激活"
         }
 
         private void Quit()
@@ -579,9 +580,10 @@ namespace WindowTinter
             _saveDebounceTimer?.Stop(); _saveDebounceTimer?.Dispose();
             _tray.Visible = false;  // 先隐藏托盘（内部会访问 Icon.Handle）
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
-            foreach (var e in _entries)
+            // 统一走 ReleaseTarget 清理（不转待激活、不刷新 UI——窗体即将关闭）
+            foreach (var e in _entries.ToList())
             {
-                try { SetTargetAlpha(e.Tracker.TargetHandle, 255); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); e.Plate.Dispose(); e.Tracker.Dispose(); }
+                try { ReleaseTarget(e, "quit", updateUI: false); }
                 catch { /* 单条清理失败不阻塞后续 */ }
             }
             _pendingPanels.Clear();

@@ -22,10 +22,16 @@ namespace WindowTinter
         public bool Equals(TargetInfo other) =>
             other != null &&
             string.Equals(ProcessName, other.ProcessName, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(WindowTitle, other.WindowTitle, StringComparison.OrdinalIgnoreCase);
+            string.Equals(WindowTitle, other.WindowTitle, StringComparison.OrdinalIgnoreCase) &&
+            // 窗口类名仅在双方都非空时参与判定（旧配置 WindowClass="" 时身份退化为 进程+标题，向后兼容）
+            (string.IsNullOrEmpty(WindowClass) || string.IsNullOrEmpty(other.WindowClass)
+                || string.Equals(WindowClass, other.WindowClass, StringComparison.OrdinalIgnoreCase));
 
         public override bool Equals(object obj) => Equals(obj as TargetInfo);
 
+        // 注意：GetHashCode 故意只基于 进程+标题——
+        // Equals 允许"一方 class 为空则不比较 class"，若把 class 计入哈希会违反
+        // "Equals 相等则哈希必相等"的约束（旧条目 class 空 vs 新条目 class 非空会判等）。
         public override int GetHashCode() =>
             HashCode.Combine(
                 ProcessName?.ToLowerInvariant() ?? "",
