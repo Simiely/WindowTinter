@@ -17,7 +17,7 @@ namespace WindowTinter
         /// <summary>鑷畾涔夊埆鍚嶏紙鐢ㄦ埛閲嶅懡鍚嶏級銆傞潪绌烘椂 UI 鍒楄〃浼樺厛鏄剧ず瀹冦€侸SON 缂虹渷涓虹┖锛屾棫閰嶇疆鍚戝悗鍏煎銆?/summary>
         public string Alias { get; set; } = "";
         public int BackgroundAlpha { get; set; } = 50;  // 璇ョ洰鏍囩獥鍙ｉ€忔槑搴︼紙0~100锛夛紝浠?鍏ㄥ眬缁熶竴閫忔槑搴?鍏抽棴鏃剁敓鏁?
-        public int CornerRadius { get; set; } = 15;       // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛屼粎"鍏ㄥ眬缁熶竴鍦嗚"鍏抽棴鏃剁敓鏁?
+        public int CornerRadius { get; set; } = 14;       // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛屼粎"鍏ㄥ眬缁熶竴鍦嗚"鍏抽棴鏃剁敓鏁?
 
         /// <summary>鏄剧ず鍚嶏細鍒悕锛堢敤鎴烽噸鍛藉悕锛変紭鍏堬紝鍏舵绐楀彛鏍囬锛屽啀閫€鍥炶繘绋嬪悕銆傚悕绉板厹搴曚氦缁欑敤鎴烽噸鍛藉悕锛屼笉鐗规畩澶勭悊鏃犲悕绉扮獥鍙ｃ€?/summary>
         public override string ToString() =>
@@ -63,7 +63,7 @@ namespace WindowTinter
         public bool GlobalTransparency { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€閫忔槑搴︼紱false=姣忎釜鐩爣鍗曠嫭閰嶇疆
         public bool GlobalCornerRadius { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€鍦嗚锛沠alse=姣忎釜鐩爣鍗曠嫭閰嶇疆
         public bool BackdropBlackPlate { get; set; } = true;  // 鍦ㄧ洰鏍囨鍚庢柟鍙犲姞绾粦搴曟澘锛堜笅灞傞伄缃╋級锛岄粯璁ゅ紑鍚?
-        public int CornerRadius { get; set; } = 15;            // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛岄粯璁?6px
+        public int CornerRadius { get; set; } = 14;            // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛岄粯璁?6px
 
         // 鏃у瓧娈碉紙浠呯敤浜庝粠 v2.x 鏃ф牸寮忚縼绉伙紝涓嶅啀鍐欏叆锛?
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

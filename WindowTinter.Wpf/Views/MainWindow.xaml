@@ -65,7 +65,7 @@
                             <ColumnDefinition Width="92"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="目标窗口" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Foreground="{StaticResource Teal}" FontSize="11.5" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Foreground="{StaticResource Text2}" FontSize="11.5" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         <Button Grid.Column="2" Style="{StaticResource BtnBase}" Content="⟳ 刷新快照" FontSize="11" Margin="0,3,4,3" Command="{Binding RefreshSnapshotsCommand}"/>
                         <Button Grid.Column="3" Style="{StaticResource BtnPrimary}" Content="+ 添加窗口" FontSize="11" Margin="0,3,4,3" Command="{Binding AddWindowCommand}"/>
                         <Button Grid.Column="4" Style="{StaticResource BtnBase}" Content="↻ 重新查找" FontSize="11" Margin="0,3,0,3" Command="{Binding RefindAllCommand}"/>

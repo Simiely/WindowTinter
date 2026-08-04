@@ -40,7 +40,7 @@ namespace WindowTinter
         private int _lastX, _lastY, _lastW, _lastH;
 
         /// <summary>圆角半径（0=关，矩形；1~20=px）。设值后下次 AlignBehind 生效（走 RefreshForeground 触发）。</summary>
-        public int CornerRadius { get; set; } = 15;
+        public int CornerRadius { get; set; } = 14;
 
         private static void RegisterClassIfNeeded()
         {
