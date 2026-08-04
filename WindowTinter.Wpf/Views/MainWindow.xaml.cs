@@ -56,8 +56,8 @@ namespace WindowTinter.Views
                 ShowInTaskbar = false;
                 return;
             }
-            // 真实退出：释放托盘 + 全部还原
-            _tray?.Dispose();
+            // 真实退出：释放托盘 + 全部还原（托盘释放异常不得中断还原流程）
+            try { _tray?.Dispose(); } catch { }
             _vm.Shutdown();
         }
     }

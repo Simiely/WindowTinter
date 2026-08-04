@@ -249,6 +249,39 @@ namespace WindowTinter
 
         [DllImport("kernel32.dll")]
         public static extern bool CloseHandle(IntPtr hObject);
+
+        // ---- user32/kernel32：纯 Win32 窗口（BlackPlate 黑底，脱离 WPF 布局系统，物理像素直控）----
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        public struct WNDCLASS
+        {
+            public uint style;
+            public IntPtr lpfnWndProc;
+            public int cbClsExtra;
+            public int cbWndExtra;
+            public IntPtr hInstance;
+            public IntPtr hIcon;
+            public IntPtr hCursor;
+            public IntPtr hbrBackground;
+            public string lpszMenuName;
+            public string lpszClassName;
+        }
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern ushort RegisterClassW(ref WNDCLASS lpWndClass);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern IntPtr CreateWindowExW(uint dwExStyle, string lpClassName, string lpWindowName,
+            uint dwStyle, int x, int y, int nWidth, int nHeight,
+            IntPtr hWndParent, IntPtr hMenu, IntPtr hInstance, IntPtr lpParam);
+
+        [DllImport("user32.dll")]
+        public static extern bool DestroyWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr DefWindowProcW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        public static extern IntPtr GetModuleHandleW(string lpModuleName);
     }
 }
 
