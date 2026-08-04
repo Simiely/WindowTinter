@@ -342,6 +342,31 @@ namespace WindowTinter
         public const uint TPM_RIGHTBUTTON = 0x2;
         public const uint TPM_RETURNCMD = 0x100;
         public const uint TPM_NONOTIFY = 0x80;
+
+        // ---- uxtheme：应用级深色模式初始化（决定 Win32 原生菜单/滚动条是否跟随系统深色）----
+        // 依据：微软"Win32 dark mode"社区共识（ysc3839/win32-darkmode 等）：
+        // TrackPopupMenu 菜单颜色由进程级"PreferredAppMode"决定——应用不调用 SetPreferredAppMode，
+        // 即使系统是深色模式，原生菜单仍是浅色。必须在任何窗口创建前调用。
+        // SetPreferredAppMode(AllowDark=2)：跟随系统主题（系统深色→菜单深色，系统浅色→菜单浅色）
+        // FlushMenuThemes()：刷新菜单主题缓存，让设置立即生效
+        public const int PREFERRED_APP_MODE_ALLOW_DARK = 2;
+
+        [DllImport("uxtheme.dll", EntryPoint = "#135")]
+        public static extern int SetPreferredAppMode(int appMode);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#136")]
+        public static extern int FlushMenuThemes();
+
+        /// <summary>进程级深色初始化：必须在任何窗口创建之前调用一次。</summary>
+        public static void EnableDarkMenus()
+        {
+            try
+            {
+                SetPreferredAppMode(PREFERRED_APP_MODE_ALLOW_DARK);
+                FlushMenuThemes();
+            }
+            catch { } // 旧版系统无此导出时静默降级（菜单保持浅色）
+        }
     }
 }
 
