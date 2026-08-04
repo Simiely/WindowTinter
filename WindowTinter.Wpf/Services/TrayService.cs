@@ -59,8 +59,9 @@ namespace WindowTinter
                 new TrayMenuWindow.MenuEntry { Header = "退出", OnClick = () => _vm.ExitApplication() }
             };
 
-            // 鼠标位置（屏幕物理坐标，WinForms 坐标系）
-            var mousePos = System.Windows.Forms.Control.MousePosition;
+            // 鼠标位置：WPF 原生 Mouse.GetPosition(null) 返回屏幕 DIP 坐标，
+            // 与 Window.Left/Top（DIP）同单位，零换算、天然 DPI 正确。
+            var mousePos = System.Windows.Input.Mouse.GetPosition(null);
             var menu = new TrayMenuWindow { Owner = GetOwnerWindow() };
             menu.Show(entries, mousePos);
         }

@@ -37,8 +37,8 @@ namespace WindowTinter.Views
             PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         }
 
-        /// <summary>构建菜单：在鼠标位置弹出。</summary>
-        public void Show(IList<MenuEntry> entries, System.Drawing.Point mousePos)
+        /// <summary>构建菜单：在鼠标位置弹出。mousePosDip = 屏幕 DIP 坐标（Mouse.GetPosition(null) 返回）。</summary>
+        public void Show(IList<MenuEntry> entries, Point mousePosDip)
         {
             Panel.Children.Clear();
             foreach (var e in entries)
@@ -55,26 +55,34 @@ namespace WindowTinter.Views
                 }
                 Panel.Children.Add(BuildItem(e));
             }
-            // 位置：屏幕坐标 = mousePos；校正 DPI：Left/Top 是 DIP
-            var src = PresentationSource.FromVisual(this);
-            double scaleX = 1, scaleY = 1;
-            if (src?.CompositionTarget != null)
-            {
-                scaleX = src.CompositionTarget.TransformToDevice.M11;
-                scaleY = src.CompositionTarget.TransformToDevice.M22;
-            }
-            Left = mousePos.X / scaleX - Width / 2; // 居中于鼠标 X
-            Top = mousePos.Y / scaleY - Height - 8;  // 鼠标上方 8px（避免遮挡托盘图标）
-            // 边界保护：菜单不能超出屏幕
-            var screenW = SystemParameters.PrimaryScreenWidth / scaleX;
-            var screenH = SystemParameters.PrimaryScreenHeight / scaleY;
-            if (Left + Width > screenW) Left = screenW - Width - 8;
-            if (Left < 8) Left = 8;
-            if (Top < 8) Top = mousePos.Y / scaleY + 12; // 上方放不下就放下方
-            if (Top + Height > screenH) Top = screenH - Height - 8;
+
+            // 关键（搜索确认的 WPF DPI 行为）：
+            // Window.Left/Top 单位是 DIP；必须先 Show() 建立 HwndSource（PresentationSource 才会非 null），
+            // 且 SizeToContent 布局完成后 ActualWidth/ActualHeight 才有效。
+            // 先移到屏幕外避免闪现，Show 后再计算真实位置。
+            Left = -10000;
+            Top = -10000;
             Show();
-            // 强制获取焦点以触发 Deactivated 关闭逻辑
             Activate();
+
+            // Show 后布局完成：ActualWidth/ActualHeight 为最终尺寸（DIP）
+            double w = ActualWidth;
+            double h = ActualHeight;
+            double left = mousePosDip.X - w / 2;   // 居中于鼠标 X
+            double top = mousePosDip.Y - h - 8;     // 鼠标上方 8px（避免遮挡托盘图标）
+
+            // 边界保护（虚拟屏幕 = 多屏并集，单位 DIP）
+            double vLeft = SystemParameters.VirtualScreenLeft;
+            double vTop = SystemParameters.VirtualScreenTop;
+            double vRight = vLeft + SystemParameters.VirtualScreenWidth;
+            double vBottom = vTop + SystemParameters.VirtualScreenHeight;
+            if (left + w > vRight) left = vRight - w - 8;
+            if (left < vLeft + 8) left = vLeft + 8;
+            if (top < vTop + 8) top = mousePosDip.Y + 12; // 上方放不下就放下方
+            if (top + h > vBottom) top = vBottom - h - 8;
+
+            Left = left;
+            Top = top;
         }
 
         /// <summary>单菜单项：自定义 Border 渲染（避开 MenuItem 模板的样式继承坑）。</summary>
