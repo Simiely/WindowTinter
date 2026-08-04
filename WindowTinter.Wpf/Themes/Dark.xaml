@@ -130,7 +130,7 @@
                 <ControlTemplate TargetType="ToggleButton">
                     <Grid>
                         <Border x:Name="bg" CornerRadius="10" Background="#3A3F46"/>
-                        <Ellipse x:Name="knob" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" Margin="2,2,0,0"/>
+                        <Ellipse x:Name="knob" Width="17.3" Height="17.3" Fill="White" HorizontalAlignment="Left" Margin="2,2,0,0"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
@@ -155,9 +155,9 @@
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
                     <StackPanel Orientation="Horizontal">
-                        <Border x:Name="box" Width="14" Height="14" CornerRadius="3" Background="#2A2D33"
+                        <Border x:Name="box" Width="15.1" Height="15.1" CornerRadius="3" Background="#2A2D33"
                                 BorderBrush="{StaticResource Border}" BorderThickness="1" VerticalAlignment="Center">
-                            <TextBlock x:Name="tick" Text="✓" FontSize="9" Foreground="White" HorizontalAlignment="Center"
+                            <TextBlock x:Name="tick" Text="✓" FontSize="9.7" Foreground="White" HorizontalAlignment="Center"
                                        VerticalAlignment="Center" Visibility="Collapsed"/>
                         </Border>
                         <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
