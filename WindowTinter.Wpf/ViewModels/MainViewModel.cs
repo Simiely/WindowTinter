@@ -4,9 +4,11 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WindowTinter.Views;
 
 namespace WindowTinter.ViewModels
 {
@@ -568,10 +570,79 @@ namespace WindowTinter.ViewModels
             if (entry != null) BringTargetToTop(entry.Tracker.TargetHandle);
         }
 
-        /// <summary>重命名（✎）：D 阶段接入 RenameDialog。</summary>
+        /// <summary>重命名（✎）：弹 RenameDialog，空输入 = 清除别名（原样搬 WinForms Actions.RenameTarget）。</summary>
         public void RenameTarget(TargetViewModel vm)
         {
-            Debug.WriteLine($"RenameTarget: [{vm.Info}] (D 阶段接入 RenameDialog)");
+            var dlg = new RenameDialog(vm.Info.Alias) { Owner = Application.Current.MainWindow };
+            if (dlg.ShowDialog() != true) return;
+            vm.Info.Alias = dlg.RenameText.Trim();
+            _settings.Save();
+            SyncUI();
+        }
+
+        /// <summary>添加窗口（＋）：弹拾取器，原样搬 WinForms Actions.PickWindow。</summary>
+        private void PickWindow()
+        {
+            var main = Application.Current.MainWindow;
+            bool wasVisible = main != null && main.IsVisible;
+            if (wasVisible) main.Hide();
+
+            var picker = new WindowPickerWindow();
+            bool result = picker.ShowDialog() == true;
+            if (wasVisible && main != null) { main.Show(); main.Activate(); }
+
+            if (!result || picker.SelectedHandle == IntPtr.Zero) return;
+
+            Native.GetWindowThreadProcessId(picker.SelectedHandle, out uint pid);
+            string procName = "";
+            try { procName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName ?? ""; } catch { }
+
+            string title = "";
+            int len = Native.GetWindowTextLength(picker.SelectedHandle);
+            if (len > 0)
+            {
+                var sb = new StringBuilder(len + 1);
+                Native.GetWindowText(picker.SelectedHandle, sb, len + 1);
+                title = sb.ToString();
+            }
+            var info = new TargetInfo
+            {
+                ProcessName = procName,
+                WindowTitle = title,
+                WindowClass = TargetTracker.GetWindowClass(picker.SelectedHandle)
+            };
+            info.BackgroundAlpha = _settings.BackgroundAlpha;
+            info.CornerRadius = _settings.CornerRadius;
+
+            if (_settings.Targets.Contains(info))
+            {
+                MessageBox.Show("此窗口已添加。", "WindowTinter", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _settings.Targets.Add(info);
+
+            if (_settings.Enabled)
+            {
+                if (BindTarget(info))
+                {
+                    var entry = FindEntry(info);
+                    if (entry != null)
+                    {
+                        BringTargetToTop(entry.Tracker.TargetHandle);
+                        ApplyMaskNow(entry);
+                    }
+                }
+                else SyncUI();
+            }
+            else SyncUI();
+
+            if (!_settings.GlobalTransparency || !_settings.GlobalCornerRadius)
+            {
+                var vm = FindVm(info);
+                if (vm != null) SelectedTarget = vm;
+            }
+            SyncUI();
         }
 
         /// <summary>删除目标（×）：从配置移除并解绑。</summary>
@@ -673,10 +744,7 @@ namespace WindowTinter.ViewModels
         private void BuildCommands()
         {
             RefreshSnapshotsCommand = new RelayCommand(RefreshAllSnapshots);
-            AddWindowCommand = new RelayCommand(() =>
-            {
-                Debug.WriteLine("AddWindow: D 阶段接入 WindowPickerWindow");
-            });
+            AddWindowCommand = new RelayCommand(PickWindow);
             RefindAllCommand = new RelayCommand(RefindAllWindows);
             SaveCommand = new RelayCommand(() => _settings.Save());
             ExitCommand = new RelayCommand(ExitApplication);
@@ -684,11 +752,19 @@ namespace WindowTinter.ViewModels
             AboutCommand = new RelayCommand(ShowAbout);
         }
 
-        /// <summary>退出：停定时器 → 摘钩子 → 全部还原释放 → 存盘 → 关应用。</summary>
+        /// <summary>真实退出标记：MainWindow.Closing 据此走"释放+退出"而非"最小化到托盘"。</summary>
+        public bool ReallyQuit { get; set; }
+
+        /// <summary>托盘驻留时的保存（不释放效果）。</summary>
+        public void SaveSettings() => _settings.Save();
+
+        /// <summary>退出：置真实退出标记 → 关主窗（Closing 兜底释放全部）。</summary>
         public void ExitApplication()
         {
-            Shutdown();
-            Application.Current.Shutdown();
+            ReallyQuit = true;
+            var w = Application.Current.MainWindow;
+            if (w != null) w.Close();
+            else { Shutdown(); Application.Current.Shutdown(); }
         }
 
         /// <summary>窗体关闭兜底（MainWindow.Closing）：不托盘时直接退出；托盘逻辑 D 阶段接入。</summary>
