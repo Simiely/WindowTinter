@@ -22,6 +22,7 @@ namespace WindowTinter
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
         public const uint SWP_NOSIZE = 0x0001;
         public const uint SWP_NOMOVE = 0x0002;
+        public const uint SWP_NOZORDER = 0x0004;   // 保持原 Z 序（HidePlate 等隐藏/定位场景避免干扰 Z 序）
         public const uint SWP_NOACTIVATE = 0x0010;
         public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint SWP_HIDEWINDOW = 0x0080;

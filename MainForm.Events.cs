@@ -1,0 +1,61 @@
+using System;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace WindowTinter
+{
+    /// <summary>
+    /// 系统事件层：窗体关闭拦截 + WinEvent 全局钩子。
+    /// 外部窗口事件 → 领域逻辑（ReleaseTarget / RefreshNow）的桥接。
+    /// </summary>
+    internal partial class MainForm
+    {
+        private void OnFormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (!_reallyQuit && _settings.MinimizeToTray && e.CloseReason == CloseReason.UserClosing)
+            { _settings.Save(); e.Cancel = true; Hide(); ShowInTaskbar = false; }
+        }
+
+        private void InstallWinEventHook()
+        {
+            _winEventProc = WinEventProcCallback;
+            _winEventHook = Native.SetWinEventHook(
+                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_LOCATIONCHANGE,
+                IntPtr.Zero, _winEventProc, 0, 0,
+                Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
+        }
+
+        private void WinEventProcCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
+            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (idObject != 0 || idChild != 0) return;
+
+            if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
+            {
+                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshForeground(); })); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+                return;
+            }
+
+            // 目标特定事件：在 BeginInvoke 内读取 _entries，避免跨线程访问非安全集合
+            if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
+                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_REORDER
+                               or Native.EVENT_OBJECT_DESTROY)
+            {
+                var targetHwnd = hwnd;
+                try { BeginInvoke(new Action(() =>
+                {
+                    var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
+                    if (match == null) return;
+                    if (eventType == Native.EVENT_OBJECT_DESTROY)
+                        ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活
+                    else
+                        match.Tracker.RefreshNow(); // 含 REORDER：触发 OnUpdate → 重插黑底维护 Z 序不变式
+                })); }
+                catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
+            }
+        }
+    }
+}

@@ -241,15 +241,21 @@ namespace WindowTinter
         // UI 同步
         // ════════════════════════════════════════════════════════════
 
-        private void UpdateUI()
+        /// <summary>统一状态文案：主窗口状态栏与托盘菜单共用，避免两处重复计算漂移。</summary>
+        private string GetStatusText()
         {
             int total = _settings.Targets.Count;
             int active = _entries.Count;
             int pending = total - active;
-            _lblStatus.Text = !_settings.Enabled ? "⏸ 已暂停"
+            return !_settings.Enabled ? "⏸ 已暂停"
                 : total == 0 ? "○ 等待选择窗口…"
                 : pending > 0 ? $"● {active} 个监控中, {pending} 个待激活"
                 : $"● 监控中 — {active} 个窗口";
+        }
+
+        private void UpdateUI()
+        {
+            _lblStatus.Text = GetStatusText();
 
             _chkEnabled.Checked = _settings.Enabled;
             _chkGlobalTransparency.Checked = _settings.GlobalTransparency;
@@ -353,14 +359,7 @@ namespace WindowTinter
         private void RefreshTrayMenu()
         {
             _menu.Items.Clear();
-            int total = _settings.Targets.Count;
-            int active = _entries.Count;
-            int pending = total - active;
-            string s = !_settings.Enabled ? "⏸ 已暂停"
-                : total == 0 ? "○ 等待选择窗口…"
-                : pending > 0 ? $"● {active} 监控中, {pending} 待激活"
-                : $"● 监控中 — {active} 窗口";
-            _menu.Items.Add(s).Enabled = false;
+            _menu.Items.Add(GetStatusText()).Enabled = false;
             _menu.Items.Add("-");
             _menu.Items.Add(IsWindowOpen() ? "最小化到托盘" : "打开设置窗口", null, (_, _) => ToggleWindow());
             _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (_, _) => _chkEnabled.Checked = !_chkEnabled.Checked);
@@ -389,12 +388,6 @@ namespace WindowTinter
             }
         }
 
-        private void OnFormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (!_reallyQuit && _settings.MinimizeToTray && e.CloseReason == CloseReason.UserClosing)
-            { _settings.Save(); e.Cancel = true; Hide(); ShowInTaskbar = false; }
-        }
-
         // ════════════════════════════════════════════════════════════
         // 核心操作（UI 按钮回调）
         // ════════════════════════════════════════════════════════════
@@ -407,16 +400,19 @@ namespace WindowTinter
             _settings.Save();
             if (enable)
             {
+                // 批量启用：全部重绑（不逐次重建 UI），最后统一 Rebuild 一次
                 foreach (var t in _settings.Targets)
                 {
                     if (_entries.Any(e => e.Info == t)) continue;
-                    BindTarget(t); // 内部已同步 UI（RebuildTargetList）
+                    BindTarget(t, refreshUI: false);
                 }
+                RebuildTargetList();
                 foreach (var e in _entries) ApplyMaskNow(e);
             }
             else
             {
-                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255, e.OriginallyLayered ?? false); SetTargetTopmost(e.Tracker.TargetHandle, false); e.Plate.HidePlate(); }
+                // 停用：统一走 ApplyEntryEffect（_settings.Enabled=false 时其内部走"还原 alpha + 隐藏黑底 + 清置顶"分支）
+                foreach (var e in _entries) ApplyMaskNow(e);
             }
             UpdateUI();
         }
@@ -577,9 +573,12 @@ namespace WindowTinter
 
         private void RefindAllWindows()
         {
+            // 重新查找 = 全量重绑定：先全部解绑（保留配置，转待激活），再按配置顺序重新绑定。
+            // 批量模式：不逐次重建 UI，最后统一 Rebuild 一次呈现最终状态（活跃 + 待激活）。
             UnbindAll();
             foreach (var t in _settings.Targets)
-                BindTarget(t); // 内部已同步 UI（RebuildTargetList），未绑定的自然显示"待激活"
+                BindTarget(t, refreshUI: false);
+            RebuildTargetList();
             UpdateUI();
         }
 
@@ -610,49 +609,58 @@ namespace WindowTinter
         }
 
         // ════════════════════════════════════════════════════════════
-        // WinEvent
+        // 目标列表 UI 重建（活跃 + 待激活，按配置顺序）
         // ════════════════════════════════════════════════════════════
 
-        private void InstallWinEventHook()
+        /// <summary>按状态统一重建目标列表 UI（活跃 + 待激活，按配置顺序）。</summary>
+        private void RebuildTargetList()
         {
-            _winEventProc = WinEventProcCallback;
-            _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_LOCATIONCHANGE,
-                IntPtr.Zero, _winEventProc, 0, 0,
-                Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
+            _pnlTargets.Controls.Clear();
+            _pendingPanels.Clear();
+            _selectButtons.Clear();
+
+            foreach (var t in _settings.Targets)
+            {
+                var entry = _entries.FirstOrDefault(e => e.Info == t);
+                var pnl = CreateTargetPanel(t, pending: entry == null);
+                if (entry != null) entry.UIPanel = pnl;
+                else _pendingPanels[t] = pnl;
+                _pnlTargets.Controls.Add(pnl);
+            }
+            UpdateSelectButtons();
         }
 
-        private void WinEventProcCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
-            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        /// <summary>创建单个目标面板（活跃或待激活）。</summary>
+        private Panel CreateTargetPanel(TargetInfo info, bool pending)
         {
-            if (idObject != 0 || idChild != 0) return;
+            int w = _pnlTargets.ClientSize.Width - (int)(6 * _dpiScale);
+            bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
+            var pnl = new Panel { Size = new Size(w, (int)(32 * _dpiScale)), Margin = new Padding(0, 0, 0, (int)(3 * _dpiScale)),
+                BackColor = sel ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40),
+                Cursor = Cursors.Hand };
+            pnl.Click += (_, _) => SelectTarget(info);
 
-            if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
+            var lbl = new Label
             {
-                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshForeground(); })); }
-                catch (ObjectDisposedException) { }
-                catch (InvalidOperationException) { }
-                return;
-            }
+                Text = pending ? $"  ⏳ 待激活 — {info}" : $"  {info}",
+                AutoSize = true,
+                Location = new Point((int)(4 * _dpiScale), (int)(8 * _dpiScale)),
+                MaximumSize = new Size((int)(250 * _dpiScale), (int)(20 * _dpiScale)),
+                ForeColor = pending ? Color.FromArgb(120, 120, 120) : Color.FromArgb(224, 224, 224),
+                Cursor = Cursors.Hand
+            };
+            lbl.Click += (_, _) => SelectTarget(info);
+            pnl.Controls.Add(lbl);
 
-            // 目标特定事件：在 BeginInvoke 内读取 _entries，避免跨线程访问非安全集合
-            if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
-                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_REORDER
-                               or Native.EVENT_OBJECT_DESTROY)
-            {
-                var targetHwnd = hwnd;
-                try { BeginInvoke(new Action(() =>
-                {
-                    var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
-                    if (match == null) return;
-                    if (eventType == Native.EVENT_OBJECT_DESTROY)
-                        ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活
-                    else
-                        match.Tracker.RefreshNow(); // 含 REORDER：触发 OnUpdate → 重插黑底维护 Z 序不变式
-                })); }
-                catch (ObjectDisposedException) { }
-                catch (InvalidOperationException) { }
-            }
+            bool btnEnabled = !_settings.GlobalTransparency;
+            var btnSelect = CreateSelectButton(w, sel, btnEnabled, (_, _) => SelectTarget(info));
+            pnl.Controls.Add(btnSelect);
+            _selectButtons[info] = btnSelect;
+
+            var btnRemove = CreateRemoveButton(w, (_, _) => RemoveTarget(info));
+            pnl.Controls.Add(btnRemove);
+
+            return pnl;
         }
     }
 }

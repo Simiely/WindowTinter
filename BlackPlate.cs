@@ -123,8 +123,9 @@ namespace WindowTinter
         {
             if (IsHandleCreated)
             {
+                // SWP_NOZORDER：隐藏时明确不改 Z 序，避免系统默认行为干扰黑底与目标的相对位置
                 Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0,
-                    Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
+                    Native.SWP_HIDEWINDOW | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
             }
         }
 
