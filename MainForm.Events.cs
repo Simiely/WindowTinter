@@ -1,15 +1,63 @@
 using System;
+using System.Drawing;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WindowTinter
 {
     /// <summary>
-    /// 系统事件层：窗体关闭拦截 + WinEvent 全局钩子。
+    /// 系统事件层：窗体关闭拦截 + WinEvent 全局钩子 + 运行时 DPI 切换自适应。
     /// 外部窗口事件 → 领域逻辑（ReleaseTarget / RefreshNow）的桥接。
     /// </summary>
     internal partial class MainForm
     {
+        private const int WM_DPICHANGED = 0x02E0;
+
+        /// <summary>
+        /// 运行时 DPI 切换（窗口拖到不同缩放显示器 / 系统缩放设置变化）自适应。
+        /// WinForms AutoScaleMode.Dpi 只在窗口创建时缩放一次，不响应 WM_DPICHANGED 重排；
+        /// 这里拦截后：应用系统建议的新窗口矩形 → 按 newScale/oldScale 比例缩放全部控件
+        /// → 更新 _dpiScale → 重建目标列表（面板宽按新 DPI）。
+        /// _dpiReady 防初始创建时（OnLoad 前，AutoScaleMode 已处理初始缩放）误触发双重缩放。
+        /// </summary>
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_DPICHANGED && _dpiReady)
+            {
+                try
+                {
+                    uint newDpi = Native.GetDpiForWindow(Handle);
+                    float newScale = Math.Max(newDpi / 96f, 1f);
+                    if (Math.Abs(newScale - _dpiScale) > 0.001f)
+                    {
+                        float factor = newScale / _dpiScale;
+                        var rect = (Native.RECT)Marshal.PtrToStructure(m.LParam, typeof(Native.RECT));
+
+                        // 1) 应用系统建议的新窗口矩形（物理像素）
+                        if (rect.Right > rect.Left && rect.Bottom > rect.Top)
+                        {
+                            Native.SetWindowPos(Handle, IntPtr.Zero,
+                                rect.Left, rect.Top,
+                                rect.Right - rect.Left, rect.Bottom - rect.Top,
+                                Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+                        }
+
+                        // 2) 按比例缩放全部控件（位置/尺寸/字体）
+                        ScaleAllControls(this, factor);
+
+                        // 3) 更新 DPI 基准并重建目标列表（面板宽度按新 _dpiScale）
+                        _dpiScale = newScale;
+                        RebuildTargetList();
+                        UpdateUI();
+                    }
+                }
+                catch { }
+                return; // 已自行处理，吞掉默认
+            }
+            base.WndProc(ref m);
+        }
+
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {
             if (!_reallyQuit && _settings.MinimizeToTray && e.CloseReason == CloseReason.UserClosing)

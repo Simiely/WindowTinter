@@ -27,6 +27,7 @@ namespace WindowTinter
         private Timer _saveDebounceTimer;
         private Icon _appIcon;
         private float _dpiScale = 1f;   // 系统 DPI 缩放比（DeviceDpi/96）；用于手动换算运行时动态添加的面板尺寸
+        private bool _dpiReady;         // OnLoad 后置 true：此后 WM_DPICHANGED 才做 UI 自适应（防初始双重缩放）
 
         private static readonly string AppVersion = GetAppVersion();
         private static string GetAppVersion()
@@ -97,6 +98,7 @@ namespace WindowTinter
             // 关键：_dpiScale 现在才拿到真实值（BuildUI 时为 1.0），立即重建一次列表，
             // 让动态面板宽度按真实 DPI 统一（否则列表项先按 1.0 创建、启动后再重建会宽度跳变）。
             RebuildTargetList();
+            _dpiReady = true; // 初始缩放已完成（AutoScaleMode.Dpi），此后 WM_DPICHANGED 才触发 UI 自适应
 
             // 启动时清除上次强制退出可能残留的透明效果
             RestoreAllTargets();
