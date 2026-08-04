@@ -4,8 +4,7 @@
         Width="220" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent"
-        ShowInTaskbar="False" Topmost="True" Focusable="False"
-        ShowActivated="False"
+        ShowInTaskbar="False" Topmost="True"
         ResizeMode="NoResize"
         FontFamily="Microsoft YaHei UI">
     <Border Background="#1E2024" BorderBrush="#3A3F46" BorderThickness="1" CornerRadius="8" Padding="0,6">

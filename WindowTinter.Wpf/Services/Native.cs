@@ -282,6 +282,34 @@ namespace WindowTinter
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         public static extern IntPtr GetModuleHandleW(string lpModuleName);
+
+        // ---- user32：托盘菜单定位（物理像素直控，绕开 WPF Left/Top DIP 换算）----
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        public const uint MONITOR_DEFAULTTONEAREST = 2;
     }
 }
 

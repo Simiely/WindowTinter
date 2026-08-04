@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 
 namespace WindowTinter.Views
@@ -37,8 +38,9 @@ namespace WindowTinter.Views
             PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) Close(); };
         }
 
-        /// <summary>构建菜单：在鼠标位置弹出。mousePosDip = 屏幕 DIP 坐标（Mouse.GetPosition(null) 返回）。</summary>
-        public void Show(IList<MenuEntry> entries, Point mousePosDip)
+        /// <summary>构建菜单并在鼠标位置弹出。定位用纯 Win32 物理像素（GetCursorPos + SetWindowPos），
+        /// 完全绕开 WPF Left/Top 的 DIP 换算——这是 SciChart 验证的跨 DPI 可靠方案。</summary>
+        public void Show(IList<MenuEntry> entries)
         {
             Panel.Children.Clear();
             foreach (var e in entries)
@@ -56,33 +58,38 @@ namespace WindowTinter.Views
                 Panel.Children.Add(BuildItem(e));
             }
 
-            // 关键（搜索确认的 WPF DPI 行为）：
-            // Window.Left/Top 单位是 DIP；必须先 Show() 建立 HwndSource（PresentationSource 才会非 null），
-            // 且 SizeToContent 布局完成后 ActualWidth/ActualHeight 才有效。
-            // 先移到屏幕外避免闪现，Show 后再计算真实位置。
+            // 先移到屏幕外避免闪现，再 Show 建立句柄
             Left = -10000;
             Top = -10000;
             Show();
             Activate();
 
-            // Show 后布局完成：ActualWidth/ActualHeight 为最终尺寸（DIP）
-            double w = ActualWidth;
-            double h = ActualHeight;
-            double left = mousePosDip.X - w / 2;   // 居中于鼠标 X
-            double top = mousePosDip.Y - h - 8;     // 鼠标上方 8px（避免遮挡托盘图标）
+            // ── 纯物理像素定位 ──
+            var hwnd = new WindowInteropHelper(this).Handle;
+            Native.GetCursorPos(out var pt);            // 鼠标物理像素
+            Native.GetWindowRect(hwnd, out var rc);     // 窗口实际物理尺寸
+            int w = rc.Width, h = rc.Height;
 
-            // 边界保护（虚拟屏幕 = 多屏并集，单位 DIP）
-            double vLeft = SystemParameters.VirtualScreenLeft;
-            double vTop = SystemParameters.VirtualScreenTop;
-            double vRight = vLeft + SystemParameters.VirtualScreenWidth;
-            double vBottom = vTop + SystemParameters.VirtualScreenHeight;
-            if (left + w > vRight) left = vRight - w - 8;
-            if (left < vLeft + 8) left = vLeft + 8;
-            if (top < vTop + 8) top = mousePosDip.Y + 12; // 上方放不下就放下方
-            if (top + h > vBottom) top = vBottom - h - 8;
+            int left = pt.X - w / 2;                    // 居中于鼠标 X
+            int top = pt.Y - h - 8;                     // 鼠标上方 8px
 
-            Left = left;
-            Top = top;
+            // 边界保护：鼠标所在显示器的工作区（物理像素）
+            var mon = Native.MonitorFromPoint(pt, Native.MONITOR_DEFAULTTONEAREST);
+            var mi = new Native.MONITORINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Native.MONITORINFO>() };
+            if (Native.GetMonitorInfoW(mon, ref mi))
+            {
+                int waL = mi.rcWork.Left, waT = mi.rcWork.Top;
+                int waR = mi.rcWork.Right, waB = mi.rcWork.Bottom;
+                if (left + w > waR) left = waR - w - 8;
+                if (left < waL + 8) left = waL + 8;
+                if (top < waT + 8) top = pt.Y + 12;      // 上方放不下就放下方
+                if (top + h > waB) top = waB - h - 8;
+            }
+
+            // 两次 SetWindowPos：第一次触发 DPI Changed（若跨屏），第二次精确定位
+            const uint flags = Native.SWP_NOSIZE | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE;
+            Native.SetWindowPos(hwnd, IntPtr.Zero, left + 1, top + 1, 0, 0, flags);
+            Native.SetWindowPos(hwnd, IntPtr.Zero, left, top, 0, 0, flags);
         }
 
         /// <summary>单菜单项：自定义 Border 渲染（避开 MenuItem 模板的样式继承坑）。</summary>

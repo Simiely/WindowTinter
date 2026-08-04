@@ -59,11 +59,8 @@ namespace WindowTinter
                 new TrayMenuWindow.MenuEntry { Header = "退出", OnClick = () => _vm.ExitApplication() }
             };
 
-            // 鼠标位置：WPF 原生 Mouse.GetPosition(null) 返回屏幕 DIP 坐标，
-            // 与 Window.Left/Top（DIP）同单位，零换算、天然 DPI 正确。
-            var mousePos = System.Windows.Input.Mouse.GetPosition(null);
             var menu = new TrayMenuWindow { Owner = GetOwnerWindow() };
-            menu.Show(entries, mousePos);
+            menu.Show(entries);
         }
 
         /// <summary>菜单 Owner 设为主窗口（关联生命周期/层级）——取当前主窗口避免空引用。</summary>
