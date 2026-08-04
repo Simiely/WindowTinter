@@ -56,7 +56,6 @@ namespace WindowTinter.Views
                 WindowState = WindowState.Normal;
                 Activate();
             }
-            _tray?.RefreshMenu();
         }
 
         private void OnClosing(object sender, CancelEventArgs e)
