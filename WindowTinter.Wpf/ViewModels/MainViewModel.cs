@@ -376,7 +376,7 @@ namespace WindowTinter.ViewModels
             }
         }
 
-        public Brush StatusColor => _settings.Enabled ? new SolidColorBrush(Color.FromRgb(0x3E, 0xCF, 0x8E)) : new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+        public Brush StatusColor => _settings.Enabled ? new SolidColorBrush(Color.FromRgb(0xFF, 0x92, 0x92)) : new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
 
         public string BadgeText
         {
@@ -794,16 +794,8 @@ namespace WindowTinter.ViewModels
 
         private void ShowAbout()
         {
-            var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.6.0";
-            MessageBox.Show(
-                $"暗幕 v{v}\n\n" +
-                "给任意窗口设置透明度、并在其正下方垫纯黑的常驻小工具。\n" +
-                "支持多窗口同时控制。\n\n" +
-                "• 配置: 与 exe 同目录 WindowTinter.settings.json\n" +
-                "• 图标: app.ico 与 exe 同目录\n\n" +
-                "https://github.com/Simiely/WindowTinter",
-                "关于");
+            var dlg = new AboutDialog { Owner = Application.Current.MainWindow };
+            dlg.ShowDialog();
         }
     }
 }

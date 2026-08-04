@@ -41,7 +41,7 @@ namespace WindowTinter.ViewModels
         private static readonly Brush C_Border = Br("#3A3F46");
         private static readonly Brush C_BorderPending = Br("#555555");
         private static readonly Brush C_BorderSel = Br("#4A90D9");
-        private static readonly Brush C_Teal = Br("#3ECF8E");
+        private static readonly Brush C_Teal = Br("#FF9292");
         private static readonly Brush C_Dim = Br("#6E747C");
         private static readonly Brush C_Text = Br("#E8EAF0");
         private static readonly Brush C_Btn = Br("#3A3F46");

@@ -1,5 +1,7 @@
+using System;
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Interop;
 using WindowTinter.ViewModels;
 
 namespace WindowTinter.Views
@@ -20,6 +22,16 @@ namespace WindowTinter.Views
             DataContext = _vm;
             Closing += OnClosing;
             Loaded += (_, _) => BuildTray();
+            // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
+            SourceInitialized += (_, _) =>
+            {
+                var hwnd = new WindowInteropHelper(this).Handle;
+                if (hwnd != IntPtr.Zero)
+                {
+                    int attr = 1;
+                    Native.DwmSetWindowAttribute(hwnd, Native.DWMWA_USE_IMMERSIVE_DARK_MODE, ref attr, sizeof(int));
+                }
+            };
         }
 
         private void BuildTray() => _tray = new TrayService(_vm, IsWindowOpen, ToggleWindow);

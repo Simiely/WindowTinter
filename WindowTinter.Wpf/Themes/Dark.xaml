@@ -13,8 +13,8 @@
     <SolidColorBrush x:Key="Text" Color="#E8EAF0"/>
     <SolidColorBrush x:Key="Text2" Color="#9AA0AA"/>
     <SolidColorBrush x:Key="Text3" Color="#6B7280"/>
-    <SolidColorBrush x:Key="Teal" Color="#3ECF8E"/>
-    <SolidColorBrush x:Key="TealDark" Color="#2A9D6E"/>
+    <SolidColorBrush x:Key="Teal" Color="#FF9292"/>
+    <SolidColorBrush x:Key="TealDark" Color="#E07878"/>
     <SolidColorBrush x:Key="Blue" Color="#4A90D9"/>
     <SolidColorBrush x:Key="Red" Color="#E5534B"/>
     <SolidColorBrush x:Key="Amber" Color="#D9A44A"/>

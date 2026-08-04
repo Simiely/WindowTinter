@@ -1,0 +1,33 @@
+<Window x:Class="WindowTinter.Views.AboutDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于" Width="360" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}"
+        ShowInTaskbar="False" UseLayoutRounding="True">
+    <Border Background="{StaticResource Card}" CornerRadius="10" Margin="12" Padding="18,16">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <Border Width="38" Height="38" CornerRadius="9" Background="{StaticResource TealDark}">
+                    <TextBlock Text="暗" FontSize="19" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="暗幕 v5.6.0" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock Text="窗口压暗小工具" FontSize="11" Foreground="{StaticResource Text3}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Text="给任意窗口设置透明度、并在其正下方垫纯黑的常驻小工具。支持多窗口同时控制。"
+                       FontSize="12.5" Foreground="{StaticResource Text2}" TextWrapping="Wrap" Margin="0,14,0,0"/>
+            <TextBlock FontSize="12" Foreground="{StaticResource Text3}" Margin="0,10,0,0" TextWrapping="Wrap">
+                <Run Text="配置：与 exe 同目录 "/><Run Text="WindowTinter.settings.json" FontFamily="Consolas" Foreground="{StaticResource Text2}"/>
+            </TextBlock>
+            <TextBlock Text="图标：app.ico 与 exe 同目录" FontSize="12" Foreground="{StaticResource Text3}" Margin="0,4,0,0"/>
+
+            <Button Content="https://github.com/Simiely/WindowTinter" Style="{StaticResource BtnBase}"
+                    HorizontalAlignment="Left" Margin="0,10,0,0" Click="OnOpenGitHub"/>
+            <Button Content="确定" Style="{StaticResource BtnPrimary}" Width="76" Height="30"
+                    HorizontalAlignment="Right" Margin="0,14,0,0" IsDefault="True" Click="OnOk"/>
+        </StackPanel>
+    </Border>
+</Window>

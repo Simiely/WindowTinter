@@ -23,21 +23,17 @@
         <Border Grid.Row="0" Background="{StaticResource Card}" CornerRadius="8" Padding="14,0" Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30.3"/>
                     <ColumnDefinition Width="23.3"/>
+                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding StatusText}" FontSize="15.7" FontWeight="Bold" VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="1" Text="ⓘ" FontSize="14.0" Foreground="{StaticResource Text3}" VerticalAlignment="Center"
-                           HorizontalAlignment="Center" Cursor="Help"
-                           ToolTip="总开关：启用后对所有目标窗口生效压暗与垫黑效果；停用后全部窗口立即还原。"/>
-                <Ellipse Grid.Column="2" Width="8.6" Height="8.6" Fill="{Binding StatusColor}" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Ellipse Grid.Column="0" Width="8.6" Height="8.6" Fill="{Binding StatusColor}" VerticalAlignment="Center" HorizontalAlignment="Center">
                     <Ellipse.Effect>
-                        <DropShadowEffect Color="#3ECF8E" BlurRadius="6" ShadowDepth="0"/>
+                        <DropShadowEffect Color="#FF9292" BlurRadius="6" ShadowDepth="0"/>
                     </Ellipse.Effect>
                 </Ellipse>
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="15.7" FontWeight="Bold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <ToggleButton Style="{StaticResource Switch}" IsChecked="{Binding IsEnabled, Mode=TwoWay}"/>
                     <TextBlock Text="启用" Margin="6,0,0,0" FontSize="13.0" Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -62,7 +58,7 @@
                             <ColumnDefinition Width="107.4"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="目标窗口" FontWeight="Bold" FontSize="14.0" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Foreground="{StaticResource Text2}" FontSize="12.4" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Foreground="{StaticResource Text2}" FontSize="14.0" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         <Button Grid.Column="2" Style="{StaticResource BtnBase}" Content="⟳ 刷新快照" FontSize="11.9" Margin="0,3,4,3" Command="{Binding RefreshSnapshotsCommand}"/>
                         <Button Grid.Column="3" Style="{StaticResource BtnPrimary}" Content="+ 添加窗口" FontSize="11.9" Margin="0,3,4,3" Command="{Binding AddWindowCommand}"/>
                         <Button Grid.Column="4" Style="{StaticResource BtnBase}" Content="↻ 重新查找" FontSize="11.9" Margin="0,3,0,3" Command="{Binding RefindAllCommand}"/>
@@ -188,15 +184,11 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="30.3"/>
                 </Grid.ColumnDefinitions>
                 <CheckBox Content="开机自启" IsChecked="{Binding StartWithWindows, Mode=TwoWay}" VerticalAlignment="Center"
                           ToolTip="登录 Windows 时自动启动本程序（写入注册表 Run 项）。"/>
                 <CheckBox Grid.Column="1" Content="关闭时最小化到托盘" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" Margin="18,0,0,0" VerticalAlignment="Center"
                           ToolTip="勾选后点关闭按钮最小化到托盘常驻；不勾选则直接退出程序。"/>
-                <TextBlock Grid.Column="3" Text="ⓘ" FontSize="14.0" Foreground="{StaticResource Text3}" VerticalAlignment="Center"
-                           HorizontalAlignment="Center" Cursor="Help"
-                           ToolTip="所有说明文字悬停 ⓘ 即可查看。"/>
             </Grid>
         </Border>
 
@@ -221,7 +213,7 @@
         </Border>
 
         <!-- ═══ ⑥ 页脚 ═══ -->
-        <TextBlock Grid.Row="5" Text="20260720 · 世界的风吹向你 · 开源软件  |  GitHub →" FontSize="11.3"
+        <TextBlock Grid.Row="5" Text="20260804 · 世界的风吹向你 · 开源软件  |  GitHub →" FontSize="11.3"
                    Foreground="{StaticResource Text3}" VerticalAlignment="Center" Margin="4,0,0,0" Cursor="Hand"
                    ToolTip="https://github.com/Simiely/WindowTinter"/>
     </Grid>
