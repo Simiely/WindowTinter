@@ -68,5 +68,11 @@ namespace WindowTinter
 
         /// <summary>隐藏黑底。</summary>
         public void HidePlate() { if (IsVisible) Hide(); }
+
+        /// <summary>释放窗口资源（WinForms 版 Plate.Dispose 的 WPF 对应；未显示过 / 已关闭时安全）。</summary>
+        public void Dispose()
+        {
+            try { Close(); } catch { }
+        }
     }
 }
