@@ -186,8 +186,9 @@ namespace WindowTinter
         public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
         public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
-        public const uint EVENT_OBJECT_HIDE = 0x8004;
-        public const uint EVENT_OBJECT_SHOW = 0x8006;
+        public const uint EVENT_OBJECT_HIDE = 0x8003;        // 修正：此前误写为 0x8004（REORDER）
+        public const uint EVENT_OBJECT_SHOW = 0x8002;        // 修正：此前误写为 0x8006（SELECTION）
+        public const uint EVENT_OBJECT_REORDER = 0x8004;     // Z 序变化（原型 B：收到即重插黑底）
         public const uint EVENT_OBJECT_DESTROY = 0x8001;
         public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
 

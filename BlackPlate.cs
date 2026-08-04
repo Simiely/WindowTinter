@@ -27,7 +27,6 @@ namespace WindowTinter
         // ── 位置缓存（防闪烁）：仅当目标/坐标/尺寸变化时才重新 SetWindowPos + 渲染 ──
         private IntPtr _lastTarget = IntPtr.Zero;
         private int _lastX, _lastY, _lastW, _lastH;
-        private bool _plateShown;
 
         /// <summary>圆角半径（0=关，矩形；1~10=圆角px）。</summary>
         public int CornerRadius { get; set; } = 0;
@@ -69,7 +68,11 @@ namespace WindowTinter
             base.WndProc(ref m);
         }
 
-        /// <summary>把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。</summary>
+        /// <summary>
+        /// 把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。
+        /// 原型 B：每次调用都 SetWindowPos 维护"Z 序不变式"（黑底 = 目标紧邻下方）；
+        /// 渲染（ULW/圆角）仅在几何变化时执行，避免无谓 GDI 开销。
+        /// </summary>
         public void AlignBehind(IntPtr targetHandle, Native.RECT r)
         {
             // 关键 DPI 处理：GetWindowRect/DwmGetWindowAttribute 返回的是物理像素，
@@ -87,24 +90,20 @@ namespace WindowTinter
             bool posChanged = targetHandle != _lastTarget
                 || x != _lastX || y != _lastY || w != _lastW || h != _lastH;
 
-            // 位置/尺寸未变且已显示 → 跳过整段重绘，消除 250ms 轮询造成的闪烁与无效 GDI 开销
-            if (_plateShown && !posChanged) return;
+            // 关键：用目标句柄作为 hWndInsertAfter，使底板在 Z 序中紧挨目标之下。
+            // 每次调用都执行——目标 Z 序一旦变化（EVENT_OBJECT_REORDER/轮询），此调用即把黑底重新插回。
+            Native.SetWindowPos(Handle, targetHandle,
+                x, y, w, h,
+                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
 
-            if (!_plateShown || posChanged)
-            {
-                // 关键：用目标句柄作为 hWndInsertAfter，使底板在 Z 序中紧挨目标之下。
-                // 这样目标一旦半透明，透出的就是正后方的纯黑，而非桌面 / 其它窗口。
-                Native.SetWindowPos(Handle, targetHandle,
-                    x, y, w, h,
-                    Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            if (posChanged)
                 (_lastTarget, _lastX, _lastY, _lastW, _lastH) = (targetHandle, x, y, w, h);
-            }
 
             // 设置窗口区域（圆角裁剪），仅在尺寸/半径变化时重建 HRGN
             ApplyWindowRegion(w, h);
 
-            RenderSolidBlack(x, y, w, h);
-            _plateShown = true;
+            if (posChanged)
+                RenderSolidBlack(x, y, w, h);
         }
 
         /// <summary>物理→逻辑缩放系数（逻辑像素 = 物理像素 × scale）。API 缺失/异常时返回 1（不缩放）。</summary>
@@ -127,7 +126,6 @@ namespace WindowTinter
                 Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0,
                     Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
             }
-            _plateShown = false;
         }
 
         /// <summary>

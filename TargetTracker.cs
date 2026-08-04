@@ -8,25 +8,26 @@ using System.Windows.Forms;
 namespace WindowTinter
 {
     /// <summary>
-    /// 跟踪目标窗口的位置和可见性，通过 WinEvent + 250ms 兜底轮询驱动。
+    /// 跟踪目标窗口的位置和可见性，通过 WinEvent + 500ms 兜底轮询驱动。
+    /// 原型 B：每次轮询都触发 OnUpdate（不做变更守卫）——让下游有机会做 Z 序不变式校验与重插。
     /// </summary>
     internal class TargetTracker : IDisposable
     {
         public IntPtr TargetHandle { get; set; } = IntPtr.Zero;
 
-        /// <summary>目标窗口状态变化时触发：RECT（屏幕坐标）、是否可见。</summary>
+        /// <summary>目标窗口状态（潜在）变化时触发：RECT（屏幕坐标）、是否可见。下游自行做差异判断。</summary>
         public event Action<Native.RECT, bool> OnUpdate;
 
         private readonly Timer _timer;
 
-        // 变更守卫
+        // 最近一次已知状态（供 RefreshForeground 复用）
         private bool _hasLast;
         private Native.RECT _lastRect;
         private bool _lastVisible;
 
         public TargetTracker()
         {
-            _timer = new Timer { Interval = 250 };
+            _timer = new Timer { Interval = 500 };
             _timer.Tick += (_, _) => Refresh();
             _timer.Start();
         }
@@ -45,18 +46,13 @@ namespace WindowTinter
             if (!Native.GetWindowRect(TargetHandle, out Native.RECT r))
                 return; // 窗口已销毁，跳过
 
-            bool changed = !_hasLast
-                || r.Left != _lastRect.Left || r.Top != _lastRect.Top
-                || r.Right != _lastRect.Right || r.Bottom != _lastRect.Bottom
-                || visible != _lastVisible;
-
-            if (!changed) return;
-
+            // 原型 B：不再用 changed 守卫短路——每次轮询都发 OnUpdate，
+            // 由 ApplyEntryEffect / AlignBehind 内部做 alpha / 几何 / Z 序的差异与校验。
             (_lastRect, _lastVisible, _hasLast) = (r, visible, true);
             OnUpdate?.Invoke(r, visible);
         }
 
-        /// <summary>前台切换专用：无视 rect/visible 变更守卫，强制触发 OnUpdate。</summary>
+        /// <summary>前台切换专用：强制触发 OnUpdate（复用最近已知状态）。</summary>
         public void RefreshForeground()
         {
             if (TargetHandle == IntPtr.Zero || !Native.IsWindow(TargetHandle)) return;

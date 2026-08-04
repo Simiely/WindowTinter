@@ -637,7 +637,8 @@ namespace WindowTinter
 
             // 目标特定事件：在 BeginInvoke 内读取 _entries，避免跨线程访问非安全集合
             if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
-                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY)
+                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_REORDER
+                               or Native.EVENT_OBJECT_DESTROY)
             {
                 var targetHwnd = hwnd;
                 try { BeginInvoke(new Action(() =>
@@ -645,9 +646,9 @@ namespace WindowTinter
                     var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
                     if (match == null) return;
                     if (eventType == Native.EVENT_OBJECT_DESTROY)
-                        ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活，不再等 3s 定时器
+                        ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活
                     else
-                        match.Tracker.RefreshNow();
+                        match.Tracker.RefreshNow(); // 含 REORDER：触发 OnUpdate → 重插黑底维护 Z 序不变式
                 })); }
                 catch (ObjectDisposedException) { }
                 catch (InvalidOperationException) { }
