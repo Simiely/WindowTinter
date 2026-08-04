@@ -88,6 +88,7 @@ namespace WindowTinter
             FormClosed += (_, _) => Quit();
 
             BuildUI();
+            HookDpiChanged(); // 运行时 DPI 切换自适应（初始缩放由 AutoScaleMode.Dpi 完成）
         }
 
         private void OnLoad(object sender, EventArgs e)

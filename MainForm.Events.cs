@@ -1,7 +1,5 @@
 using System;
-using System.Drawing;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -12,51 +10,38 @@ namespace WindowTinter
     /// </summary>
     internal partial class MainForm
     {
-        private const int WM_DPICHANGED = 0x02E0;
-
         /// <summary>
         /// 运行时 DPI 切换（窗口拖到不同缩放显示器 / 系统缩放设置变化）自适应。
-        /// WinForms AutoScaleMode.Dpi 只在窗口创建时缩放一次，不响应 WM_DPICHANGED 重排；
-        /// 这里拦截后：应用系统建议的新窗口矩形 → 按 newScale/oldScale 比例缩放全部控件
-        /// → 更新 _dpiScale → 重建目标列表（面板宽按新 DPI）。
-        /// _dpiReady 防初始创建时（OnLoad 前，AutoScaleMode 已处理初始缩放）误触发双重缩放。
+        /// 用 .NET 6 内置 DpiChanged 事件（框架已正确解析 WM_DPICHANGED 并提供
+        /// DeviceDpiNew/DeviceDpiOld）——比手写 WndProc 解析 wParam 可靠：
+        /// - v7 曾用 GetDpiForWindow 取 DPI，但消息处理时 DPI 上下文未切换、返回旧值，
+        ///   导致 newScale 计算错误、整个自适应被跳过（UI 不重排）——这就是 v7 的 bug。
+        /// 此处只做框架不做的事：
+        /// 1) DpiScaling.ScaleControlTree 按 new/old 比例缩放控件（框架不自动缩放，微软官方方案）
+        /// 2) 更新 _dpiScale → 重建目标列表（动态面板宽度按新 DPI）
+        /// 窗口大小由框架按 SuggestedRectangle 自行调整，不重复 SetWindowPos。
         /// </summary>
-        protected override void WndProc(ref Message m)
+        private void OnDpiChanged(object sender, DpiChangedEventArgs e)
         {
-            if (m.Msg == WM_DPICHANGED && _dpiReady)
+            if (!_dpiReady) return;
+            try
             {
-                try
-                {
-                    uint newDpi = Native.GetDpiForWindow(Handle);
-                    float newScale = Math.Max(newDpi / 96f, 1f);
-                    if (Math.Abs(newScale - _dpiScale) > 0.001f)
-                    {
-                        float factor = newScale / _dpiScale;
-                        var rect = (Native.RECT)Marshal.PtrToStructure(m.LParam, typeof(Native.RECT));
+                float newScale = Math.Max(e.DeviceDpiNew / 96f, 1f);
+                float factor = newScale / _dpiScale;
+                if (Math.Abs(factor - 1f) < 0.001f) return;
 
-                        // 1) 应用系统建议的新窗口矩形（物理像素）
-                        if (rect.Right > rect.Left && rect.Bottom > rect.Top)
-                        {
-                            Native.SetWindowPos(Handle, IntPtr.Zero,
-                                rect.Left, rect.Top,
-                                rect.Right - rect.Left, rect.Bottom - rect.Top,
-                                Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
-                        }
-
-                        // 2) 按比例缩放全部控件（位置/尺寸/字体）
-                        ScaleAllControls(this, factor);
-
-                        // 3) 更新 DPI 基准并重建目标列表（面板宽度按新 _dpiScale）
-                        _dpiScale = newScale;
-                        RebuildTargetList();
-                        UpdateUI();
-                    }
-                }
-                catch { }
-                return; // 已自行处理，吞掉默认
+                SuspendLayout();
+                DpiScaling.ScaleControlTree(this, factor);
+                _dpiScale = newScale;
+                RebuildTargetList(); // 面板宽度按新 _dpiScale 重建
+                UpdateUI();
+                ResumeLayout(true);
             }
-            base.WndProc(ref m);
+            catch { }
         }
+
+        /// <summary>在窗体构造中挂接 DPI 变化事件（初始缩放由 AutoScaleMode.Dpi 完成，_dpiReady 前不响应）。</summary>
+        private void HookDpiChanged() => DpiChanged += OnDpiChanged;
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
         {

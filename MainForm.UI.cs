@@ -368,25 +368,6 @@ namespace WindowTinter
         // 目标列表 UI 重建（活跃 + 待激活，按配置顺序）
         // ════════════════════════════════════════════════════════════
 
-        /// <summary>
-        /// 递归按比例缩放控件（位置/尺寸/字体）。用于运行时 DPI 切换（WM_DPICHANGED）自适应。
-        /// AutoSize 控件只缩放位置与字体（尺寸由内容自动决定）；
-        /// 非 AutoSize 控件（Button/GroupBox/Panel 等）同时缩放尺寸。
-        /// </summary>
-        private static void ScaleAllControls(Control parent, float factor)
-        {
-            foreach (Control c in parent.Controls)
-            {
-                c.Location = new Point((int)Math.Round(c.Left * factor), (int)Math.Round(c.Top * factor));
-                if (!c.AutoSize)
-                    c.Size = new Size((int)Math.Round(c.Width * factor), (int)Math.Round(c.Height * factor));
-                if (c.Font != null)
-                    c.Font = new Font(c.Font.FontFamily, Math.Max(c.Font.Size * factor, 6f), c.Font.Style);
-                if (c.Controls.Count > 0)
-                    ScaleAllControls(c, factor);
-            }
-        }
-
         /// <summary>按状态统一重建目标列表 UI（活跃 + 待激活，按配置顺序）。</summary>
         private void RebuildTargetList()
         {
