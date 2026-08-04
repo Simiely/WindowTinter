@@ -25,6 +25,7 @@ namespace WindowTinter
         private Timer _autoBindTimer;
         private Timer _onShownTimer;
         private Timer _saveDebounceTimer;
+        private Timer _snapshotTimer;   // 目标卡片窗口快照定时刷新（3s）
         private Icon _appIcon;
         private float _dpiScale = 1f;   // 系统 DPI 缩放比（DeviceDpi/96）；用于手动换算运行时动态添加的面板尺寸
         private bool _dpiReady;         // OnLoad 后置 true：此后 WM_DPICHANGED 才做 UI 自适应（防初始双重缩放）
@@ -39,6 +40,7 @@ namespace WindowTinter
         // ── UI 控件 ────────────────────────────────────────────────
 
         private Label _lblStatus;
+        private Label _lblTargetBadge;   // 目标卡头计数徽标
         private FlowLayoutPanel _pnlTargets;
         private Button _btnRefind;
         private CheckBox _chkEnabled;
@@ -69,9 +71,10 @@ namespace WindowTinter
             try { _appIcon = File.Exists(iconPath) ? new Icon(iconPath) : null; }
             catch { _appIcon = null; }
             Icon = _appIcon; // 图标缺失/损坏时退化为系统默认图标，避免启动崩溃
-            ClientSize = new Size(470, 695);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            ClientSize = new Size(440, 640);
+            MinimumSize = new Size(440, 640);
+            FormBorderStyle = FormBorderStyle.Sizable;   // 可拉伸：目标卡占剩余空间，拉高自动增行
+            MaximizeBox = true;
             StartPosition = FormStartPosition.CenterScreen;
 
             // 开机自启：直接最小化到托盘（WindowState 在句柄创建前设置，窗口以最小化态创建，无闪烁），
@@ -125,6 +128,11 @@ namespace WindowTinter
             // 滑块去抖：拖动停止 200ms 后写盘
             _saveDebounceTimer = new Timer { Interval = 200 };
             _saveDebounceTimer.Tick += (_, _) => { _saveDebounceTimer.Stop(); _settings.Save(); };
+
+            // 目标卡片窗口快照：3s 定时刷新（窗口内容变化自动跟上）
+            _snapshotTimer = new Timer { Interval = 3000 };
+            _snapshotTimer.Tick += (_, _) => { if (_settings.Enabled) RefreshAllSnapshots(); };
+            _snapshotTimer.Start();
 
             if (_settings.Enabled)
             {
@@ -190,6 +198,7 @@ namespace WindowTinter
             _autoBindTimer?.Stop(); _autoBindTimer?.Dispose();
             _onShownTimer?.Stop(); _onShownTimer?.Dispose();
             _saveDebounceTimer?.Stop(); _saveDebounceTimer?.Dispose();
+            _snapshotTimer?.Stop(); _snapshotTimer?.Dispose();
             _tray.Visible = false;  // 先隐藏托盘（内部会访问 Icon.Handle）
             if (_winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(_winEventHook); _winEventHook = IntPtr.Zero; }
             // 统一走 ReleaseTarget 清理（不转待激活、不刷新 UI——窗体即将关闭）

@@ -182,6 +182,7 @@ namespace WindowTinter
             entry.Tracker.TargetHandle = h;
             _entries.Add(entry);          // 先入列，状态一致后再激活
             entry.Tracker.RefreshNow();   // 触发 OnUpdate → ApplyEntryEffect → 黑底显示
+            RefreshTargetSnapshot(info);  // 绑定成功立即抓一次窗口快照
 
             if (refreshUI)
             {

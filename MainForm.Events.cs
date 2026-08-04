@@ -16,9 +16,9 @@ namespace WindowTinter
         /// DeviceDpiNew/DeviceDpiOld）——比手写 WndProc 解析 wParam 可靠：
         /// - v7 曾用 GetDpiForWindow 取 DPI，但消息处理时 DPI 上下文未切换、返回旧值，
         ///   导致 newScale 计算错误、整个自适应被跳过（UI 不重排）——这就是 v7 的 bug。
-        /// 此处只做框架不做的事：
-        /// 1) DpiScaling.ScaleControlTree 按 new/old 比例缩放控件（框架不自动缩放，微软官方方案）
-        /// 2) 更新 _dpiScale → 重建目标列表（动态面板宽度按新 DPI）
+        /// - 容器化重构后：根 TableLayoutPanel 按行高 Percent 自动重排（DPI 变化/窗口拉高时
+        ///   目标卡自动占满剩余空间），框架已自动缩放静态控件——不再需要手动缩放控件树，
+        ///   彻底消除 v7/v8 的双重缩放问题。此处只更新 _dpiScale 供动态面板换算。
         /// 窗口大小由框架按 SuggestedRectangle 自行调整，不重复 SetWindowPos。
         /// </summary>
         private void OnDpiChanged(object sender, DpiChangedEventArgs e)
@@ -30,12 +30,9 @@ namespace WindowTinter
                 float factor = newScale / _dpiScale;
                 if (Math.Abs(factor - 1f) < 0.001f) return;
 
-                SuspendLayout();
-                DpiScaling.ScaleControlTree(this, factor);
                 _dpiScale = newScale;
-                RebuildTargetList(); // 面板宽度按新 _dpiScale 重建
+                RebuildTargetList(); // 目标卡片宽度按新 _dpiScale 重建
                 UpdateUI();
-                ResumeLayout(true);
             }
             catch { }
         }
@@ -84,7 +81,11 @@ namespace WindowTinter
                     if (eventType == Native.EVENT_OBJECT_DESTROY)
                         ReleaseTarget(match, "destroyed"); // 事件驱动即时迁移：销毁→待激活
                     else
+                    {
                         match.Tracker.RefreshNow(); // 含 REORDER：触发 OnUpdate → 重插黑底维护 Z 序不变式
+                        if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_SHOW)
+                            RefreshTargetSnapshot(match.Info); // 移动/显示时即时刷新卡片快照
+                    }
                 })); }
                 catch (ObjectDisposedException) { }
                 catch (InvalidOperationException) { }

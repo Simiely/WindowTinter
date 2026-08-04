@@ -209,6 +209,12 @@ namespace WindowTinter
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
 
+        // ---- user32：窗口快照（PrintWindow） ----
+        public const uint PW_RENDERFULLCONTENT = 0x00000002;
+
+        [DllImport("user32.dll")]
+        public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
+
         // ---- user32：重绘 ----
         [DllImport("user32.dll")]
         public static extern bool InvalidateRect(IntPtr hWnd, IntPtr lpRect, bool bErase);
