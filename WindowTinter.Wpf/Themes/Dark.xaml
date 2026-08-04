@@ -65,10 +65,10 @@
         </Setter>
     </Style>
 
-    <!-- ═══ 圆角按钮（Primary · teal 强调）═══ -->
+    <!-- ═══ 圆角按钮（Primary · 主色调强调）═══ -->
     <Style TargetType="Button" x:Key="BtnPrimary" BasedOn="{StaticResource BtnBase}">
         <Setter Property="Background" Value="{StaticResource TealDark}"/>
-        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Foreground" Value="#462828"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Template">
             <Setter.Value>
