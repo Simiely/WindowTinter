@@ -106,13 +106,16 @@ namespace WindowTinter
             }
         }
 
-        /// <summary>加载 exe 同目录 app.ico 作为托盘图标。</summary>
+        /// <summary>加载嵌入程序集的 app.ico 作为托盘图标（发布无需外部 ico 文件）。</summary>
         private static Icon LoadAppIcon()
         {
             try
             {
-                var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
-                if (File.Exists(path)) return new Icon(path);
+                var uri = new Uri("pack://application:,,,/app.ico");
+                using (var stream = Application.GetResourceStream(uri)?.Stream)
+                {
+                    if (stream != null) return new Icon(stream);
+                }
             }
             catch { }
             return SystemIcons.Application;

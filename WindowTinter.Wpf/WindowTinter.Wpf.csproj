@@ -22,9 +22,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="app.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <!-- app.ico 嵌入程序集（托盘图标从资源加载，发布无需外部 ico 文件） -->
+    <Resource Include="app.ico" />
   </ItemGroup>
 
 </Project>
