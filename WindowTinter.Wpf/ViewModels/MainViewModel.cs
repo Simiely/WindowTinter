@@ -44,7 +44,6 @@ namespace WindowTinter.ViewModels
         // ── 定时器（WPF DispatcherTimer，UI 线程）──
         private readonly DispatcherTimer _autoBindTimer;    // 3s 兜底重绑
         private readonly DispatcherTimer _saveDebounceTimer; // 200ms 滑块防抖写盘
-        private readonly DispatcherTimer _snapshotTimer;    // 3s 快照定时刷新
 
         // UI 线程 Dispatcher（构造时捕获；后台快照线程回投用）
         private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
@@ -93,9 +92,7 @@ namespace WindowTinter.ViewModels
             _saveDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
             _saveDebounceTimer.Tick += (_, _) => { _saveDebounceTimer.Stop(); _settings.Save(); };
 
-            _snapshotTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
-            _snapshotTimer.Tick += (_, _) => { if (_settings.Enabled) RefreshAllSnapshots(); };
-            _snapshotTimer.Start();
+            // 快照改为手动模式：仅「⟳ 刷新快照」按钮触发，不做 3s 定时自动刷新
 
             InstallWinEventHook();
 
@@ -238,7 +235,7 @@ namespace WindowTinter.ViewModels
             entry.Tracker.TargetHandle = h;
             _entries.Add(entry);
             entry.Tracker.RefreshNow();
-            RefreshTargetSnapshot(info);
+            // 快照手动模式：绑定后不自动抓图，由「⟳ 刷新快照」统一触发
 
             if (refreshUI) SyncUI();
 
@@ -753,9 +750,7 @@ namespace WindowTinter.ViewModels
                             ReleaseTarget(match, "destroyed");
                         else
                         {
-                            match.Tracker.RefreshNow();
-                            if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_SHOW)
-                                RefreshTargetSnapshot(match.Info);
+                            match.Tracker.RefreshNow(); // 移动/显示只同步黑底几何，快照不自动刷（手动模式）
                         }
                     }));
                 }
@@ -806,7 +801,6 @@ namespace WindowTinter.ViewModels
         {
             _autoBindTimer?.Stop();
             _saveDebounceTimer?.Stop();
-            _snapshotTimer?.Stop();
             if (_winEventHook != IntPtr.Zero)
             {
                 Native.UnhookWinEvent(_winEventHook);
