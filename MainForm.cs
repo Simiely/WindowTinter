@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WindowTinter
@@ -154,59 +153,9 @@ namespace WindowTinter
             catch (Exception ex2) { Debug.WriteLine($"SetTargetAlpha failed for 0x{hwnd:X}: {ex2.Message}"); }
         }
 
-        // ── 提权检测：目标窗口以管理员运行、本程序非提权时无法修改其透明度 ──
+        // ── 提权提示：目标窗口以管理员运行、本程序非提权时无法修改其透明度（检测逻辑见 Elevation.cs）──
 
         private bool _elevationWarned;
-
-        private static bool? IsTargetElevated(IntPtr hwnd)
-        {
-            try
-            {
-                Native.GetWindowThreadProcessId(hwnd, out uint pid);
-                IntPtr hProc = Native.OpenProcess(Native.PROCESS_QUERY_INFORMATION, false, pid);
-                if (hProc == IntPtr.Zero) return null;
-                try
-                {
-                    if (!Native.OpenProcessToken(hProc, Native.TOKEN_QUERY, out IntPtr hToken)) return null;
-                    try
-                    {
-                        if (Native.GetTokenInformation(hToken, 20 /*TokenElevation*/,
-                                out Native.TOKEN_ELEVATION te,
-                                (uint)Marshal.SizeOf<Native.TOKEN_ELEVATION>(), out uint _))
-                            return te.TokenIsElevated != 0;
-                    }
-                    finally { Native.CloseHandle(hToken); }
-                }
-                finally { Native.CloseHandle(hProc); }
-            }
-            catch { }
-            return null;
-        }
-
-        private static bool IsCurrentProcessElevated()
-        {
-            try
-            {
-                using var p = Process.GetCurrentProcess();
-                IntPtr hProc = Native.OpenProcess(Native.PROCESS_QUERY_INFORMATION, false, (uint)p.Id);
-                if (hProc == IntPtr.Zero) return false;
-                try
-                {
-                    if (!Native.OpenProcessToken(hProc, Native.TOKEN_QUERY, out IntPtr hToken)) return false;
-                    try
-                    {
-                        if (Native.GetTokenInformation(hToken, 20 /*TokenElevation*/,
-                                out Native.TOKEN_ELEVATION te,
-                                (uint)Marshal.SizeOf<Native.TOKEN_ELEVATION>(), out uint _))
-                            return te.TokenIsElevated != 0;
-                    }
-                    finally { Native.CloseHandle(hToken); }
-                }
-                finally { Native.CloseHandle(hProc); }
-            }
-            catch { }
-            return false;
-        }
 
         /// <summary>触发刷新——走 OnUpdate 完整路径（透明度 + 下方垫黑）。</summary>
         private void ApplyMaskNow(TargetEntry e)
@@ -236,14 +185,13 @@ namespace WindowTinter
 
             if (refreshUI)
             {
-                RebuildTargetList();
-                UpdateUI();
+                SyncUI();
             }
 
             // 提权提示：目标以管理员身份运行而本程序未提权时，改透明度会静默失败
-            if (!_elevationWarned && !IsCurrentProcessElevated())
+            if (!_elevationWarned && !Elevation.IsCurrentProcessElevated())
             {
-                bool? elevated = IsTargetElevated(h);
+                bool? elevated = Elevation.IsTargetElevated(h);
                 if (elevated == true)
                 {
                     _elevationWarned = true;
@@ -283,10 +231,7 @@ namespace WindowTinter
 
             // 3) 同步 UI（窗体关闭等场景可跳过）
             if (updateUI)
-            {
-                try { RebuildTargetList(); } catch { }
-                UpdateUI();
-            }
+                SyncUI();
         }
 
         /// <summary>统一删除入口：从配置移除 + 解绑（若有）+ 同步 UI + 保存。</summary>
@@ -298,7 +243,7 @@ namespace WindowTinter
             _settings.Targets.Remove(info); // 先移出配置，后续 Rebuild 才不会残留该目标面板
             var entry = _entries.FirstOrDefault(e => e.Info == info);
             if (entry != null) ReleaseTarget(entry, "removed");
-            else RebuildTargetList();
+            else SyncUI();
             _settings.Save();
         }
 
@@ -307,7 +252,16 @@ namespace WindowTinter
         {
             foreach (var e in _entries.ToList())
                 ReleaseTarget(e, "unbind", updateUI: false);
-            RebuildTargetList();
+            SyncUI();
+        }
+
+        /// <summary>
+        /// UI 同步单点：重建目标列表 + 刷新状态栏/控件。
+        /// 领域方法（Bind/Release/Remove/Unbind）只调这一个 UI 入口，不散落 Rebuild/Update 细节。
+        /// </summary>
+        private void SyncUI()
+        {
+            try { RebuildTargetList(); } catch { }
             UpdateUI();
         }
     }
