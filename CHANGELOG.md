@@ -2,6 +2,17 @@
 
 > 按版本从新到旧。完整问题记录见 [DEV.md](DEV.md)。
 
+## v11 (WPF) — UI 全面重写 + 单文件发布（proto-shadow 分支）
+
+- **迁移到 WPF**：为 1:1 还原 UI 设计稿（3 列扑克牌卡片 + 窗口快照 + teal 胶囊开关 + 圆角卡片），从 WinForms 迁移到 WPF（XAML 原生圆角/阴影/数据绑定/DPI 矢量）
+- **MVVM 架构**：手写 `ObservableObject` / `RelayCommand`（无第三方框架）；`TargetViewModel` / `MainViewModel` 承载全部领域逻辑
+- **托盘**：Hardcodet.NotifyIcon.Wpf 图标 + Win32 `TrackPopupMenu` 原生菜单；`SetPreferredAppMode(AllowDark)` 跟随系统深浅色；专用隐藏辅助窗口 owner，右键托盘不影响主窗口 Z 序
+- **窗口拾取器 / 重命名对话框 / 关于对话框**：WPF 深色风格重写
+- **黑底 DPI 修复**：BlackPlate 重写为纯 Win32 分层窗口（`CreateWindowExW` + `UpdateLayeredWindow` + 吞 `WM_DPICHANGED`），物理像素直控，DPI 切换不错位；进程 manifest 声明 `PerMonitorV2`
+- **快照优化**：抓图移后台线程；绑定 / 窗口首次出现（EVENT_OBJECT_SHOW）自动抓图，也可手动刷新
+- **UI 交互**：卡片整卡点击选中（全局统一时不可选）、主色调 #FF9292、深色标题栏（沉浸式 DWM）、全局字体调大 8%（真实参数，无渲染缩放）
+- **单文件发布**：app.ico 嵌入程序集，`PublishSingleFile` 框架依赖发布 → 仅 1 个 `WindowTinter.exe`（~730KB）
+
 ## v5.6.0 — 主逻辑重构（状态机化）
 
 - 目标生命周期收敛为显式状态机：`待激活 ↔ 监控中`，统一 `BindTarget / ReleaseTarget / RemoveTarget` 三个入口（原 6 处散落清理逻辑收敛为 1 处）
