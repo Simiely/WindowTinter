@@ -799,6 +799,9 @@ namespace WindowTinter.ViewModels
         /// <summary>托盘驻留时的保存（不释放效果）。</summary>
         public void SaveSettings() => _settings.Save();
 
+        /// <summary>暴露 Settings 引用（用于窗口状态保存/恢复，View 直接读写字段）。</summary>
+        public Settings GetSettings() => _settings;
+
         /// <summary>退出：置真实退出标记 → 关主窗（Closing 兜底释放全部）。</summary>
         public void ExitApplication()
         {

@@ -1,7 +1,7 @@
 <Window x:Class="WindowTinter.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="暗幕 v6.0.1" Width="475.2" Height="691.2" MinWidth="475.2" MinHeight="691.2"
+        Title="暗幕 v6.0.1" Width="475" Height="691.2" MinWidth="475" MinHeight="691.2"
         Background="{StaticResource Bg}"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
@@ -58,10 +58,9 @@
                             <ColumnDefinition Width="80.0"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="目标窗口" FontWeight="Bold" FontSize="14.0" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="{Binding BadgeText}" Foreground="{StaticResource Text2}" FontSize="14.0" VerticalAlignment="Center" Margin="10,0,0,0"/>
                         <Button Grid.Column="2" Style="{StaticResource BtnBase}" Content="⟳ 刷新快照" FontSize="11.9" Width="80" Margin="0,3,4,3" Command="{Binding RefreshSnapshotsCommand}"/>
-                        <Button Grid.Column="3" Style="{StaticResource BtnPrimary}" Content="+ 添加窗口" FontSize="11.9" Width="80" Margin="0,3,4,3" Command="{Binding AddWindowCommand}"/>
-                        <Button Grid.Column="4" Style="{StaticResource BtnBase}" Content="↻ 重新查找" FontSize="11.9" Width="80" Margin="0,3,0,3" Command="{Binding RefindAllCommand}"/>
+                        <Button Grid.Column="3" Style="{StaticResource BtnBase}" Content="↻ 重新查找" FontSize="11.9" Width="80" Margin="0,3,4,3" Command="{Binding RefindAllCommand}"/>
+                        <Button Grid.Column="4" Style="{StaticResource BtnPrimary}" Content="+ 添加窗口" FontSize="11.9" Width="80" Margin="0,3,0,3" Command="{Binding AddWindowCommand}"/>
                     </Grid>
                 </Border>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="6">

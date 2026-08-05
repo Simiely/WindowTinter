@@ -23,9 +23,57 @@ namespace WindowTinter.Views
             _vm = new MainViewModel();
             DataContext = _vm;
             Closing += OnClosing;
+            // 加载 → 恢复窗口状态 → 构建托盘
+            SourceInitialized += (_, _) => RestoreWindowState();
             Loaded += (_, _) => BuildTray();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
             WindowTheme.EnableDarkTitleBar(this);
+        }
+
+        /// <summary>从 Settings 恢复窗口位置/尺寸/最大化（SourceInitialized 时调用，确保 DPI/屏幕信息就绪）。</summary>
+        private void RestoreWindowState()
+        {
+            var s = _vm.GetSettings();
+            if (s.WindowWidth > 50) Width = s.WindowWidth;
+            if (s.WindowHeight > 50) Height = s.WindowHeight;
+            if (s.WindowLeft >= 0 && s.WindowTop >= 0)
+            {
+                // 校验位置在可见屏幕内（多屏拔掉后防止窗口飞出）
+                var vLeft = SystemParameters.VirtualScreenLeft;
+                var vTop = SystemParameters.VirtualScreenTop;
+                var vRight = vLeft + SystemParameters.VirtualScreenWidth;
+                var vBottom = vTop + SystemParameters.VirtualScreenHeight;
+                if (s.WindowLeft + Width > vLeft + 50 && s.WindowLeft < vRight - 50 &&
+                    s.WindowTop + Height > vTop + 50 && s.WindowTop < vBottom - 50)
+                {
+                    WindowStartupLocation = WindowStartupLocation.Manual;
+                    Left = s.WindowLeft;
+                    Top = s.WindowTop;
+                }
+            }
+            if (s.WindowMaximized) WindowState = WindowState.Maximized;
+        }
+
+        /// <summary>保存窗口最终位置/尺寸/最大化到 Settings（真实退出时调用）。</summary>
+        private void SaveWindowState()
+        {
+            var s = _vm.GetSettings();
+            s.WindowMaximized = WindowState == WindowState.Maximized;
+            // 最大化时保存还原尺寸（Left/Top/Width/Height=RestoreBounds 才有值）
+            if (WindowState == WindowState.Normal)
+            {
+                s.WindowLeft = Left;
+                s.WindowTop = Top;
+                s.WindowWidth = Width;
+                s.WindowHeight = Height;
+            }
+            else if (RestoreBounds != Rect.Empty)
+            {
+                s.WindowLeft = RestoreBounds.Left;
+                s.WindowTop = RestoreBounds.Top;
+                s.WindowWidth = RestoreBounds.Width;
+                s.WindowHeight = RestoreBounds.Height;
+            }
         }
 
         /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（✎/× 按钮点击除外）。</summary>
@@ -69,7 +117,8 @@ namespace WindowTinter.Views
                 ShowInTaskbar = false;
                 return;
             }
-            // 真实退出：释放托盘 + 全部还原（托盘释放异常不得中断还原流程）
+            // 真实退出：保存窗口状态 → 释放托盘 → 全部还原（托盘释放异常不得中断还原流程）
+            try { SaveWindowState(); _vm.SaveSettings(); } catch { }
             try { _tray?.Dispose(); } catch { }
             _vm.Shutdown();
         }

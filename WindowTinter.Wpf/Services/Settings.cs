@@ -65,6 +65,13 @@ namespace WindowTinter
         public bool BackdropBlackPlate { get; set; } = true;  // 鍦ㄧ洰鏍囨鍚庢柟鍙犲姞绾粦搴曟澘锛堜笅灞傞伄缃╋級锛岄粯璁ゅ紑鍚?
         public int CornerRadius { get; set; } = 14;            // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛岄粯璁?6px
 
+        // 窗口状态（关闭时保存最终位置/尺寸/最大化，下次启动恢复）
+        public double WindowLeft { get; set; } = -1;
+        public double WindowTop { get; set; } = -1;
+        public double WindowWidth { get; set; } = 0;     // 0=未保存，使用 XAML 默认
+        public double WindowHeight { get; set; } = 0;
+        public bool WindowMaximized { get; set; } = false;
+
         // 鏃у瓧娈碉紙浠呯敤浜庝粠 v2.x 鏃ф牸寮忚縼绉伙紝涓嶅啀鍐欏叆锛?
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetProcessName { get; set; } = "";
