@@ -654,6 +654,9 @@ namespace WindowTinter.ViewModels
                 if (vm != null) SelectedTarget = vm;
             }
             SyncUI();
+            // 添加窗口后立即生成快照：BindTarget 内的快照发生在 SyncUI（建卡片 VM）之前，
+            // FindVm 为 null 会被丢弃——此处 SyncUI 已完成，必须补一次才能让新卡片立刻出图。
+            RefreshTargetSnapshot(info);
         }
 
         /// <summary>删除目标（×）：从配置移除并解绑。</summary>
