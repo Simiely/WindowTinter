@@ -213,7 +213,7 @@
                     <Button Style="{StaticResource BtnBase}" Content="ℹ 关于" Command="{Binding AboutCommand}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Style="{StaticResource BtnPrimary}" Content="💾 保存配置" Margin="0,0,6,0" Command="{Binding SaveCommand}"/>
+                    <Button Style="{StaticResource BtnBase}" Content="💾 保存配置" Margin="0,0,6,0" Command="{Binding SaveCommand}"/>
                     <Button Style="{StaticResource BtnDanger}" Content="🚪 退出" Command="{Binding ExitCommand}"/>
                 </StackPanel>
             </Grid>
