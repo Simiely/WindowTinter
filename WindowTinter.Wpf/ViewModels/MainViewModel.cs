@@ -571,7 +571,7 @@ namespace WindowTinter.ViewModels
         // 卡片回调（TargetViewModel 命令 → 主 VM）
         // ════════════════════════════════════════════════════════════════
 
-        /// <summary>点 ○/● 选中目标：非全局模式下生效，一次性带到前台便于查看效果。</summary>
+        /// <summary>点击卡片选中目标：非全局模式下生效，一次性带到前台便于查看效果。</summary>
         public void SelectTarget(TargetViewModel vm)
         {
             if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
