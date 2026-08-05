@@ -97,13 +97,39 @@ namespace WindowTinter
             public int Area;
         }
 
-        /// <summary>枚举指定进程的全部可接受顶层窗口（可见、非最小化、尺寸达标、未被占用）。</summary>
+        /// <summary>
+        /// 系统外壳/桌面专用窗口类黑名单——这些窗口绝不能被当作目标。
+        /// 一旦绑定（设透明 + 垫黑底），会导致桌面被压成黑屏：Progman 是桌面（Program Manager），
+        /// WorkerW 是壁纸层，Shell_TrayWnd 是任务栏。开机自启时 explorer 进程里往往只有这些
+        /// 窗口，此前"候选唯一/面积最大"降级绑定会命中它们，表现为开机黑屏、退出程序才恢复。
+        /// </summary>
+        private static readonly HashSet<string> SystemShellWindowClasses = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Progman",                     // 桌面（Program Manager）
+            "WorkerW",                     // 壁纸层
+            "SHELLDLL_DefView",            // 桌面图标视图（防御性，通常为 Progman 子窗口）
+            "Shell_TrayWnd",               // 任务栏
+            "Shell_SecondaryTrayWnd",      // 多显示器任务栏
+            "DV2ControlHost",              // 开始菜单
+            "Windows.UI.Core.CoreWindow",  // 系统 UWP 壳窗口
+            "MultitaskingViewFrame",       // 任务视图
+            "XamlExplorerHostIslandWindow",// Win11 资源管理器宿主
+            "Shell_InputSwitch",           // 输入法切换悬浮窗
+            "TaskListThumbnailWnd",        // 任务栏缩略图
+        };
+
+        private static bool IsSystemShellWindow(string windowClass)
+            => windowClass.Length > 0 && SystemShellWindowClasses.Contains(windowClass);
+
+        /// <summary>枚举指定进程的全部可接受顶层窗口（可见、非最小化、尺寸达标、非系统外壳窗口、未被占用）。</summary>
         private static List<WinCandidate> EnumerateProcessWindows(string proc, HashSet<IntPtr> excludeHandles)
         {
             var list = new List<WinCandidate>();
             Native.EnumWindows((hwnd, _) =>
             {
                 if (!IsAcceptableTarget(hwnd)) return true;
+                // 黑屏防护：桌面/壁纸/任务栏等系统外壳窗口绝不参与匹配
+                if (IsSystemShellWindow(GetWindowClass(hwnd))) return true;
                 if (excludeHandles?.Contains(hwnd) == true) return true;
                 Native.GetWindowThreadProcessId(hwnd, out uint pid);
                 try
@@ -160,13 +186,16 @@ namespace WindowTinter
             var candidates = EnumerateProcessWindows(proc, excludeHandles);
             if (candidates.Count == 0) return (IntPtr.Zero, "no-window");
 
-            // 类名收窄候选池：配置了类名且进程内有同类窗口时，只在同类里选，降低同进程多窗口绑错概率
+            // 类名收窄候选池：配置了类名且进程内有同类窗口时，只在同类里选，降低同进程多窗口绑错概率。
+            // 关键：配置了类名但进程内无同类窗口时，直接判定未找到，绝不降级到"唯一窗口/面积最大"——
+            // 否则开机时（如 explorer 只有桌面/壁纸窗口）会误绑系统外壳窗口导致黑屏。
             var pool = candidates;
             if (!string.IsNullOrWhiteSpace(windowClass))
             {
                 var byClass = candidates.Where(c =>
                     string.Equals(c.Class, windowClass, StringComparison.OrdinalIgnoreCase)).ToList();
                 if (byClass.Count > 0) pool = byClass;
+                else return (IntPtr.Zero, "no-class-window");
             }
 
             string kw = title?.Trim().ToLowerInvariant() ?? "";

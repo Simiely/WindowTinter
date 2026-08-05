@@ -16,6 +16,7 @@ namespace WindowTinter.Views
     {
         private readonly MainViewModel _vm;
         private TrayService _tray;
+        private bool _everShown; // 窗口是否曾真正显示过（静默启动从未显示时，退出不得覆盖已保存的窗口位置）
 
         public MainWindow()
         {
@@ -23,11 +24,16 @@ namespace WindowTinter.Views
             _vm = new MainViewModel();
             DataContext = _vm;
             Closing += OnClosing;
-            // 加载 → 恢复窗口状态 → 构建托盘
-            SourceInitialized += (_, _) => RestoreWindowState();
-            Loaded += (_, _) => BuildTray();
+            // 系统关机/注销：置 ReallyQuit 放行 OnClosing（否则托盘拦截会阻止系统关机——
+            // WinForms 版踩过此坑，WPF 版用 SessionEnding 等价处理）
+            Application.Current.SessionEnding += (_, _) => _vm.ReallyQuit = true;
+            // 首次显示（句柄创建）时恢复窗口状态；静默启动（/startup）不显示窗口，则不做任何 UI 初始化
+            SourceInitialized += (_, _) => { _everShown = true; RestoreWindowState(); };
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
             WindowTheme.EnableDarkTitleBar(this);
+            // 托盘不依赖窗口显示：构造函数即建立。开机自启静默时 App 不调用 Show()，
+            // 窗口句柄完全不创建（连一帧都不渲染），仅托盘图标驻留——官方推荐的零闪烁做法。
+            BuildTray();
         }
 
         /// <summary>从 Settings 恢复窗口位置/尺寸/最大化（SourceInitialized 时调用，确保 DPI/屏幕信息就绪）。</summary>
@@ -54,9 +60,11 @@ namespace WindowTinter.Views
             if (s.WindowMaximized) WindowState = WindowState.Maximized;
         }
 
-        /// <summary>保存窗口最终位置/尺寸/最大化到 Settings（真实退出时调用）。</summary>
+        /// <summary>保存窗口最终位置/尺寸/最大化到 Settings（真实退出时调用）。
+        /// 窗口从未显示过（静默启动直接退出）时跳过，避免用默认坐标覆盖用户已保存的位置。</summary>
         private void SaveWindowState()
         {
+            if (!_everShown) return;
             var s = _vm.GetSettings();
             s.WindowMaximized = WindowState == WindowState.Maximized;
             // 最大化时保存还原尺寸（Left/Top/Width/Height=RestoreBounds 才有值）
@@ -117,10 +125,12 @@ namespace WindowTinter.Views
                 ShowInTaskbar = false;
                 return;
             }
-            // 真实退出：保存窗口状态 → 释放托盘 → 全部还原（托盘释放异常不得中断还原流程）
+            // 真实退出：保存窗口状态 → 释放托盘 → 全部还原 → 显式结束消息循环
+            // （ShutdownMode=OnExplicitShutdown 下关闭窗口不会退出应用）
             try { SaveWindowState(); _vm.SaveSettings(); } catch { }
             try { _tray?.Dispose(); } catch { }
             _vm.Shutdown();
+            try { Application.Current.Shutdown(); } catch { }
         }
     }
 }

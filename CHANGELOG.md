@@ -2,6 +2,19 @@
 
 > 按版本从新到旧。完整问题记录见 [DEV.md](DEV.md)。
 
+## v6.1.0 — 修复：开机黑屏 + 重启弹主窗口（以 v6.0.1 为基线）
+
+- **黑屏修复（本次重点）**：开机自启时 `FindByTitleAndProcess` 可能把 **Progman（桌面）/ WorkerW（壁纸层）/ Shell_TrayWnd（任务栏）** 当目标绑定，桌面被透明化+垫全屏黑底 → 登录后黑屏，退出程序才恢复。根因：① 候选枚举未排除系统外壳窗口；② 配置了 `WindowClass` 但进程内无同类窗口时，会降级到"候选唯一/面积最大"误绑桌面
+- **修复**：`TargetTracker` 新增系统外壳窗口类黑名单（Progman / WorkerW / SHELLDLL_DefView / Shell_TrayWnd / Shell_SecondaryTrayWnd / DV2ControlHost 等），枚举时直接排除；类名收窄失败时判定"未找到"、绝不降级绑定（目标保持待激活，打开真实文件资源管理器后正常绑定）
+- `/startup` 静默托盘采用**官方推荐的零闪烁方案**：`App.OnStartup` 识别 `/startup`（及 `/silent` `/minimized` `/background` `/tray`）后**不调用 `Show()`，窗口句柄完全不创建**（连一帧都不渲染）；托盘在 `MainWindow` 构造函数即建立（不依赖窗口显示）。`ShutdownMode=OnExplicitShutdown`（否则无窗口时应用自动退出），退出路径显式 `Shutdown()`；系统关机/注销经 `SessionEnding` 放行（避免托盘拦截阻止关机，WinForms 版踩过此坑）。手动双击 exe 不带参数则正常显示主窗口
+- 版本号统一升至 6.1.0（csproj + XAML 标题 + 托盘 ToolTip fallback）
+
+## v6.0.2 — 修复：重启/开机自启弹主窗口（并入 v6.1.0，未发布）
+
+- **根因**：WPF 迁移时丢失了 WinForms 版的 `/startup` 参数处理——注册表 Run 项带 `/startup` 启动，但 `App.OnStartup` 无条件 `win.Show()`，导致重启电脑后主窗口自动弹出
+- **修复**：`App.OnStartup` 识别 `/startup`（及 `/silent` `/minimized` `/background` `/tray`）参数，传入 `MainWindow`；静默模式下窗口以 0 不透明度创建（无闪烁）→ `Loaded` 后托盘就绪立即隐藏，仅驻留托盘图标，双击托盘可打开设置窗口
+- 手动双击 exe（不带参数）行为不变：正常显示主窗口
+
 ## v6.0.1 — WPF 最终版（正式 Release）
 
 - 重命名对话框「取消」按钮右侧裁切修复（`Window.Width` 含非客户区，固定 StackPanel 宽度溢出 → 改自适应）
