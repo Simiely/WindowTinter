@@ -1,4 +1,4 @@
-# 暗幕 (WindowTinter) v5.6.0
+# 暗幕 (WindowTinter) v6.0.1
 
 **给任意窗口设置透明度、并在其正下方垫纯黑的 Windows 常驻小工具。** 纯 WPF 重写，单文件发布。
 
@@ -12,8 +12,9 @@
 - **多窗口同时控制** — 3 列扑克牌卡片展示目标窗口，实时快照、各自独立配置
 - **全局/单独模式** — 压暗与圆角各有独立的全局开关，关闭后可点卡片单独设置
 - **自动绑定** — 目标窗口关闭再启动后自动重新绑定（进程+类名识别）
-- **窗口快照** — 启动绑定与窗口首次出现时自动抓图，也可手动「⟳ 刷新快照」
-- **深色主题** — 粉色主调（#FF9292）原生暗色 UI，沉浸式深色标题栏
+- **窗口快照** — 启动绑定、窗口首次出现、添加窗口后自动抓图，也可手动「⟳ 刷新快照」
+- **窗口状态记忆** — 关闭时保存窗口位置/尺寸/最大化状态，下次启动自动恢复
+- **深色主题** — 粉色主调（#FF9292）原生暗色 UI，沉浸式深色标题栏、深色滚动条
 - **托盘驻留** — 关闭窗口最小化到系统托盘，效果持续运行；菜单跟随系统深浅色主题
 
 ## 使用
@@ -40,7 +41,7 @@
 
 ## 下载
 
-从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载最新 `WindowTinter.zip`（内含单个 `WindowTinter.exe`）。
+从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载最新 `WindowTinter-v6.0.1-wpf.zip`（内含单个 `WindowTinter.exe`）。
 
 **要求**：[.NET 6 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/6.0)（x64）
 

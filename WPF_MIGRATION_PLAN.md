@@ -1,5 +1,7 @@
 # WindowTinter → WPF 迁移计划（v11）
 
+> ✅ **已完成**（2026-08-05，最终版 v6.0.1 已发布）。WPF 版为 `WindowTinter.Wpf/` 子项目，单文件发布，`dist/WindowTinter-v6.0.1-framework-dependent/`。本文档保留作为迁移决策与适配点参考。
+
 > 决策：WinForms 容器化 4 版仍无法 1:1 还原设计稿（圆角/阴影/hover/数据驱动列表非 WinForms 原生能力）。
 > 换 WPF：XAML 声明式 UI + DataTemplate 卡片网格 + 原生圆角/阴影/动画，视觉 1:1。
 > 铁律：**功能逻辑 0 重写**——纯逻辑（TargetTracker/SnapshotService/Settings/Elevation/Native/BindTarget/ReleaseTarget/ApplyEntryEffect）原样搬；
