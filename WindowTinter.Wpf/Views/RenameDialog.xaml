@@ -4,7 +4,9 @@
         Title="重命名窗口" Width="360" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" Background="{StaticResource Card}"
         UseLayoutRounding="True">
-    <StackPanel Margin="14" Width="330">
+    <!-- 修复：Window.Width 含非客户区（边框），固定 Width=330 + Margin 14×2 = 358 超过客户区 → 右侧（取消按钮）被裁切。
+         去掉固定宽度，StackPanel 自适应客户区，按钮行永不溢出。 -->
+    <StackPanel Margin="14">
         <TextBlock Text="显示名称（留空恢复默认）：" Foreground="{StaticResource Text2}" FontSize="12"/>
         <TextBox x:Name="Input" Margin="0,8,0,0" Height="26" Padding="6,3" FontSize="12"
                  Background="#3A3F46" Foreground="{StaticResource Text}"

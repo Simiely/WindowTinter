@@ -12,7 +12,7 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="暗幕 v5.6.0" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock Text="暗幕 v6.0.1" FontSize="16" FontWeight="Bold"/>
                     <TextBlock Text="窗口压暗小工具" FontSize="11" Foreground="{StaticResource Text3}"/>
                 </StackPanel>
             </StackPanel>

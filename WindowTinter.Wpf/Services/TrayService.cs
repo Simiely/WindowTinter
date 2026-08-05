@@ -47,7 +47,7 @@ namespace WindowTinter
             _toggleWindow = toggleWindow;
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            string ver = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "5.6.0";
+            string ver = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "6.0.1";
 
             // 专用隐藏辅助窗口：作为 TrackPopupMenu 的 owner（接收菜单消息）。
             // 不显示、不进任务栏，唯一用途是让 SetForegroundWindow 作用于它而非主窗口。
