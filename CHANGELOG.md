@@ -8,7 +8,6 @@
 - **修复**：`TargetTracker` 新增系统外壳窗口类黑名单（Progman / WorkerW / SHELLDLL_DefView / Shell_TrayWnd / Shell_SecondaryTrayWnd / DV2ControlHost 等），枚举时直接排除；类名收窄失败时判定"未找到"、绝不降级绑定（目标保持待激活，打开真实文件资源管理器后正常绑定）
 - `/startup` 静默托盘采用**官方推荐的零闪烁方案**：`App.OnStartup` 识别 `/startup`（及 `/silent` `/minimized` `/background` `/tray`）后**不调用 `Show()`，窗口句柄完全不创建**（连一帧都不渲染）；托盘在 `MainWindow` 构造函数即建立（不依赖窗口显示）。`ShutdownMode=OnExplicitShutdown`（否则无窗口时应用自动退出），退出路径显式 `Shutdown()`；系统关机/注销经 `SessionEnding` 放行（避免托盘拦截阻止关机，WinForms 版踩过此坑）。手动双击 exe 不带参数则正常显示主窗口
 - **二次启动显示主窗口**：程序已在托盘驻留时再次运行 exe（双击桌面图标），此前单实例互斥锁直接静默退出（"双击无反应"）。现改为：新实例触发命名事件信号（`Local\WindowTinter.Wpf.OpenSignal`）→ 已有实例后台线程收到后经 Dispatcher 调用 `ShowFromSecondInstance`（从未显示则首次创建显示，最小化/隐藏则恢复激活）——信号方案不依赖窗口句柄，与零闪烁架构兼容（静默时主窗口句柄不存在，`SetForegroundWindow` 类方案不可行）
-- **打开窗口可靠置前**：托盘/二次启动打开主窗口时 WPF `Activate()` 对后台进程可能被 Windows 前台锁定（Foreground Lock）静默拒绝 → 窗口不在 Z 序最前。叠加 `Native.BringToFront`（AttachThreadInput 把输入队列临时挂到前台线程 + SetForegroundWindow，社区验证的可靠方案，west-wind/MahApps 同款）
 - 版本号统一升至 6.1.0（csproj + XAML 标题 + 托盘 ToolTip fallback）
 
 ## v6.0.2 — 修复：重启/开机自启弹主窗口（并入 v6.1.0，未发布）
