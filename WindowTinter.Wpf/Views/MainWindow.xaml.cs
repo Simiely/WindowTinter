@@ -114,6 +114,21 @@ namespace WindowTinter.Views
             }
         }
 
+        /// <summary>二次启动（再次运行 exe）时把主窗口带到前台：从未显示则首次创建显示，
+        /// 最小化/隐藏则恢复并激活。由 App 的信号监听线程经 Dispatcher 调用（UI 线程）。</summary>
+        public void ShowFromSecondInstance()
+        {
+            if (IsVisible && WindowState != WindowState.Minimized)
+            {
+                Activate();
+                return;
+            }
+            ShowInTaskbar = true;
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+        }
+
         private void OnClosing(object sender, CancelEventArgs e)
         {
             if (!_vm.ReallyQuit && _vm.MinimizeToTray)
