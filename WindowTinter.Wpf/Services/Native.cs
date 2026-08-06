@@ -328,6 +328,45 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        // ⚠️ GetCurrentThreadId 属于 kernel32.dll（不在 user32.dll！）
+        // 曾误写 user32.dll → 每次调用抛 EntryPointNotFoundException → 打开窗口即崩溃（事件日志实锤）。
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        /// <summary>
+        /// 可靠地把窗口带到前台（托盘应用打开主窗口用）。
+        /// 背景：Windows 前台锁定（Foreground Lock）——后台进程直接 SetForegroundWindow/Activate 会被
+        /// 静默拒绝（仅当调用进程是前台进程、或与前台线程同一输入队列、或 6s 内收到过用户输入才放行）。
+        /// 解法（社区验证，west-wind/MahApps）：AttachThreadInput 把本线程输入队列临时挂到前台线程，
+        /// 令 SetForegroundWindow 满足"同一输入队列"条件，完成后再分离。调用方应已在 UI 线程。
+        /// </summary>
+        public static void BringToFront(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+            IntPtr fg = GetForegroundWindow();
+            if (fg == hwnd) return; // 已在前台
+
+            uint fgThread = GetWindowThreadProcessId(fg, out _);
+            uint thisThread = GetCurrentThreadId();
+            bool attached = false;
+            if (fgThread != 0 && fgThread != thisThread)
+                attached = AttachThreadInput(thisThread, fgThread, true);
+            try
+            {
+                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                SetForegroundWindow(hwnd);
+            }
+            catch { }
+            finally
+            {
+                if (attached) AttachThreadInput(thisThread, fgThread, false);
+            }
+        }
+
         [DllImport("user32.dll")]
         public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
 

@@ -107,11 +107,20 @@ namespace WindowTinter.Views
             }
             else
             {
-                ShowInTaskbar = true;
-                Show();
-                WindowState = WindowState.Normal;
-                Activate();
+                ShowAndBringToFront();
             }
+        }
+
+        /// <summary>显示主窗口并可靠带到前台（托盘双击 / 二次启动共用）。
+        /// WPF Activate() 对后台进程（托盘应用）可能被 Windows 前台锁定静默拒绝 → 窗口出现但不在 Z 序最前；
+        /// 叠加 Native.BringToFront（AttachThreadInput + SetForegroundWindow，社区验证的可靠方案）。</summary>
+        private void ShowAndBringToFront()
+        {
+            ShowInTaskbar = true;
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+            Native.BringToFront(new WindowInteropHelper(this).Handle);
         }
 
         /// <summary>二次启动（再次运行 exe）时把主窗口带到前台：从未显示则首次创建显示，
@@ -121,12 +130,10 @@ namespace WindowTinter.Views
             if (IsVisible && WindowState != WindowState.Minimized)
             {
                 Activate();
+                Native.BringToFront(new WindowInteropHelper(this).Handle);
                 return;
             }
-            ShowInTaskbar = true;
-            Show();
-            WindowState = WindowState.Normal;
-            Activate();
+            ShowAndBringToFront();
         }
 
         private void OnClosing(object sender, CancelEventArgs e)
