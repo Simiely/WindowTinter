@@ -118,7 +118,8 @@ namespace WindowTinter
             "TaskListThumbnailWnd",        // 任务栏缩略图
         };
 
-        private static bool IsSystemShellWindow(string windowClass)
+        /// <summary>系统外壳/桌面窗口判定（黑名单唯一入口，自动绑定与窗口拾取器共用，防止两处漏改）。</summary>
+        public static bool IsSystemShellWindow(string windowClass)
             => windowClass.Length > 0 && SystemShellWindowClasses.Contains(windowClass);
 
         /// <summary>枚举指定进程的全部可接受顶层窗口（可见、非最小化、尺寸达标、非系统外壳窗口、未被占用）。</summary>

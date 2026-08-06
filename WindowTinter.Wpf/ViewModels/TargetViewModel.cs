@@ -65,24 +65,10 @@ namespace WindowTinter.ViewModels
         private ImageSource _shotImage;
         public ImageSource ShotImage { get => _shotImage; private set => SetProperty(ref _shotImage, value); }
 
-        /// <summary>设置快照（消费并释放 System.Drawing.Bitmap）；null = 清空回占位。</summary>
+        /// <summary>设置快照（经 ImageConvert 转换并释放源位图）；null = 清空回占位。</summary>
         public void SetShot(DrawingBitmap bmp)
         {
-            if (bmp == null) { ShotImage = null; return; }
-            try
-            {
-                IntPtr hbit = bmp.GetHbitmap();
-                try
-                {
-                    var src = Imaging.CreateBitmapSourceFromHBitmap(
-                        hbit, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                    src.Freeze();
-                    ShotImage = src;
-                }
-                finally { Native.DeleteObject(hbit); }
-            }
-            catch { ShotImage = null; }
-            finally { bmp.Dispose(); }
+            ShotImage = ImageConvert.ToBitmapSource(bmp);
         }
 
         /// <summary>后台抓图路径：直接设置已 Freeze 的 BitmapSource（UI 线程调用）。</summary>

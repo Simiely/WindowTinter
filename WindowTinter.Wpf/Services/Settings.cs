@@ -7,19 +7,19 @@ using Microsoft.Win32;
 
 namespace WindowTinter
 {
-    /// <summary>瀛樺偍涓€涓洰鏍囩獥鍙ｇ殑鏍囪瘑淇℃伅锛坔wnd 涓嶆寔涔呭寲锛屾寜杩涚▼鍚?鏍囬/绫诲悕閲嶆柊鏌ユ壘锛夈€?/summary>
+    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按 进程名+标题/类名 重新查找）。</summary>
     internal class TargetInfo : IEquatable<TargetInfo>
     {
         public string ProcessName { get; init; } = "";
         public string WindowTitle { get; init; } = "";
-        /// <summary>绐楀彛绫诲悕锛堟嬀鍙栨椂璁板綍锛夈€傞噸缁戝畾涓婚敭涔嬩竴锛氭祻瑙堝櫒/缂栬緫鍣ㄦ爣棰樺彉鍖栨椂鎸?杩涚▼+绫诲悕 浠嶈兘鎵惧洖銆?/summary>
+        /// <summary>窗口类名（拾取时记录）。重绑定主键之一：浏览器/编辑器标题变化时按 进程+类名 仍能找回。</summary>
         public string WindowClass { get; init; } = "";
-        /// <summary>鑷畾涔夊埆鍚嶏紙鐢ㄦ埛閲嶅懡鍚嶏級銆傞潪绌烘椂 UI 鍒楄〃浼樺厛鏄剧ず瀹冦€侸SON 缂虹渷涓虹┖锛屾棫閰嶇疆鍚戝悗鍏煎銆?/summary>
+        /// <summary>自定义别名（用户重命名）。非空时 UI 列表优先显示它。JSON 缺省为空，旧配置向后兼容。</summary>
         public string Alias { get; set; } = "";
-        public int BackgroundAlpha { get; set; } = 50;  // 璇ョ洰鏍囩獥鍙ｉ€忔槑搴︼紙0~100锛夛紝浠?鍏ㄥ眬缁熶竴閫忔槑搴?鍏抽棴鏃剁敓鏁?
-        public int CornerRadius { get; set; } = 14;       // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛屼粎"鍏ㄥ眬缁熶竴鍦嗚"鍏抽棴鏃剁敓鏁?
+        public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
+        public int CornerRadius { get; set; } = 14;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 
-        /// <summary>鏄剧ず鍚嶏細鍒悕锛堢敤鎴烽噸鍛藉悕锛変紭鍏堬紝鍏舵绐楀彛鏍囬锛屽啀閫€鍥炶繘绋嬪悕銆傚悕绉板厹搴曚氦缁欑敤鎴烽噸鍛藉悕锛屼笉鐗规畩澶勭悊鏃犲悕绉扮獥鍙ｃ€?/summary>
+        /// <summary>显示名：别名（用户重命名）优先，其次窗口标题，再退回进程名。名称兜底交给用户重命名，不特殊处理无名称窗口。</summary>
         public override string ToString() =>
             !string.IsNullOrEmpty(Alias) ? Alias
             : !string.IsNullOrEmpty(WindowTitle) ? WindowTitle
@@ -29,15 +29,15 @@ namespace WindowTinter
             other != null &&
             string.Equals(ProcessName, other.ProcessName, StringComparison.OrdinalIgnoreCase) &&
             string.Equals(WindowTitle, other.WindowTitle, StringComparison.OrdinalIgnoreCase) &&
-            // 绐楀彛绫诲悕浠呭湪鍙屾柟閮介潪绌烘椂鍙備笌鍒ゅ畾锛堟棫閰嶇疆 WindowClass="" 鏃惰韩浠介€€鍖栦负 杩涚▼+鏍囬锛屽悜鍚庡吋瀹癸級
+            // 窗口类名仅在双方都非空时参与判定（旧配置 WindowClass="" 时身份退化为 进程+标题，向后兼容）
             (string.IsNullOrEmpty(WindowClass) || string.IsNullOrEmpty(other.WindowClass)
                 || string.Equals(WindowClass, other.WindowClass, StringComparison.OrdinalIgnoreCase));
 
         public override bool Equals(object obj) => Equals(obj as TargetInfo);
 
-        // 娉ㄦ剰锛欸etHashCode 鏁呮剰鍙熀浜?杩涚▼+鏍囬鈥斺€?
-        // Equals 鍏佽"涓€鏂?class 涓虹┖鍒欎笉姣旇緝 class"锛岃嫢鎶?class 璁″叆鍝堝笇浼氳繚鍙?
-        // "Equals 鐩哥瓑鍒欏搱甯屽繀鐩哥瓑"鐨勭害鏉燂紙鏃ф潯鐩?class 绌?vs 鏂版潯鐩?class 闈炵┖浼氬垽绛夛級銆?
+        // 注意：GetHashCode 故意只基于 进程+标题——
+        // Equals 允许"一方 class 为空则不比较 class"，若把 class 计入哈希会违反
+        // "Equals 相等则哈希必相等"的约束（旧条目 class 空 vs 新条目 class 非空会判等）。
         public override int GetHashCode() =>
             HashCode.Combine(
                 ProcessName?.ToLowerInvariant() ?? "",
@@ -50,8 +50,8 @@ namespace WindowTinter
     }
 
     /// <summary>
-    /// 鎸佷箙鍖栬缃€傛敮鎸佸绐楀彛鐩爣鍒楄〃銆?
-    /// 閰嶇疆瀛樺偍浜?exe 鍚岀洰褰?WindowTinter.settings.json
+    /// 持久化设置。支持多窗口目标列表。
+    /// 配置存储在 exe 同目录 WindowTinter.settings.json
     /// </summary>
     internal class Settings
     {
@@ -60,10 +60,10 @@ namespace WindowTinter
         public bool Enabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
-        public bool GlobalTransparency { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€閫忔槑搴︼紱false=姣忎釜鐩爣鍗曠嫭閰嶇疆
-        public bool GlobalCornerRadius { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€鍦嗚锛沠alse=姣忎釜鐩爣鍗曠嫭閰嶇疆
-        public bool BackdropBlackPlate { get; set; } = true;  // 鍦ㄧ洰鏍囨鍚庢柟鍙犲姞绾粦搴曟澘锛堜笅灞傞伄缃╋級锛岄粯璁ゅ紑鍚?
-        public int CornerRadius { get; set; } = 14;            // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛岄粯璁?6px
+        public bool GlobalTransparency { get; set; } = true; // true=所有应用统一用全局透明度；false=每个目标单独配置
+        public bool GlobalCornerRadius { get; set; } = true; // true=所有应用统一用全局圆角；false=每个目标单独配置
+        public bool BackdropBlackPlate { get; set; } = true;  // 在目标正后方叠加纯黑底板（下层遮罩），默认开启
+        public int CornerRadius { get; set; } = 14;            // 底板圆角半径 (0=关, 1-20px)
 
         // 窗口状态（关闭时保存最终位置/尺寸/最大化，下次启动恢复）
         public double WindowLeft { get; set; } = -1;
@@ -72,12 +72,12 @@ namespace WindowTinter
         public double WindowHeight { get; set; } = 0;
         public bool WindowMaximized { get; set; } = false;
 
-        // 鏃у瓧娈碉紙浠呯敤浜庝粠 v2.x 鏃ф牸寮忚縼绉伙紝涓嶅啀鍐欏叆锛?
+        // 旧字段（仅用于从 v2.x 旧格式迁移，不再写入）
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetProcessName { get; set; } = "";
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetWindowTitle { get; set; } = "";
-        // StartWithWindows 瀛楁宸插簾寮冿紝JSON 鍙嶅簭鍒楀寲鏃惰嚜鍔ㄥ拷鐣?
+        // StartWithWindows 字段已废弃，JSON 反序列化时自动忽略
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -98,14 +98,14 @@ namespace WindowTinter
                 if (File.Exists(FilePath))
                     s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), _jsonOptions);
             }
-            catch { /* 鎹熷潖鍒欏洖閫€榛樿 */ }
+            catch { /* 损坏则退回默认 */ }
 
             s ??= new Settings();
 
-            // 杩佺Щ鏃ч€忔槑搴︽牸寮忥紙0-255 鈫?0-100锛?
+            // 迁移旧透明度格式（0-255 → 0-100）
             if (s.BackgroundAlpha > 100) s.BackgroundAlpha = s.BackgroundAlpha * 100 / 255;
 
-            // 杩佺Щ鏃ф牸寮忥細鍗曠獥鍙?鈫?鍒楄〃
+            // 迁移旧格式：单窗口 → 列表
             if (s.Targets.Count == 0 && !string.IsNullOrEmpty(s.TargetProcessName))
             {
                 s.Targets.Add(new TargetInfo
@@ -117,7 +117,7 @@ namespace WindowTinter
                 s.TargetWindowTitle = "";
             }
 
-            // 杩佺Щ鏃?ProcessName 鍚庣紑锛氬幓鎺?.exe锛坴2.x 鏇剧粡瀛樺偍 "notepad.exe" 鏍煎紡锛?
+            // 迁移旧 ProcessName 后缀：去掉 .exe（v2.x 曾存储 "notepad.exe" 格式）
             bool migratedExe = false;
             for (int i = 0; i < s.Targets.Count; i++)
             {
@@ -154,7 +154,7 @@ namespace WindowTinter
                     @"Software\Microsoft\Windows\CurrentVersion\Run", true);
                 if (key == null) return;
                 if (StartWithWindows)
-                    // 甯?/startup 鍙傛暟锛氬紑鏈鸿嚜鍚椂鍙┗鐣欐墭鐩樸€佷笉寮逛富绐楀彛锛堟墜鍔ㄥ弻鍑?exe 涓嶅甫鍙傛暟鍒欐甯告樉绀猴級
+                    // 带 /startup 参数：开机自启时只驻留托盘、不弹主窗口（手动双击 exe 不带参数则正常显示）
                     key.SetValue("WindowTinter", $"\"{Environment.ProcessPath}\" /startup");
                 else
                     key.DeleteValue("WindowTinter", false);
@@ -163,4 +163,3 @@ namespace WindowTinter
         }
     }
 }
-

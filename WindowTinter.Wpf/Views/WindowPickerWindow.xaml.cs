@@ -57,8 +57,9 @@ namespace WindowTinter.Views
         {
             if (!Native.IsWindowVisible(hwnd) || Native.IsIconic(hwnd)) return true;
 
+            // 系统外壳/桌面窗口黑名单与自动绑定共用一处（TargetTracker），避免两处漏改
             string cls = GetClass(hwnd);
-            if (cls is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd")
+            if (TargetTracker.IsSystemShellWindow(cls))
                 return true;
 
             int ex = (int)Native.GetWindowLongPtr(hwnd, Native.GWL_EXSTYLE);
