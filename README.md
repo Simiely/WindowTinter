@@ -1,8 +1,3 @@
-> ⚠️ **已并入 [`Simiely/pc-tools`](https://github.com/Simiely/pc-tools)（`apps/WindowTinter`）**
-> 本仓库已**归档只读**，内容不再更新。后续维护请到 [pc-tools](https://github.com/Simiely/pc-tools)。
-
----
-
 # 暗幕 (WindowTinter) v5.5.2
 
 **给任意窗口设置透明度、并在其正下方垫纯黑的 Windows 常驻小工具。**
