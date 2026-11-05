@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -24,7 +25,7 @@ namespace WindowTinter.Views
             DataContext = _vm;
             Closing += OnClosing;
             // 加载 → 恢复窗口状态 → 构建托盘
-            SourceInitialized += (_, _) => RestoreWindowState();
+            SourceInitialized += (_, _) => { RestoreWindowState(); InstallMaximizeClamp(); };
             Loaded += (_, _) => { BuildTray(); AdaptEmptyHeight(); };
             _vm.Targets.CollectionChanged += (_, _) => AdaptEmptyHeight();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
@@ -95,6 +96,35 @@ namespace WindowTinter.Views
                 vm.SelectCommand.Execute(null);
                 e.Handled = true;
             }
+        }
+
+        // ── 无边框窗口最大化：按显示器工作区钳制（否则 Win10 会连任务栏区域一起盖掉 + 顶部越界 7px）──
+        private void InstallMaximizeClamp()
+        {
+            if (PresentationSource.FromVisual(this) is HwndSource src)
+                src.AddHook(OnWindowMessage);
+        }
+
+        private IntPtr OnWindowMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg != Native.WM_GETMINMAXINFO) return IntPtr.Zero;
+
+            var mmi = Marshal.PtrToStructure<Native.MINMAXINFO>(lParam);
+            var mi = new Native.MONITORINFO { cbSize = Marshal.SizeOf<Native.MONITORINFO>() };
+            if (!Native.GetMonitorInfoW(Native.MonitorFromWindow(hwnd, Native.MONITOR_DEFAULTTONEAREST), ref mi))
+                return IntPtr.Zero;
+
+            // 最大化矩形 = 工作区向外扩一圈不可见缩放边框（客户区正好等于工作区）
+            int fx = Native.GetSystemMetrics(Native.SM_CXSIZEFRAME) + Native.GetSystemMetrics(Native.SM_CXPADDEDBORDER);
+            int fy = Native.GetSystemMetrics(Native.SM_CYSIZEFRAME) + Native.GetSystemMetrics(Native.SM_CXPADDEDBORDER);
+
+            mmi.ptMaxPosition.X = mi.rcWork.Left - fx;
+            mmi.ptMaxPosition.Y = mi.rcWork.Top - fy;
+            mmi.ptMaxSize.X = mi.rcWork.Width + 2 * fx;
+            mmi.ptMaxSize.Y = mi.rcWork.Height + 2 * fy;
+
+            Marshal.StructureToPtr(mmi, lParam, false);
+            return IntPtr.Zero;
         }
 
         // ── 标题栏窗控（自绘 chrome）──

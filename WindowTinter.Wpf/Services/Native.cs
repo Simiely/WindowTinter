@@ -336,6 +336,28 @@ namespace WindowTinter
 
         public const uint MONITOR_DEFAULTTONEAREST = 2;
 
+        // ---- user32：无边框窗口最大化时按工作区钳制（WM_GETMINMAXINFO）----
+        public const int WM_GETMINMAXINFO = 0x0024;
+        public const int SM_CXSIZEFRAME = 32;
+        public const int SM_CYSIZEFRAME = 33;
+        public const int SM_CXPADDEDBORDER = 92;
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MINMAXINFO
+        {
+            public POINT ptReserved;
+            public POINT ptMaxSize;
+            public POINT ptMaxPosition;
+            public POINT ptMaxTrackSize;
+            public POINT ptMinTrackSize;
+        }
+
+        [DllImport("user32.dll")]
+        public static extern int GetSystemMetrics(int nIndex);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
         // ---- user32：托盘菜单（Win32 原生菜单 CreatePopupMenu + TrackPopupMenu，
         //      微软官方推荐的托盘菜单模式；文字色/主题由系统自动处理，永不失明）----
         [DllImport("user32.dll")]
