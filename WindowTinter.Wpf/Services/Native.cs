@@ -81,6 +81,11 @@ namespace WindowTinter
         [DllImport("user32.dll")]
         public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
 
+        // Read back the attributes we are about to overwrite, so release can restore
+        // the target's own alpha instead of blindly writing 255.
+        [DllImport("user32.dll")]
+        public static extern bool GetLayeredWindowAttributes(IntPtr hwnd, out uint pcrKey, out byte pbAlpha, out uint pdwFlags);
+
         // ---- user32锛歎pdateLayeredWindow锛堥€愬儚绱?alpha 鍚堟垚锛?---
         public const uint ULW_ALPHA = 0x00000002;
         public const byte AC_SRC_ALPHA = 1;

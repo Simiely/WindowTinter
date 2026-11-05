@@ -130,11 +130,14 @@ namespace WindowTinter.ViewModels
             if (!_settings.Enabled || !visible)
             {
                 entry.Plate.HidePlate();
-                SetTargetTopmost(h, false);
-                if (entry.LastAlpha != 255)
+                // 目标本来就置顶时不剥掉；否则清理历史置顶残留
+                SetTargetTopmost(h, entry.StateCaptured && entry.OriginalTopmost);
+                // 还原到绑定前的 alpha（原本就分层的目标可能是 200 之类的自定义值，不能写死 255）
+                byte restoreAlpha = entry.StateCaptured && entry.OriginalLayered ? entry.OriginalAlpha : (byte)255;
+                if (entry.LastAlpha != restoreAlpha)
                 {
-                    SetTargetAlpha(h, 255, entry.OriginallyLayered ?? false);
-                    entry.LastAlpha = 255;
+                    SetTargetAlpha(h, restoreAlpha, entry.OriginallyLayered ?? false);
+                    entry.LastAlpha = restoreAlpha;
                 }
                 return;
             }
@@ -221,6 +224,85 @@ namespace WindowTinter.ViewModels
             catch (Exception ex2) { Debug.WriteLine($"SetTargetAlpha failed for 0x{hwnd:X}: {ex2.Message}"); }
         }
 
+        /// <summary>绑定前捕获原始 ExStyle / alpha / topmost。失败只标记 StateCaptured=false，释放时回退旧逻辑。</summary>
+        private static void CaptureOriginalState(TargetEntry entry, IntPtr h)
+        {
+            try
+            {
+                long ex = Native.GetWindowLongPtr(h, Native.GWL_EXSTYLE).ToInt64();
+                entry.OriginalExStyle = ex;
+                entry.OriginalLayered = (ex & Native.WS_EX_LAYERED) != 0;
+                entry.OriginalTopmost = (ex & Native.WS_EX_TOPMOST) != 0;
+                entry.OriginallyLayered = entry.OriginalLayered; // 与既有 SetTargetAlpha 判定保持一致
+                entry.OriginalAlphaKnown = false;
+                entry.OriginalAlpha = 255;
+
+                // 原生分层窗口：读回它自己的 alpha（UpdateLayeredWindow 窗口读不到，保持 Unknown）
+                if (entry.OriginalLayered &&
+                    Native.GetLayeredWindowAttributes(h, out _, out byte a, out uint flags) &&
+                    (flags & Native.LWA_ALPHA) != 0)
+                {
+                    entry.OriginalAlpha = a;
+                    entry.OriginalAlphaKnown = true;
+                }
+                entry.StateCaptured = true;
+            }
+            catch (Exception ex)
+            {
+                entry.StateCaptured = false;
+                Debug.WriteLine($"CaptureOriginalState failed for 0x{h:X}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 按绑定前原值还原：只回滚本程序可能改动的 LAYERED / TOPMOST 位与 alpha，
+        /// 不整体覆盖 ExStyle（避免把目标自身期间改过的其它样式一并回滚）。
+        /// </summary>
+        private static void RestoreTargetState(TargetEntry entry)
+        {
+            IntPtr h = entry.Tracker.TargetHandle;
+            if (h == IntPtr.Zero || !Native.IsWindow(h)) return;
+
+            if (!entry.StateCaptured)
+            {
+                // 捕获失败：退回 v6.0.1 旧逻辑（alpha 255 + 取消置顶）
+                if (entry.LastAlpha != 255) SetTargetAlpha(h, 255, entry.OriginallyLayered ?? false);
+                SetTargetTopmost(h, false);
+                return;
+            }
+
+            try
+            {
+                long ex = Native.GetWindowLongPtr(h, Native.GWL_EXSTYLE).ToInt64();
+                if (entry.OriginalLayered)
+                {
+                    if ((ex & Native.WS_EX_LAYERED) == 0)
+                        Native.SetWindowLongPtr(h, Native.GWL_EXSTYLE, (IntPtr)(ex | Native.WS_EX_LAYERED));
+                    if (entry.OriginalAlphaKnown)
+                        Native.SetLayeredWindowAttributes(h, 0, entry.OriginalAlpha, Native.LWA_ALPHA);
+                    Native.InvalidateRect(h, IntPtr.Zero, true);
+                }
+                else if ((ex & Native.WS_EX_LAYERED) != 0)
+                {
+                    Native.SetWindowLongPtr(h, Native.GWL_EXSTYLE, (IntPtr)(ex & ~Native.WS_EX_LAYERED));
+                    Native.RedrawWindow(h, IntPtr.Zero, IntPtr.Zero,
+                        Native.RDW_INVALIDATE | Native.RDW_ERASE | Native.RDW_FRAME | Native.RDW_ALLCHILDREN);
+                }
+
+                bool isTopNow = (Native.GetWindowLongPtr(h, Native.GWL_EXSTYLE).ToInt64()
+                    & Native.WS_EX_TOPMOST) != 0;
+                if (isTopNow != entry.OriginalTopmost)
+                {
+                    Native.SetWindowPos(h, entry.OriginalTopmost ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST,
+                        0, 0, 0, 0, Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+                }
+            }
+            catch (Exception ex2)
+            {
+                Debug.WriteLine($"RestoreTargetState failed for 0x{h:X}: {ex2.Message}");
+            }
+        }
+
         /// <summary>触发刷新——走 OnUpdate 完整路径（透明度 + 下方垫黑）。</summary>
         private void ApplyMaskNow(TargetEntry e) => e.Tracker.RefreshForeground();
 
@@ -238,6 +320,7 @@ namespace WindowTinter.ViewModels
 
             var entry = CreateEntry(info);
             entry.Tracker.TargetHandle = h;
+            CaptureOriginalState(entry, h);
             _entries.Add(entry);
             UpdateBoundHandles();
             entry.Tracker.RefreshNow();
@@ -264,18 +347,8 @@ namespace WindowTinter.ViewModels
         {
             Debug.WriteLine($"ReleaseTarget: [{entry.Info}] ({reason})");
 
-            try
-            {
-                if (entry.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(entry.Tracker.TargetHandle))
-                {
-                    // 只还原本程序改过的透明度：LastAlpha==255 表示从未改过，
-                    // 此时调用会误移除目标窗口原生的 WS_EX_LAYERED（原本就分层的窗口外观被破坏）
-                    if (entry.LastAlpha != 255)
-                        SetTargetAlpha(entry.Tracker.TargetHandle, 255, entry.OriginallyLayered ?? false);
-                    SetTargetTopmost(entry.Tracker.TargetHandle, false);
-                }
-            }
-            catch { }
+            // 按绑定前原值还原（alpha / LAYERED / TOPMOST），不再写死 255 与 NOTOPMOST
+            try { RestoreTargetState(entry); } catch { }
             try { entry.Plate.HidePlate(); } catch { }
 
             try { entry.Tracker.Dispose(); } catch { }
