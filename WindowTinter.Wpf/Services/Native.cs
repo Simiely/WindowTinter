@@ -158,6 +158,22 @@ namespace WindowTinter
         [DllImport("dwmapi.dll")]
         public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
+        // ---- dwmapi: DWM cloak state (query only; setting DWMWA_CLOAK cross-process returns ACCESS_DENIED) ----
+        public const int DWMWA_CLOAKED = 14;
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+        /// <summary>
+        /// 查询目标是否被 DWM cloak（切虚拟桌面 / UWP 挂起）。cloak 不会产生任何 WinEvent，
+        /// 只能靠轮询；查询失败（跨完整性级别等）按“未 cloak”处理，不影响正常显示。
+        /// </summary>
+        public static bool IsCloaked(IntPtr hwnd)
+        {
+            int v = 0;
+            return DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out v, 4) == 0 && v != 0;
+        }
+
         /// <summary>鍙栫湡瀹炲彲瑙佺煩褰紙鎺掗櫎 DWM 闃村奖锛夛紝澶辫触鏃跺洖閫€ GetWindowRect銆?/summary>
         public static RECT GetVisibleWindowRect(IntPtr hwnd)
         {

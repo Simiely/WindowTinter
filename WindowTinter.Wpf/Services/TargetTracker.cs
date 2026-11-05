@@ -25,6 +25,9 @@ namespace WindowTinter
         private Native.RECT _lastRect;
         private bool _lastVisible;
 
+        /// <summary>最近一次 500ms 轮询得到的 DWM cloak 状态（cloak 无 WinEvent，只能轮询）。</summary>
+        public bool IsTargetCloaked { get; private set; }
+
         public TargetTracker()
         {
             _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -38,10 +41,12 @@ namespace WindowTinter
         {
             if (TargetHandle == IntPtr.Zero || !Native.IsWindow(TargetHandle))
             {
-                if (_hasLast) { _hasLast = false; OnUpdate?.Invoke(default, false); }
+                if (_hasLast) { _hasLast = false; IsTargetCloaked = false; OnUpdate?.Invoke(default, false); }
                 return;
             }
 
+            // cloak（切虚拟桌面/UWP 挂起）不产生 WinEvent，与最小化共用这一次 500ms 轮询
+            IsTargetCloaked = Native.IsCloaked(TargetHandle);
             bool visible = Native.IsWindowVisible(TargetHandle) && !Native.IsIconic(TargetHandle);
             if (!Native.GetWindowRect(TargetHandle, out Native.RECT r))
                 return; // 窗口已销毁，跳过

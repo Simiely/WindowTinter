@@ -158,7 +158,8 @@ namespace WindowTinter.ViewModels
                 SetTargetAlpha(h, targetAlpha, entry.OriginallyLayered ?? false);
                 entry.LastAlpha = targetAlpha;
             }
-            if (_settings.BackdropBlackPlate)
+            // cloak 时目标不在当前桌面/已挂起：隐藏底板，否则会留下黑块（DWM 不会发事件）
+            if (_settings.BackdropBlackPlate && !entry.Tracker.IsTargetCloaked)
             {
                 var visibleRect = Native.GetVisibleWindowRect(h);
                 entry.Plate.AlignBehind(h, visibleRect);
