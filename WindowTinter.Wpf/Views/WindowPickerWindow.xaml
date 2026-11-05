@@ -1,0 +1,11 @@
+<Window x:Class="WindowTinter.Views.WindowPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="#02000000"
+        ShowInTaskbar="False" Topmost="True" ResizeMode="NoResize"
+        WindowStartupLocation="Manual" Cursor="Cross" Focusable="True"
+        KeyDown="OnKeyDown"
+        MouseMove="OnMouseMove"
+        MouseLeftButtonUp="OnMouseClick"
+        MouseRightButtonUp="OnMouseClick">
+</Window>

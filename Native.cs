@@ -17,7 +17,12 @@ namespace WindowTinter
         public const int WS_EX_TRANSPARENT = 0x20;
 
         // ---- SetWindowPos ----
+        public static readonly IntPtr HWND_TOP = new IntPtr(0);
         public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        public const uint SWP_NOSIZE = 0x0001;
+        public const uint SWP_NOMOVE = 0x0002;
+        public const uint SWP_NOZORDER = 0x0004;   // 保持原 Z 序（HidePlate 等隐藏/定位场景避免干扰 Z 序）
         public const uint SWP_NOACTIVATE = 0x0010;
         public const uint SWP_SHOWWINDOW = 0x0040;
         public const uint SWP_HIDEWINDOW = 0x0080;
@@ -165,13 +170,26 @@ namespace WindowTinter
 
         public const uint GA_ROOT = 2;
 
+        /// <summary>取指定屏幕点下 Z 序最靠前（且通过命中测试）的窗口，含子窗口。比 EnumWindows+矩形包含精确得多。</summary>
+        [DllImport("user32.dll")]
+        public static extern IntPtr WindowFromPoint(Point pt);
+
+        /// <summary>获取窗口类名（用于拾取过滤与重绑定匹配）。</summary>
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+        /// <summary>取窗口所在监视器的 DPI（PerMonitorV2 进程下做物理↔逻辑坐标换算用）。失败返回 0。</summary>
+        [DllImport("user32.dll")]
+        public static extern uint GetDpiForWindow(IntPtr hwnd);
+
         // ---- user32：WinEvent 钩子（事件驱动更新，替代高频轮询）----
         public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
         public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
         public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
-        public const uint EVENT_OBJECT_HIDE = 0x8004;
-        public const uint EVENT_OBJECT_SHOW = 0x8006;
+        public const uint EVENT_OBJECT_HIDE = 0x8003;        // 修正：此前误写为 0x8004（REORDER）
+        public const uint EVENT_OBJECT_SHOW = 0x8002;        // 修正：此前误写为 0x8006（SELECTION）
+        public const uint EVENT_OBJECT_REORDER = 0x8004;     // Z 序变化（原型 B：收到即重插黑底）
         public const uint EVENT_OBJECT_DESTROY = 0x8001;
         public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
 
@@ -190,6 +208,12 @@ namespace WindowTinter
         // ---- uxtheme：深色滚动条 ----
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
         public static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string pszSubIdList);
+
+        // ---- user32：窗口快照（PrintWindow） ----
+        public const uint PW_RENDERFULLCONTENT = 0x00000002;
+
+        [DllImport("user32.dll")]
+        public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
 
         // ---- user32：重绘 ----
         [DllImport("user32.dll")]

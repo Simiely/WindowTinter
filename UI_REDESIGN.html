@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暗幕 WindowTinter · UI 空间与文字优化设计稿</title>
+<style>
+  :root{
+    --canvas:#14161A; --panel:#1E2024; --card:#26292E; --card-head:#2C3036;
+    --row:#32363C; --row-hover:#3A4048; --row-pending:#26292E; --row-sel:#2B3B52;
+    --line:#3A3F46; --line-soft:#33373D;
+    --fg:#E8EAF0; --fg2:#9AA0AA; --fg3:#6B7280;
+    --teal:#3ECF8E; --teal-dim:#2A9D6E; --blue:#4A90D9; --red:#E5534B;
+    --amber:#D9A44A;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Microsoft YaHei UI","Segoe UI",system-ui,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -100px, #1B1F26 0%, var(--canvas) 55%);
+    color:var(--fg); line-height:1.6; padding:40px 20px 80px;
+  }
+  .doc{max-width:1080px; margin:0 auto;}
+
+  /* ── 文档头部 ── */
+  header{border-bottom:1px solid var(--line); padding-bottom:26px; margin-bottom:34px;}
+  .kicker{color:var(--teal); font-size:12px; letter-spacing:.18em; font-weight:600; margin-bottom:10px;}
+  h1{font-size:26px; font-weight:700; letter-spacing:.02em;}
+  h1 span{color:var(--fg3); font-weight:400;}
+  .sub{margin-top:10px; color:var(--fg2); font-size:13px; max-width:760px;}
+  .sub b{color:var(--fg);}
+  .meta{display:flex; gap:18px; margin-top:16px; flex-wrap:wrap;}
+  .meta span{font-size:12px; color:var(--fg3);}
+  .meta b{color:var(--fg2); font-weight:500;}
+
+  h2{font-size:16px; font-weight:700; margin:0 0 6px; letter-spacing:.01em;}
+  h2 .n{color:var(--teal); margin-right:8px;}
+  .sec{margin-top:44px;}
+  .sec > p.desc{color:var(--fg2); font-size:12.5px; margin-bottom:20px; max-width:800px;}
+
+  /* ── 设计稿布局：左 mockup 右规格 ── */
+  .stage{display:grid; grid-template-columns:minmax(0,470px) 1fr; gap:36px; align-items:start;}
+  @media(max-width:900px){ .stage{grid-template-columns:1fr;} }
+
+  /* ── Mockup：WinForms 暗色面板 ── */
+  .win{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.02);
+    font-size:9.5px; user-select:none; position:relative;
+  }
+  .win .grip{position:absolute; right:4px; bottom:4px;}
+  .titlebar{display:flex; align-items:center; gap:8px; padding:9px 12px; background:#17191D;
+    border-bottom:1px solid var(--line);}
+  .titlebar .dot{width:10px; height:10px; border-radius:50%;}
+  .titlebar .t{flex:1; font-size:11px; font-weight:600; letter-spacing:.04em; color:var(--fg);}
+  .titlebar .ver{color:var(--fg3); font-size:9px; font-weight:400; margin-right:6px;}
+  .tb-btn{width:14px; height:14px; border-radius:3px; background:#2E3238; display:inline-block;}
+
+  .body{padding:10px 12px 12px; display:flex; flex-direction:column; gap:8px;}
+
+  /* 状态条 */
+  .statusbar{display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--card);
+    border:1px solid var(--line); border-radius:8px;}
+  .sdot{width:8px; height:8px; border-radius:50%; background:var(--teal); box-shadow:0 0 8px var(--teal-dim);}
+  .statusbar .st{font-size:11px; font-weight:600;}
+  .statusbar .st small{color:var(--fg3); font-weight:400; font-size:9.5px; margin-left:6px;}
+  .statusbar .spacer{flex:1;}
+  .switch{width:34px; height:18px; border-radius:10px; background:var(--teal-dim); position:relative; cursor:pointer;}
+  .switch::after{content:""; position:absolute; top:2px; left:18px; width:14px; height:14px; border-radius:50%; background:#fff;}
+  .switch.off{background:#3A3F46;}
+  .switch.off::after{left:2px;}
+  .switch-lbl{font-size:9px; color:var(--fg2);}
+
+  /* 卡片 */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  .card-head{display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--card-head);
+    border-bottom:1px solid var(--line);}
+  .card-head .t{font-size:10px; font-weight:700; letter-spacing:.05em;}
+  .badge{font-size:8.5px; color:var(--teal); background:rgba(62,207,142,.12); border:1px solid rgba(62,207,142,.3);
+    padding:1px 7px; border-radius:9px; font-weight:600;}
+  .badge.gray{color:var(--fg3); background:#2A2D33; border-color:var(--line);}
+  .card-head .spacer{flex:1;}
+  .mini-btn{font-size:9px; padding:3px 9px; border-radius:5px; background:#3A3F46; border:1px solid var(--line);
+    color:var(--fg); cursor:pointer; white-space:nowrap;}
+  .mini-btn:hover{background:#454B54;}
+  .mini-btn.primary{background:var(--teal-dim); border-color:transparent; color:#fff;}
+  .mini-btn.primary:hover{background:var(--teal);}
+
+  /* 目标列表：扑克牌式卡片网格（3 列圆角方块依次排开） */
+  .list{padding:8px; display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+  .trow{display:flex; flex-direction:column; gap:7px; padding:9px 8px; min-height:64px; border-radius:10px;
+    background:var(--row); border:1px solid var(--line); cursor:pointer; position:relative;
+    box-shadow:0 2px 4px rgba(0,0,0,.25);}
+  .trow:hover{background:var(--row-hover); border-color:#525966;}
+  .trow.sel{background:var(--row-sel); border-color:#4A90D9;}
+  .trow.pending{background:var(--row-pending); border-style:dashed; border-color:#3A3F46;}
+  .trow-top{display:flex; align-items:center; gap:7px; min-width:0;}
+  .trow .state{width:7px; height:7px; border-radius:50%; flex:none;}
+  .trow .state.on{background:var(--teal); box-shadow:0 0 6px var(--teal-dim);}
+  .trow .state.pen{background:var(--fg3);}
+  .trow .name{flex:1; overflow:hidden; font-size:9.5px; line-height:1.35;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; word-break:break-all;}
+  .trow.pending .name{color:var(--fg3);}
+  .trow .alias-tag{font-size:8px; color:var(--amber); border:1px solid rgba(217,164,74,.35); border-radius:4px;
+    padding:0 4px; margin-left:6px; flex:none; align-self:center;}
+  /* 窗口快照缩略图 */
+  .shot{height:58px; border-radius:6px; background:#1B1F26; border:1px solid var(--line-soft); overflow:hidden; position:relative; flex:none;}
+  .shot .cap{position:absolute; left:0; right:0; top:0; height:8px; background:#2E3238; border-bottom:1px solid #26292E;}
+  .shot .ln{position:absolute; left:8px; height:4px; border-radius:2px; background:#3A3F46;}
+  .shot .ln.l1{top:15px; width:62%;}
+  .shot .ln.l2{top:23px; width:44%;}
+  .shot .ln.l3{top:31px; width:72%;}
+  .shot .ln.l4{top:39px; width:33%;}
+  .shot .ln.l5{top:47px; width:56%;}
+  .shot .tint{position:absolute; right:8px; bottom:7px; width:34px; height:22px; border-radius:4px; opacity:.9;}
+  .shot.void{display:flex; align-items:center; justify-content:center; color:var(--fg3); font-size:8.5px; gap:5px;}
+  .shot .fresh{position:absolute; right:4px; top:11px; width:16px; height:16px; border-radius:5px; background:rgba(16,18,22,.8);
+    border:1px solid #4C525B; color:var(--fg); font-size:9px; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .shot .fresh:hover{background:var(--teal-dim); border-color:transparent; color:#fff;}
+  .ops{display:flex; gap:5px; justify-content:flex-end; opacity:.55; transition:opacity .15s;}
+  .trow:hover .ops{opacity:1;}
+  .op{width:22px; height:22px; border-radius:5px; background:#41464E; border:1px solid var(--line);
+    color:var(--fg2); font-size:10px; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .op:hover{background:#4C525B; color:var(--fg);}
+  .op.sel-on{background:var(--blue); border-color:transparent; color:#fff;}
+  .op.del:hover{background:var(--red); color:#fff; border-color:transparent;}
+  /* 空状态 */
+  .empty{padding:22px 10px; text-align:center; color:var(--fg3); font-size:9.5px;}
+  .empty b{color:var(--fg2);}
+
+  /* 效果控制 */
+  .ctrl{padding:8px 10px 6px; display:flex; flex-direction:column; gap:2px;}
+  .c-row{display:flex; align-items:center; gap:8px; min-height:26px;}
+  .c-label{width:56px; flex:none; font-size:9.5px; color:var(--fg2);}
+  .c-label b{color:var(--fg); font-weight:600;}
+  .track{flex:1; position:relative; height:20px;}
+  .track .bar{position:absolute; top:9px; left:0; right:0; height:3px; border-radius:2px; background:#3A3F46;}
+  .track .bar .fill{position:absolute; left:0; top:0; bottom:0; border-radius:2px; background:var(--blue);}
+  .track .thumb{position:absolute; top:5px; width:13px; height:13px; border-radius:50%; background:#E8EAF0;
+    border:2px solid var(--blue); box-shadow:0 1px 4px rgba(0,0,0,.4);}
+  .c-val{width:34px; flex:none; text-align:right; font-size:10px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .c-val.off{color:var(--fg3); font-weight:400;}
+  .chk{display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;}
+  .chk .box{width:13px; height:13px; border-radius:3px; border:1px solid var(--line); background:#2A2D33;
+    position:relative; flex:none;}
+  .chk.on .box{background:var(--teal-dim); border-color:transparent;}
+  .chk.on .box::after{content:"✓"; position:absolute; inset:0; color:#fff; font-size:9px; line-height:13px; text-align:center;}
+  .chk span{font-size:9.5px; color:var(--fg2);}
+  .chk b{font-size:10px; color:var(--fg);}
+  .hint{font-size:8.5px; color:var(--fg3); padding:4px 10px 8px; border-top:1px dashed var(--line-soft); margin-top:2px;}
+
+  /* 系统选项 */
+  .sys{display:flex; gap:22px; padding:8px 12px; align-items:center;}
+
+  /* 操作栏 */
+  .actions{display:flex; gap:6px; align-items:center; padding:8px 12px 0;}
+  .btn{font-size:9.5px; padding:5px 12px; border-radius:6px; background:#3A3F46; border:1px solid var(--line);
+    color:var(--fg); cursor:pointer;}
+  .btn:hover{background:#454B54;}
+  .btn.primary{background:var(--teal-dim); border-color:transparent; color:#fff; font-weight:600;}
+  .btn.primary:hover{background:var(--teal);}
+  .btn.danger:hover{background:var(--red); color:#fff; border-color:transparent;}
+  .actions .spacer{flex:1;}
+  .foot{padding:7px 12px 2px; color:var(--fg3); font-size:8.5px; display:flex; align-items:center; gap:6px;}
+  .foot a{color:var(--fg3); text-decoration:none; border-bottom:1px dotted var(--line);}
+  .foot a:hover{color:var(--fg);}
+  /* 可拉伸把手 */
+  .grip{position:absolute; right:3px; bottom:3px; width:16px; height:16px; cursor:se-resize;
+    opacity:.5; background:linear-gradient(135deg, transparent 50%, #6B7280 50%, #6B7280 60%, transparent 60%),
+    linear-gradient(135deg, transparent 65%, #565B63 65%, #565B63 75%, transparent 75%);}
+  .grip:hover{opacity:1;}
+  /* 目标卡可拉伸指示：列表区底部细线提示可滚动/可拉伸 */
+  .list-more{font-size:8px; color:var(--fg3); text-align:center; padding:2px 0 4px; letter-spacing:.05em;}
+  .list-more b{color:var(--fg2);}
+
+  /* tooltip 演示 */
+  .tip{position:relative;}
+  .tip .tt{position:absolute; left:50%; transform:translateX(-50%) translateY(4px); top:calc(100% + 6px);
+    background:#101216; border:1px solid var(--line); border-radius:6px; padding:6px 9px; font-size:8.5px;
+    color:var(--fg2); width:190px; z-index:20; opacity:0; pointer-events:none; transition:opacity .12s;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  .tip:hover .tt{opacity:1;}
+  .tip .mark{color:var(--fg3); font-size:8.5px; border:1px solid var(--line); border-radius:50%;
+    width:12px; height:12px; display:inline-flex; align-items:center; justify-content:center; cursor:help; flex:none;}
+  .tip:hover .mark{color:var(--teal); border-color:var(--teal-dim);}
+
+  /* ── 规格面板（右侧）── */
+  .spec{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 18px 14px;}
+  .spec h3{font-size:12px; font-weight:700; margin-bottom:14px; letter-spacing:.03em;}
+  .spec h3 .n{color:var(--teal); margin-right:6px;}
+  .spec-item{display:flex; gap:12px; padding:9px 0; border-top:1px solid var(--line-soft);}
+  .spec-item:first-of-type{border-top:none;}
+  .spec-item .k{width:74px; flex:none; font-size:9.5px; color:var(--fg3); padding-top:1px;}
+  .spec-item .v{flex:1; font-size:10px; color:var(--fg);}
+  .spec-item .v small{display:block; color:var(--fg3); font-size:8.5px; margin-top:2px;}
+
+  /* 比例对比 */
+  .bars{display:flex; flex-direction:column; gap:10px; margin-top:6px;}
+  .bar-row{display:grid; grid-template-columns:120px 1fr 54px; align-items:center; gap:10px;}
+  .bar-row .bl{font-size:10px; color:var(--fg2); text-align:right;}
+  .bar-row .bw{position:relative; height:26px;}
+  .bar-row .bw .seg{position:absolute; top:0; bottom:0; display:flex; align-items:center; justify-content:center;
+    font-size:8.5px; color:#fff; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.4); overflow:hidden; white-space:nowrap;}
+  .bar-row .bv{font-size:10px; color:var(--fg3);}
+  .legend{display:flex; gap:16px; margin-top:14px; flex-wrap:wrap;}
+  .legend span{font-size:9.5px; color:var(--fg2); display:flex; align-items:center; gap:6px;}
+  .legend i{width:10px; height:10px; border-radius:3px; display:inline-block;}
+
+  /* 表格 */
+  table{width:100%; border-collapse:collapse; font-size:10px; margin-top:8px;}
+  th{font-size:9.5px; color:var(--fg3); text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);
+    font-weight:600; letter-spacing:.03em;}
+  td{padding:9px 10px; border-bottom:1px solid var(--line-soft); color:var(--fg2); vertical-align:top;}
+  td b{color:var(--fg); font-weight:600;}
+  td .code{font-family:Consolas,monospace; font-size:9px; color:var(--blue); background:#1B1F26;
+    padding:1px 6px; border-radius:4px; border:1px solid #2A2F38;}
+  tr:hover td{background:rgba(255,255,255,.015);}
+
+  .tag{display:inline-block; font-size:8px; padding:1px 7px; border-radius:8px; font-weight:600; margin-left:6px; vertical-align:1px;}
+  .tag.keep{color:var(--teal); background:rgba(62,207,142,.12); border:1px solid rgba(62,207,142,.3);}
+  .tag.move{color:var(--amber); background:rgba(217,164,74,.12); border:1px solid rgba(217,164,74,.3);}
+  .tag.text{color:var(--blue); background:rgba(74,144,217,.12); border:1px solid rgba(74,144,217,.3);}
+  .tag.new{color:#fff; background:var(--teal-dim);}
+
+  .note{background:#1B1F26; border:1px solid var(--line); border-left:3px solid var(--teal-dim);
+    border-radius:8px; padding:12px 14px; font-size:10px; color:var(--fg2); margin-top:14px;}
+  .note b{color:var(--fg);}
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <!-- ═══════════ 头部 ═══════════ -->
+  <header>
+    <div class="kicker">UI DESIGN · 细化稿 v1</div>
+    <h1>暗幕 WindowTinter <span>— 空间比例与说明文字优化</span></h1>
+    <p class="sub">基于<b>现有全部功能</b>（16 项）做空间与文字的再设计：<b>目标管理占主空间、效果控制紧凑对齐、系统设置弱化、说明文字分级收纳</b>——不新增功能、不改交互逻辑，只优化布局比例与信息组织。</p>
+    <div class="meta">
+      <span>面板宽度 <b>440 逻辑像素</b>（现状 434+padding）</span>
+      <span>目标 <b>任意 DPI 不拥挤 / 不遮挡 / 无空白</b></span>
+      <span>方案 <b>容器化布局（TableLayoutPanel）</b></span>
+      <span>日期 <b>2026-08-04</b></span>
+    </div>
+  </header>
+
+  <!-- ═══════════ 设计稿 ═══════════ -->
+  <section class="sec">
+    <h2><span class="n">01</span>高保真设计稿（交互演示：悬停行显示操作、悬停 ⓘ 看说明文字方案）</h2>
+    <p class="desc">左侧为细化后的完整面板；右侧为各分区的空间规格与设计决策。所有控件均为标准 WinForms 控件可实现（GroupBox / FlowLayoutPanel / TrackBar / CheckBox / ToolTip）。</p>
+
+    <div class="stage">
+      <!-- Mockup -->
+      <div class="win">
+        <div class="titlebar">
+          <span class="dot" style="background:#E5534B"></span>
+          <span class="dot" style="background:#D9A44A"></span>
+          <span class="dot" style="background:#3ECF8E"></span>
+          <span class="t">暗幕</span><span class="ver">v5.6.0</span>
+          <span class="tb-btn"></span><span class="tb-btn"></span>
+        </div>
+        <div class="body">
+
+          <!-- ① 状态条：状态 + 主开关合一 -->
+          <div class="statusbar">
+            <span class="sdot"></span>
+            <span class="st">监控中 · 2 个窗口<small>1 个待激活</small></span>
+            <span class="spacer"></span>
+            <span class="tip"><span class="mark">ⓘ</span>
+              <span class="tt">总开关：启用后对所有目标窗口生效压暗与垫黑效果；停用后所有窗口立即还原。</span></span>
+            <span class="switch"></span><span class="switch-lbl">启用</span>
+          </div>
+
+          <!-- ② 目标窗口卡 -->
+          <div class="card">
+            <div class="card-head">
+              <span class="t">目标窗口</span><span class="badge">2 监控</span><span class="badge gray">1 待激活</span>
+              <span class="spacer"></span>
+              <span class="mini-btn">⟳ 刷新快照</span>
+              <span class="mini-btn primary">+ 添加窗口</span>
+              <span class="mini-btn">↻ 重新查找</span>
+            </div>
+            <div class="list">
+              <div class="trow sel">
+                <div class="shot">
+                  <span class="cap"></span><span class="ln l1"></span><span class="ln l2"></span>
+                  <span class="ln l3"></span><span class="ln l4"></span><span class="ln l5"></span>
+                  <span class="tint" style="background:#4A90D9"></span><span class="fresh" title="刷新此窗口快照">⟳</span>
+                </div>
+                <div class="trow-top"><span class="state on"></span><span class="name">我的测试窗口<span class="alias-tag">别名</span></span></div>
+                <span class="ops">
+                  <span class="op sel-on" title="选中（非全局模式）">●</span>
+                  <span class="op" title="重命名">✎</span>
+                  <span class="op del" title="删除">×</span>
+                </span>
+              </div>
+              <div class="trow">
+                <div class="shot">
+                  <span class="cap"></span><span class="ln l1"></span><span class="ln l2"></span>
+                  <span class="ln l3"></span><span class="ln l4"></span><span class="ln l5"></span>
+                  <span class="tint" style="background:#1D9E75"></span><span class="fresh" title="刷新此窗口快照">⟳</span>
+                </div>
+                <div class="trow-top"><span class="state on"></span><span class="name">Chrome - 哔哩哔哩</span></div>
+                <span class="ops">
+                  <span class="op" title="选中">○</span>
+                  <span class="op" title="重命名">✎</span>
+                  <span class="op del" title="删除">×</span>
+                </span>
+              </div>
+              <div class="trow">
+                <div class="shot">
+                  <span class="cap"></span><span class="ln l1"></span><span class="ln l2"></span>
+                  <span class="ln l3"></span><span class="ln l4"></span><span class="ln l5"></span>
+                  <span class="tint" style="background:#D9A44A"></span><span class="fresh" title="刷新此窗口快照">⟳</span>
+                </div>
+                <div class="trow-top"><span class="state on"></span><span class="name">无标题 - 记事本</span></div>
+                <span class="ops">
+                  <span class="op" title="选中">○</span>
+                  <span class="op" title="重命名">✎</span>
+                  <span class="op del" title="删除">×</span>
+                </span>
+              </div>
+              <div class="trow">
+                <div class="shot">
+                  <span class="cap"></span><span class="ln l1"></span><span class="ln l2"></span>
+                  <span class="ln l3"></span><span class="ln l4"></span><span class="ln l5"></span>
+                  <span class="tint" style="background:#E5534B"></span><span class="fresh" title="刷新此窗口快照">⟳</span>
+                </div>
+                <div class="trow-top"><span class="state on"></span><span class="name">Visual Studio Code</span></div>
+                <span class="ops">
+                  <span class="op" title="选中">○</span>
+                  <span class="op" title="重命名">✎</span>
+                  <span class="op del" title="删除">×</span>
+                </span>
+              </div>
+              <div class="trow">
+                <div class="shot">
+                  <span class="cap"></span><span class="ln l1"></span><span class="ln l2"></span>
+                  <span class="ln l3"></span><span class="ln l4"></span><span class="ln l5"></span>
+                  <span class="tint" style="background:#7F77DD"></span><span class="fresh" title="刷新此窗口快照">⟳</span>
+                </div>
+                <div class="trow-top"><span class="state on"></span><span class="name">微信</span></div>
+                <span class="ops">
+                  <span class="op" title="选中">○</span>
+                  <span class="op" title="重命名">✎</span>
+                  <span class="op del" title="删除">×</span>
+                </span>
+              </div>
+              <div class="trow pending">
+                <div class="shot void">⏳ 窗口未启动</div>
+                <div class="trow-top"><span class="state pen"></span><span class="name">待激活 — 目标B</span></div>
+                <span class="ops">
+                  <span class="op">○</span>
+                  <span class="op">✎</span>
+                  <span class="op del">×</span>
+                </span>
+              </div>
+            </div>
+            <div class="list-more">▼ 更多目标 · 窗口拉高后卡片自动增行</div>
+          </div>
+
+          <!-- ③ 效果控制卡 -->
+          <div class="card">
+            <div class="card-head"><span class="t">效果控制</span></div>
+            <div class="ctrl">
+              <div class="c-row">
+                <span class="tip" style="margin-left:2px;"><span class="mark">ⓘ</span>
+                  <span class="tt">垫黑底：在目标窗口正下方垫不透明纯黑，配合半透明形成「压暗」效果。关闭后目标只变半透明、透出后面内容。</span></span>
+                <span class="chk on"><span class="box"></span><b>垫黑底</b></span>
+                <span class="spacer" style="flex:1"></span>
+                <span class="tip"><span class="mark">ⓘ</span>
+                  <span class="tt">全局统一：所有窗口共用同一压暗强度。关闭后可在目标列表点 ○ 选中窗口单独配置（滑块自动切到该窗口的值）。</span></span>
+                <span class="chk on"><span class="box"></span><span>全局统一压暗</span></span>
+              </div>
+              <div class="c-row">
+                <span class="c-label"><b>压暗强度</b></span>
+                <div class="track">
+                  <div class="bar"><div class="fill" style="width:50%"></div></div>
+                  <div class="thumb" style="left:calc(50% - 7px)"></div>
+                </div>
+                <span class="c-val">50%</span>
+              </div>
+              <div class="c-row" style="margin-top:4px;">
+                <span class="spacer" style="width:10px; flex:none"></span>
+                <span class="tip"><span class="mark">ⓘ</span>
+                  <span class="tt">圆角半径：黑底四角的圆润程度。0 = 直角。仅当启用「垫黑底」时可见。</span></span>
+                <span class="chk on"><span class="box"></span><span>全局统一圆角</span></span>
+              </div>
+              <div class="c-row">
+                <span class="c-label"><b>圆角半径</b></span>
+                <div class="track">
+                  <div class="bar"><div class="fill" style="width:75%"></div></div>
+                  <div class="thumb" style="left:calc(75% - 7px)"></div>
+                </div>
+                <span class="c-val">15px</span>
+              </div>
+            </div>
+            <div class="hint">关闭「全局统一」后，在目标列表点 ○ 选中窗口，即可单独调整该窗口。</div>
+          </div>
+
+          <!-- ④ 系统选项 -->
+          <div class="card">
+            <div class="sys">
+              <span class="chk on"><span class="box"></span><span>开机自启</span></span>
+              <span class="chk"><span class="box"></span><span>关闭时最小化到托盘</span></span>
+              <span class="spacer" style="flex:1"></span>
+              <span class="tip"><span class="mark">ⓘ</span>
+                <span class="tt">勾选后点关闭按钮会最小化到托盘常驻；不勾选则直接退出程序。开机自启写入注册表 Run 项。</span></span>
+            </div>
+          </div>
+
+          <!-- ⑤ 操作栏 + 页脚 -->
+          <div class="actions">
+            <span class="btn">📂 配置文件夹</span>
+            <span class="btn">ℹ 关于</span>
+            <span class="spacer"></span>
+            <span class="btn primary">💾 保存配置</span>
+            <span class="btn danger">退出</span>
+          </div>
+          <div class="foot">
+            <span>20260720 · 世界的风吹向你 · 开源软件</span>
+            <a href="#">GitHub →</a>
+          </div>
+
+          <div class="grip" title="可拉伸窗口"></div>
+
+        </div>
+      </div>
+
+      <!-- 规格面板 -->
+      <div class="spec">
+        <h3><span class="n">▸</span>分区规格（自上而下）</h3>
+
+        <div class="spec-item"><div class="k">① 状态条</div><div class="v">44px 高 · 状态文字 + 主开关合一
+          <small>原「状态组(50px)」+「启用覆盖」复选框 合并为一行。状态点绿=监控 / 灰=暂停。主开关即原「启用覆盖」。</small></div></div>
+
+        <div class="spec-item"><div class="k">② 目标窗口</div><div class="v">绝对主角 · 扑克牌卡片网格（3 列）· 窗口快照 · 可拉伸
+          <small>每卡 = <b>窗口快照缩略图</b>（右上角<b>常驻 ⟳ 单张刷新</b>按钮）+ 状态灯 + 名称（两行省略）+ 底部操作 ○✎×。快照机制：<b>PrintWindow 抓图</b>（UWP/特殊窗口兜底 <b>DWM 缩略图</b> API），3 秒自动刷新 + 目标移动/绑定瞬间即时刷新 + 卡头「⟳ 刷新快照」全量手动刷新。待激活窗口显示「⏳ 窗口未启动」占位。</small></div></div>
+
+        <div class="spec-item"><div class="k">③ 效果控制</div><div class="v">两滑块 + 三开关，行高 24px 紧凑对齐
+          <small>「垫黑底」开关从顶部独立复选框移入本卡（垫黑属于效果范畴）。说明文字全部收进 ⓘ 悬停提示，卡内只留一行底部提示。行高压缩 2px，把空间让给目标列表。</small></div></div>
+
+        <div class="spec-item"><div class="k">④ 系统选项</div><div class="v">一行横排 · 视觉弱化
+          <small>原两行复选框压缩为一行（省 24px），次要信息用最小字号。</small></div></div>
+
+        <div class="spec-item"><div class="k">⑤ 操作栏</div><div class="v">40px · 次要靠左、主操作靠右
+          <small>保存（高频）放大为强调按钮靠右；配置/关于弱化靠左；退出保留。页脚链接独立一行。</small></div></div>
+
+        <div class="spec-item"><div class="k">总高度</div><div class="v">默认 640px · 可拉伸（MinimumSize 440×640）
+          <small>高度比现状 700px 略降，但目标列表从「固定 6 行」升级为「默认 6~7 行 + 随窗口无限增行」——添加再多窗口都放得下。所有容器 AutoSize，任意 DPI 内容完整、无空白。</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 空间比例 ═══════════ -->
+  <section class="sec">
+    <h2><span class="n">02</span>空间比例：现状 vs 优化（按 440px 面板折算）</h2>
+    <p class="desc">核心调整：把「目标窗口」从次要位置提升为绝对主角，以<b>扑克牌式卡片网格（3 列圆角方块依次排开）</b>呈现，窗口可拉伸、卡片随高度自动增行；把散落的开关与说明收拢进所属卡片；压缩系统设置与页脚。总高度 700 → 640px（最小，可拉大）。</p>
+    <div class="bars">
+      <div class="bar-row">
+        <div class="bl">现状（约700px）</div>
+        <div class="bw">
+          <div class="seg" style="left:0; width:7%; background:#4A90D9">状态</div>
+          <div class="seg" style="left:7%; width:4%; background:#8A6FC0">开关</div>
+          <div class="seg" style="left:11%; width:37%; background:#3ECF8E">目标窗口 260px · 固定6行</div>
+          <div class="seg" style="left:48%; width:5%; background:#D9A44A">按钮</div>
+          <div class="seg" style="left:53%; width:25%; background:#E5534B">效果控制 176px</div>
+          <div class="seg" style="left:78%; width:22%; background:#6B7280">系统/底部</div>
+        </div>
+        <div class="bv">700px</div>
+      </div>
+      <div class="bar-row">
+        <div class="bl">优化（640px+）</div>
+        <div class="bw">
+          <div class="seg" style="left:0; width:7%; background:#4A90D9">状态条</div>
+          <div class="seg" style="left:7%; width:46%; background:#3ECF8E">目标窗口 · 卡片网格 3列</div>
+          <div class="seg" style="left:53%; width:26%; background:#E5534B">效果控制 168px</div>
+          <div class="seg" style="left:79%; width:21%; background:#6B7280">系统/底部</div>
+        </div>
+        <div class="bv">640px+</div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:#3ECF8E"></i>目标管理（主角）</span>
+      <span><i style="background:#E5534B"></i>效果控制（次主角）</span>
+      <span><i style="background:#4A90D9"></i>状态</span>
+      <span><i style="background:#6B7280"></i>系统/操作/页脚（弱化）</span>
+    </div>
+  </section>
+
+  <!-- ═══════════ 说明文字组织 ═══════════ -->
+  <section class="sec">
+    <h2><span class="n">03</span>说明文字组织：4 处散落 → 三级收纳</h2>
+    <p class="desc">现状说明文字全部平铺在控件旁，挤占空间且层级混乱。优化后按「即时可见 → 悬停可知 → 底部兜底」三级收纳：</p>
+    <table>
+      <tr><th style="width:180px">现状文案</th><th style="width:120px">问题</th><th>优化方案</th></tr>
+      <tr>
+        <td><b>启用覆盖</b></td><td>含义不清</td>
+        <td>改为状态条主开关「<b>启用</b>」，悬停 ⓘ 解释「总开关：启用后对所有目标窗口生效」。</td>
+      </tr>
+      <tr>
+        <td><b>下方垫黑色（下层遮罩）</b></td><td>括号解释生硬</td>
+        <td>精简为「<b>垫黑底</b>」移入效果卡顶部；完整解释进 ⓘ：「在目标正下方垫不透明纯黑，配合半透明形成压暗」。</td>
+      </tr>
+      <tr>
+        <td><b>全局统一透明度（关闭后每个窗口单独配置）</b></td><td>复选框文字过长</td>
+        <td>精简为「<b>全局统一压暗</b>」；「关闭后可逐窗口配置」进 ⓘ 悬停。</td>
+      </tr>
+      <tr>
+        <td><b>关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置</b></td><td>底部提示，易被忽略且与上一行重复</td>
+        <td>保留一行但精简：「<b>关闭「全局统一」后，点 ○ 选中窗口单独调整</b>」，作为卡片底部固定提示（弱化色、虚线分隔）。</td>
+      </tr>
+      <tr>
+        <td><b>关闭窗口时最小化到托盘（不勾选则直接退出）</b></td><td>括号解释过长</td>
+        <td>精简为「<b>关闭时最小化到托盘</b>」，解释进 ⓘ。</td>
+      </tr>
+      <tr>
+        <td><i>（无）</i> <span class="tag new">新增</span></td><td>空状态无引导</td>
+        <td>目标列表为空时居中显示：「<b>点击「+ 添加窗口」拾取要压暗的窗口</b>」——带教育意义的空状态，首次使用不迷路。</td>
+      </tr>
+      <tr>
+        <td><b>关于对话框（MessageBox）</b></td><td>信息一次性、不常看</td>
+        <td>保持「ℹ 关于」按钮；配置路径等说明移入页脚 GitHub 链接与关于框（不动）。</td>
+      </tr>
+    </table>
+    <div class="note"><b>实现说明：</b>所有 ⓘ 提示用 WinForms 标准 <b>ToolTip</b> 组件实现（悬停气泡），零自定义绘制成本；「垫黑底」开关移动 = 现有 `_chkBackdropPlate` 的父容器从 Form 改为 GroupBox，逻辑零改动；空状态 = `RebuildTargetList` 在 `Targets.Count==0` 时渲染引导 Label。</div>
+  </section>
+
+  <!-- ═══════════ 控件映射 ═══════════ -->
+  <section class="sec">
+    <h2><span class="n">04</span>设计元素 → 现有代码映射（功能零新增、零删除）</h2>
+    <p class="desc">每个设计元素都对应现有代码成员，实施时只调整位置/容器/文案，不动任何逻辑。</p>
+    <table>
+      <tr><th style="width:150px">设计元素</th><th style="width:200px">对应代码</th><th>本次改动</th></tr>
+      <tr><td>状态条 + 主开关</td><td><span class="code">_lblStatus</span> / <span class="code">_chkEnabled</span></td><td>合并入一行容器（原分处状态组与窗体）<span class="tag move">移位</span></td></tr>
+      <tr><td>垫黑底开关</td><td><span class="code">_chkBackdropPlate</span></td><td>父容器 Form → 效果控制 GroupBox；文案精简<span class="tag move">移位</span></td></tr>
+      <tr><td>目标卡头（计数+工具）</td><td><span class="code">_pnlTargets</span> / <span class="code">_btnRefind</span> / PickWindow</td><td>「+ 添加 / 重新查找」并入卡头行；新增计数徽标（读 Targets/Entries）<span class="tag move">移位</span></td></tr>
+      <tr><td>目标行（状态点+名称+操作）</td><td><span class="code">CreateTargetPanel</span></td><td>行高 36px、名称前加状态点、按钮 hover 显隐；○/✎/× 三按钮保留<span class="tag keep">保留</span></td></tr>
+      <tr><td>空状态引导</td><td><span class="code">RebuildTargetList</span></td><td>Targets 为空时渲染居中引导文字<span class="tag new">新增</span></td></tr>
+      <tr><td>压暗/圆角滑块</td><td><span class="code">_tbBgAlpha</span> / <span class="code">_tbCornerRadius</span> (JumpTrackBar)</td><td>行高 26px、数值列等宽右对齐；逻辑不动<span class="tag keep">保留</span></td></tr>
+      <tr><td>全局统一开关 ×2</td><td><span class="code">_chkGlobalTransparency</span> / <span class="code">_chkGlobalCornerRadius</span></td><td>文案精简 + ToolTip 收纳说明<span class="tag text">文案</span></td></tr>
+      <tr><td>系统选项</td><td><span class="code">_chkStartup</span> / <span class="code">_chkMinimizeTray</span></td><td>两行 → 一行横排<span class="tag move">移位</span></td></tr>
+      <tr><td>操作栏 / 页脚</td><td>OpenConfigFolder / ShowAbout / SaveSettings / Quit / LinkLabel</td><td>保存放大强调、退出 hover 红色、其余弱化靠左<span class="tag text">文案</span></td></tr>
+      <tr><td>窗口快照 + 手动刷新</td><td>新增 <span class="code">SnapshotService</span>（PrintWindow / DwmRegisterThumbnail）</td><td>卡头「⟳ 刷新快照」全量刷新；<b>每卡缩略图右上角常驻 ⟳ 单张刷新</b>；3s 定时自动刷新 + 移动/绑定即时刷新；待激活显示占位<span class="tag new">新增</span></td></tr>
+    </table>
+  </section>
+
+  <div class="note" style="margin-top:34px;"><b>下一步建议：</b>确认本稿后，按此布局实施「容器化重构」（根 TableLayoutPanel + 各分区容器，<b>窗口 MinimumSize 440×640 可拉伸，目标列表区 Dock=Fill 自动增行</b>），一次解决：① 空间比例 ② 说明文字收纳 ③ 任意 DPI 不拥挤/不遮挡/无空白（容器自动重排，删掉 v7/v8 的手动缩放）。若某分区想再调整（如目标列表高度、效果卡排列顺序），指出编号即可单独改。</div>
+
+</div>
+</body>
+</html>

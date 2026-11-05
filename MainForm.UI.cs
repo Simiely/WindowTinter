@@ -16,147 +16,343 @@ namespace WindowTinter
 
         private void BuildUI()
         {
-            int y = 10, pad = 10;
-            const int GW = 434; // group box width
+            SuspendLayout();
+            _tip = new ToolTip();
 
-            AddGroup("状态", pad, ref y, 50, GW, gb =>
+            // 根容器：单列 6 行（目标卡 Percent 占满剩余空间 → 窗口拉高/DPI 变化自动增行）
+            var root = new TableLayoutPanel
             {
-                _lblStatus = AddLabel(gb, pad, 20, FontStyle.Bold, 10f);
-            });
-
-            _chkEnabled = AddCheck(this, "启用覆盖", pad + 4, y + 2, FontStyle.Bold, _settings.Enabled, ToggleEnabled);
-            _chkBackdropPlate = AddCheck(this, "下方垫黑色（下层遮罩）", 140, y + 2, FontStyle.Regular,
-                _settings.BackdropBlackPlate, () => { _settings.BackdropBlackPlate = _chkBackdropPlate.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
-            y += 28;
-
-            AddGroup("目标窗口", pad, ref y, 260, GW, gb =>
-            {
-                _pnlTargets = new FlowLayoutPanel
-                {
-                    Location = new Point(pad, 18), Size = new Size(416, 210),
-                    AutoScroll = true, FlowDirection = FlowDirection.TopDown, WrapContents = false,
-                    BackColor = Color.FromArgb(32, 32, 32), ForeColor = Color.White
-                };
-                _pnlTargets.HandleCreated += (_, _) =>
-                    Native.SetWindowTheme(_pnlTargets.Handle, "DarkMode_Explorer", null);
-                gb.Controls.Add(_pnlTargets);
-            });
-
-            AddButton(this, "+ 添加窗口", pad, y + 2, 95, PickWindow);
-            _btnRefind = AddButton(this, "🔄 重新查找", 110, y + 2, 95, RefindAllWindows);
-            y += 38;
-
-            AddGroup("窗口控制", pad, ref y, 176, GW, gb =>
-            {
-                _chkGlobalTransparency = AddCheck(gb, "全局统一透明度（关闭后每个窗口单独配置）", pad, 22, FontStyle.Bold,
-                    _settings.GlobalTransparency, ToggleGlobalTransparency);
-
-                gb.Controls.Add(new Label { Text = "窗口透明度:", Location = new Point(pad, 54), AutoSize = true });
-                _tbBgAlpha = new JumpTrackBar
-                {
-                    Location = new Point(90, 52), Size = new Size(260, 24),
-                    Minimum = 0, Maximum = 100, TickFrequency = 10,
-                    SmallChange = 5, LargeChange = 20,
-                    Value = _settings.BackgroundAlpha
-                };
-                _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
-                gb.Controls.Add(_tbBgAlpha);
-                _lblBgAlpha = new Label { Location = new Point(356, 54), AutoSize = true };
-                gb.Controls.Add(_lblBgAlpha);
-
-                _chkGlobalCornerRadius = AddCheck(gb, "全局统一圆角（关闭后每个窗口单独配置）", pad, 86, FontStyle.Bold,
-                    _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
-
-                gb.Controls.Add(new Label { Text = "圆角半径:", Location = new Point(pad, 118), AutoSize = true });
-                _tbCornerRadius = new JumpTrackBar
-                {
-                    Location = new Point(90, 116), Size = new Size(260, 24),
-                    Minimum = 0, Maximum = 20, TickFrequency = 5,
-                    SmallChange = 1, LargeChange = 5,
-                    Value = _settings.CornerRadius
-                };
-                _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
-                gb.Controls.Add(_tbCornerRadius);
-                _lblCornerRadius = new Label { Location = new Point(356, 118), AutoSize = true,
-                    Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px" };
-                gb.Controls.Add(_lblCornerRadius);
-
-                gb.Controls.Add(new Label
-                {
-                    Text = "关闭任一全局开关后，在列表中点击 ○ 选中窗口单独配置",
-                    Location = new Point(pad, 152), AutoSize = true,
-                    ForeColor = Color.FromArgb(150, 150, 160),
-                    Font = new Font("Microsoft YaHei UI", 8.5f)
-                });
-            });
-
-            // 系统选项
-            int rowY = y + 2;
-            _chkStartup = AddCheck(this, "开机自启", pad + 4, rowY, FontStyle.Regular, _settings.StartWithWindows,
-                () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); });
-            _chkMinimizeTray = AddCheck(this, "关闭窗口时最小化到托盘（不勾选则直接退出）", pad + 4, rowY + 24, FontStyle.Regular,
-                _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); });
-            rowY += 52;
-
-            AddButton(this, "📂 配置文件夹", pad, rowY, 120, OpenConfigFolder);
-            AddButton(this, "ℹ 关于", 134, rowY, 70, ShowAbout);
-            AddButton(this, "💾 保存配置", 210, rowY, 110, SaveSettings);
-            AddButton(this, "🚪 退出", 326, rowY, 70, () => { _reallyQuit = true; Close(); });
-
-            var link = new LinkLabel
-            {
-                Text = "20260720 / 世界的风吹向你 / 开源软件",
-                Location = new Point(pad, rowY + 38),
-                AutoSize = true,
-                LinkColor = Color.FromArgb(160, 160, 170),
-                ActiveLinkColor = Color.FromArgb(200, 200, 220)
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 6,
+                Padding = new Padding(10),
+                BackColor = Color.FromArgb(30, 30, 30)
             };
-            link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://github.com/Simiely/WindowTinter") { UseShellExecute = true });
-            Controls.Add(link);
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // 0 状态条
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 1 目标卡（占剩余）
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 196));  // 2 效果卡
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));   // 3 系统卡
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // 4 操作栏
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));   // 5 页脚
 
-            // 恢复已有条目（活跃 + 待激活）
-            for (int i = 0; i < _entries.Count; i++)
-                AddTargetUI(_entries[i]);
-            foreach (var t in _settings.Targets)
-                if (!_entries.Any(e => e.Info == t))
-                    AddPendingUI(t);
+            root.Controls.Add(BuildStatusBar(), 0, 0);
+            root.Controls.Add(BuildTargetCard(), 0, 1);
+            root.Controls.Add(BuildEffectCard(), 0, 2);
+            root.Controls.Add(BuildSystemCard(), 0, 3);
+            root.Controls.Add(BuildActionBar(), 0, 4);
+            root.Controls.Add(BuildFooter(), 0, 5);
+
+            Controls.Add(root);
+            ResumeLayout(true);
+
+            // 按当前状态统一重建目标列表（活跃 + 待激活）
+            RebuildTargetList();
 
             ApplyDarkTheme();
         }
 
-        // ── 控件辅助方法 ──────────────────────────────────────────
+        // ── 分区卡片容器 ──────────────────────────────────────────
 
-        private void AddGroup(string text, int x, ref int y, int h, int w, Action<GroupBox> build)
+        /// <summary>卡片工厂：深色圆角卡片（Region 圆角 8px + 卡头 26px + 内容区）。</summary>
+        private static Panel CreateCard(Control content, string title = null)
         {
-            var gb = new GroupBox { Text = text, Location = new Point(x, y), Size = new Size(w, h) };
-            // WinForms GroupBox 内部区域由系统主题绘制，BackColor 无效，需自绘填充
-            var groupBg = Color.FromArgb(40, 40, 40);
-            gb.Paint += (_, e) =>
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(38, 38, 38) };
+            MakeRoundedCard(card, 8);
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, BackColor = card.BackColor, Margin = Padding.Empty };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            if (title != null)
             {
-                using var brush = new SolidBrush(groupBg);
-                // 用 Font.Height 动态计算标题高度，避免高 DPI 下填充错位
-                int headerH = gb.Font.Height + 3;
-                e.Graphics.FillRectangle(brush, 3, headerH, w - 6, h - headerH - 3);
+                layout.RowCount = 2;
+                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var header = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(44, 44, 44), Margin = Padding.Empty };
+                header.Controls.Add(new Label
+                {
+                    Text = "  " + title, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                    Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(224, 224, 224)
+                });
+                layout.Controls.Add(header, 0, 0);
+                layout.Controls.Add(content, 0, 1);
+            }
+            else
+            {
+                layout.RowCount = 1;
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                layout.Controls.Add(content, 0, 0);
+            }
+            card.Controls.Add(layout);
+            return card;
+        }
+
+        /// <summary>给面板设置圆角 Region，并在尺寸变化/句柄创建后重建（可拉伸窗口下圆角保持）。</summary>
+        private static void MakeRoundedCard(Panel card, int radius)
+        {
+            void Apply()
+            {
+                if (!card.IsHandleCreated || card.Width < 20 || card.Height < 20) return;
+                using var path = UiRounded.Rect(new Rectangle(0, 0, card.Width, card.Height), radius);
+                card.Region = new Region(path);
+            }
+            card.Resize += (_, _) => Apply();
+            card.HandleCreated += (_, _) => Apply();
+            if (card.IsHandleCreated) Apply();
+        }
+
+        /// <summary>① 状态条：状态点 + 状态文字 + ⓘ 提示 + teal 启用开关。</summary>
+        private Control BuildStatusBar()
+        {
+            var row = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
+                BackColor = Color.FromArgb(38, 38, 38), Padding = new Padding(14, 0, 14, 0)
             };
-            build(gb);
-            Controls.Add(gb);
-            y += h + 6;
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 26));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
+
+            var dot = new Label
+            {
+                Text = "●", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 11f), ForeColor = Color.FromArgb(62, 207, 142)
+            };
+            row.Controls.Add(dot, 0, 0);
+
+            _lblStatus = new Label
+            {
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Microsoft YaHei UI", 10f, FontStyle.Bold), ForeColor = Color.FromArgb(232, 234, 240)
+            };
+            row.Controls.Add(_lblStatus, 1, 0);
+
+            var tipBtn = new RoundedButton { Text = "ⓘ", Radius = 9, Margin = new Padding(0, 11, 0, 11), TabStop = false };
+            _tip.SetToolTip(tipBtn, "总开关：启用后对所有目标窗口生效压暗与垫黑效果；停用后全部窗口立即还原。");
+            row.Controls.Add(tipBtn, 2, 0);
+
+            _chkEnabled = new SwitchToggle { Text = "启用", Dock = DockStyle.Right, Margin = Padding.Empty };
+            _chkEnabled.CheckedChanged += (_, _) => ToggleEnabled();
+            row.Controls.Add(_chkEnabled, 3, 0);
+
+            return CreateCard(row);
         }
 
-        private static Label AddLabel(Control parent, int x, int y, FontStyle style, float size = 9f)
+        /// <summary>② 目标窗口卡：卡头（标题+徽标+刷新快照+添加+重新查找）+ 3 列卡片网格 + 增行提示。</summary>
+        private Control BuildTargetCard()
         {
-            var lbl = new Label { Location = new Point(x, y), AutoSize = true, Font = new Font("Microsoft YaHei UI", size, style) };
-            parent.Controls.Add(lbl);
-            return lbl;
+            var header = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(44, 44, 44), Height = 26 };
+            var hLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1, BackColor = header.BackColor, Margin = Padding.Empty };
+            hLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            hLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            hLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84));
+            hLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
+            hLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 92));
+            hLayout.Controls.Add(new Label
+            {
+                Text = " 目标窗口", AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Microsoft YaHei UI", 9.5f, FontStyle.Bold), ForeColor = Color.FromArgb(224, 224, 224)
+            }, 0, 0);
+            _lblTargetBadge = new Label
+            {
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Microsoft YaHei UI", 8f), ForeColor = Color.FromArgb(62, 207, 142)
+            };
+            hLayout.Controls.Add(_lblTargetBadge, 1, 0);
+
+            var btnRefresh = new RoundedButton { Text = "⟳ 刷新快照", Dock = DockStyle.Fill, Margin = new Padding(2, 3, 4, 3) };
+            btnRefresh.Click += (_, _) => RefreshAllSnapshots();
+            hLayout.Controls.Add(btnRefresh, 2, 0);
+            var btnAdd = new RoundedButton { Text = "+ 添加窗口", IsPrimary = true, Dock = DockStyle.Fill, Margin = new Padding(0, 3, 4, 3) };
+            btnAdd.Click += (_, _) => PickWindow();
+            hLayout.Controls.Add(btnAdd, 3, 0);
+            _btnRefind = new RoundedButton { Text = "↻ 重新查找", Dock = DockStyle.Fill, Margin = new Padding(0, 3, 0, 3) };
+            _btnRefind.Click += (_, _) => RefindAllWindows();
+            hLayout.Controls.Add(_btnRefind, 4, 0);
+            header.Controls.Add(hLayout);
+
+            _pnlTargets = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = true,
+                AutoScroll = true, BackColor = Color.FromArgb(32, 32, 32), Margin = Padding.Empty,
+                Padding = new Padding(6)
+            };
+            _pnlTargets.HandleCreated += (_, _) =>
+                Native.SetWindowTheme(_pnlTargets.Handle, "DarkMode_Explorer", null);
+
+            var more = new Label
+            {
+                Text = "▼ 更多目标 · 窗口拉高后卡片自动增行", Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Microsoft YaHei UI", 8f), ForeColor = Color.FromArgb(100, 104, 112),
+                BackColor = Color.FromArgb(32, 32, 32), Height = 16
+            };
+
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(38, 38, 38) };
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = card.BackColor, Margin = Padding.Empty };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 16));
+            layout.Controls.Add(header, 0, 0);
+            layout.Controls.Add(_pnlTargets, 0, 1);
+            layout.Controls.Add(more, 0, 2);
+            card.Controls.Add(layout);
+            return card;
         }
 
-        private static Button AddButton(Control parent, string text, int x, int y, int w, Action onClick)
+        /// <summary>③ 效果控制卡：垫黑底+全局压暗 / 压暗滑块 / 全局圆角 / 圆角滑块 / 提示（容器对齐）。</summary>
+        private Control BuildEffectCard()
         {
-            var btn = new Button { Text = text, Location = new Point(x, y), Size = new Size(w, 30) };
-            btn.Click += (_, _) => onClick();
-            parent.Controls.Add(btn);
-            return btn;
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5,
+                BackColor = Color.FromArgb(40, 40, 40), Padding = new Padding(10, 4, 10, 4)
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));   // 0 垫黑底 + 全局压暗
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // 1 压暗滑块
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));   // 2 全局圆角
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // 3 圆角滑块
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 4 提示
+
+            // Row0：垫黑底（左）+ 全局统一压暗（右）
+            var r0 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = layout.BackColor, Margin = Padding.Empty };
+            r0.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            r0.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            r0.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            _chkBackdropPlate = AddCheck(r0, "垫黑底", 0, 0, FontStyle.Regular,
+                _settings.BackdropBlackPlate, () => { _settings.BackdropBlackPlate = _chkBackdropPlate.Checked; _settings.Save(); foreach (var e in _entries) e.Tracker.RefreshForeground(); });
+            _tip.SetToolTip(_chkBackdropPlate, "在目标窗口正下方垫不透明纯黑，配合半透明形成压暗效果。关闭后目标只变半透明、透出后面内容。");
+            r0.Controls.Add(_chkBackdropPlate, 0, 0);
+            r0.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = r0.BackColor }, 1, 0);
+            _chkGlobalTransparency = AddCheck(r0, "全局统一压暗", 0, 0, FontStyle.Bold,
+                _settings.GlobalTransparency, ToggleGlobalTransparency);
+            _tip.SetToolTip(_chkGlobalTransparency, "所有窗口共用同一压暗强度。关闭后可在目标列表点 ○ 选中窗口单独配置。");
+            r0.Controls.Add(_chkGlobalTransparency, 2, 0);
+            layout.Controls.Add(r0, 0, 0);
+
+            // Row1：压暗滑块
+            _tbBgAlpha = new JumpTrackBar { Minimum = 0, Maximum = 100, TickFrequency = 10, SmallChange = 5, LargeChange = 20, Value = _settings.BackgroundAlpha };
+            _tbBgAlpha.ValueChanged += (_, _) => SetBgAlpha(_tbBgAlpha.Value);
+            _lblBgAlpha = new Label { Text = $"{_settings.BackgroundAlpha}%", AutoSize = false };
+            layout.Controls.Add(BuildSliderRow("压暗强度", _tbBgAlpha, _lblBgAlpha), 0, 1);
+
+            // Row2：全局统一圆角
+            var r2 = new Panel { Dock = DockStyle.Fill, BackColor = layout.BackColor, Height = 28, Margin = Padding.Empty };
+            _chkGlobalCornerRadius = AddCheck(r2, "全局统一圆角", 0, 2, FontStyle.Bold,
+                _settings.GlobalCornerRadius, ToggleGlobalCornerRadius);
+            _tip.SetToolTip(_chkGlobalCornerRadius, "所有窗口共用同一圆角。关闭后可在目标列表点 ○ 选中窗口单独配置。");
+            layout.Controls.Add(r2, 0, 2);
+
+            // Row3：圆角滑块
+            _tbCornerRadius = new JumpTrackBar { Minimum = 0, Maximum = 20, TickFrequency = 5, SmallChange = 1, LargeChange = 5, Value = _settings.CornerRadius };
+            _tbCornerRadius.ValueChanged += (_, _) => SetCornerRadius(_tbCornerRadius.Value);
+            _lblCornerRadius = new Label { Text = _settings.CornerRadius == 0 ? "关" : $"{_settings.CornerRadius}px", AutoSize = false };
+            layout.Controls.Add(BuildSliderRow("圆角半径", _tbCornerRadius, _lblCornerRadius), 0, 3);
+
+            // Row4：提示
+            layout.Controls.Add(new Label
+            {
+                Text = "关闭「全局统一」后，点 ○ 选中窗口单独调整",
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = Color.FromArgb(150, 150, 160),
+                Font = new Font("Microsoft YaHei UI", 8.5f)
+            }, 0, 4);
+
+            return CreateCard(layout, "效果控制");
         }
+
+        /// <summary>滑块行：标签(固定宽) | 滑块(Fill) | 数值(固定宽)——任意宽度不溢出。</summary>
+        private static TableLayoutPanel BuildSliderRow(string label, TrackBar tb, Label lblValue)
+        {
+            var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Color.FromArgb(40, 40, 40), Margin = Padding.Empty };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42));
+            row.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, AutoSize = false }, 0, 0);
+            tb.Dock = DockStyle.Fill; tb.Margin = new Padding(0, 3, 0, 3);
+            row.Controls.Add(tb, 1, 0);
+            lblValue.Dock = DockStyle.Fill; lblValue.TextAlign = ContentAlignment.MiddleRight;
+            row.Controls.Add(lblValue, 2, 0);
+            return row;
+        }
+
+        /// <summary>④ 系统选项卡：开机自启 + 关闭时最小化到托盘（一行）+ ⓘ。</summary>
+        private Control BuildSystemCard()
+        {
+            var bar = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+                BackColor = Color.FromArgb(40, 40, 40), Padding = new Padding(14, 8, 14, 8)
+            };
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            _chkStartup = AddCheck(bar, "开机自启", 0, 0, FontStyle.Regular, _settings.StartWithWindows,
+                () => { _settings.StartWithWindows = _chkStartup.Checked; _settings.ApplyStartWithWindows(); _settings.Save(); });
+            _tip.SetToolTip(_chkStartup, "登录 Windows 时自动启动本程序（写入注册表 Run 项）。");
+            bar.Controls.Add(_chkStartup, 0, 0);
+
+            _chkMinimizeTray = AddCheck(bar, "关闭时最小化到托盘", 0, 0, FontStyle.Regular,
+                _settings.MinimizeToTray, () => { _settings.MinimizeToTray = _chkMinimizeTray.Checked; _settings.Save(); });
+            _tip.SetToolTip(_chkMinimizeTray, "勾选后点关闭按钮最小化到托盘常驻；不勾选则直接退出程序。");
+            bar.Controls.Add(_chkMinimizeTray, 1, 0);
+
+            bar.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = bar.BackColor }, 2, 0);
+
+            return CreateCard(bar);
+        }
+
+        /// <summary>⑤ 操作栏：次要靠左、保存强调靠右、退出 hover 变红。</summary>
+        private Control BuildActionBar()
+        {
+            var bar = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1,
+                BackColor = Color.FromArgb(40, 40, 40), Padding = new Padding(10, 8, 10, 8)
+            };
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 106));
+            bar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 62));
+
+            var b1 = new RoundedButton { Text = "📂 配置文件夹", Dock = DockStyle.Fill, Margin = new Padding(0, 0, 6, 0) };
+            b1.Click += (_, _) => OpenConfigFolder();
+            bar.Controls.Add(b1, 0, 0);
+            var b2 = new RoundedButton { Text = "ℹ 关于", Dock = DockStyle.Fill, Margin = Padding.Empty };
+            b2.Click += (_, _) => ShowAbout();
+            bar.Controls.Add(b2, 1, 0);
+            bar.Controls.Add(new Panel { Dock = DockStyle.Fill, BackColor = bar.BackColor }, 2, 0);
+            var b4 = new RoundedButton { Text = "💾 保存配置", IsPrimary = true, Dock = DockStyle.Fill, Margin = new Padding(0, 0, 6, 0) };
+            b4.Click += (_, _) => SaveSettings();
+            bar.Controls.Add(b4, 3, 0);
+            var b5 = new RoundedButton { Text = "🚪 退出", IsDanger = true, Dock = DockStyle.Fill, Margin = Padding.Empty };
+            b5.Click += (_, _) => { _reallyQuit = true; Close(); };
+            bar.Controls.Add(b5, 4, 0);
+
+            return CreateCard(bar);
+        }
+
+        /// <summary>⑥ 页脚：版本链接。</summary>
+        private Control BuildFooter()
+        {
+            var link = new LinkLabel
+            {
+                Text = "20260720 · 世界的风吹向你 · 开源软件  |  GitHub →",
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                LinkColor = Color.FromArgb(160, 160, 170),
+                ActiveLinkColor = Color.FromArgb(62, 207, 142)
+            };
+            link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo("https://github.com/Simiely/WindowTinter") { UseShellExecute = true });
+            var p = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(30, 30, 30), Padding = new Padding(12, 4, 0, 0) };
+            p.Controls.Add(link);
+            return p;
+        }
+
+        // ── 控件辅助方法 ──────────────────────────────────────────
 
         private static CheckBox AddCheck(Control parent, string text, int x, int y, FontStyle style, bool initial, Action onChange)
         {
@@ -169,42 +365,6 @@ namespace WindowTinter
             chk.CheckedChanged += (_, _) => onChange();
             parent.Controls.Add(chk);
             return chk;
-        }
-
-        /// <summary>创建目标面板中的 ○/● 选中按钮。尺寸/位置按 _dpiScale 换算（面板为 AutoScaleMode.None，避免重复缩放）。</summary>
-        private Button CreateSelectButton(int w, bool selected, bool enabled, EventHandler onClick)
-        {
-            float s = _dpiScale;
-            var btn = new Button
-            {
-                Text = selected ? "●" : "○",
-                Size = new Size((int)(30 * s), (int)(24 * s)),
-                Location = new Point(w - (int)(68 * s), (int)(4 * s)),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = selected ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60),
-                ForeColor = Color.FromArgb(224, 224, 224),
-                Enabled = enabled
-            };
-            btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
-            btn.Click += onClick;
-            return btn;
-        }
-
-        /// <summary>创建目标面板中的 × 删除按钮。尺寸/位置按 _dpiScale 换算。</summary>
-        private Button CreateRemoveButton(int w, EventHandler onClick)
-        {
-            float s = _dpiScale;
-            var btn = new Button
-            {
-                Text = "×",
-                Size = new Size((int)(28 * s), (int)(24 * s)),
-                Location = new Point(w - (int)(34 * s), (int)(4 * s)),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(60, 60, 60),                 ForeColor = Color.FromArgb(224, 224, 224)
-            };
-            btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80);
-            btn.Click += onClick;
-            return btn;
         }
 
         // ════════════════════════════════════════════════════════════
@@ -231,6 +391,7 @@ namespace WindowTinter
         {
             foreach (Control c in parent.Controls)
             {
+                if (c is TargetCard or RoundedButton or SwitchToggle) continue; // 自绘控件自管理样式，主题不干预
                 if (c is GroupBox or Panel or FlowLayoutPanel) { c.BackColor = panelBg; c.ForeColor = fg; }
                 else if (c is Button btn) { btn.BackColor = Color.FromArgb(60, 60, 60); btn.ForeColor = fg; btn.FlatStyle = FlatStyle.Flat; btn.FlatAppearance.BorderColor = Color.FromArgb(80, 80, 80); }
                 else if (c is CheckBox or RadioButton) { c.BackColor = bg; c.ForeColor = fg; }
@@ -245,15 +406,21 @@ namespace WindowTinter
         // UI 同步
         // ════════════════════════════════════════════════════════════
 
-        private void UpdateUI()
+        /// <summary>统一状态文案：主窗口状态栏与托盘菜单共用，避免两处重复计算漂移。</summary>
+        private string GetStatusText()
         {
             int total = _settings.Targets.Count;
             int active = _entries.Count;
             int pending = total - active;
-            _lblStatus.Text = !_settings.Enabled ? "⏸ 已暂停"
+            return !_settings.Enabled ? "⏸ 已暂停"
                 : total == 0 ? "○ 等待选择窗口…"
                 : pending > 0 ? $"● {active} 个监控中, {pending} 个待激活"
                 : $"● 监控中 — {active} 个窗口";
+        }
+
+        private void UpdateUI()
+        {
+            _lblStatus.Text = GetStatusText();
 
             _chkEnabled.Checked = _settings.Enabled;
             _chkGlobalTransparency.Checked = _settings.GlobalTransparency;
@@ -285,6 +452,14 @@ namespace WindowTinter
             if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
             _selectedTarget = info;
             UpdateSelectButtons();
+            // 选中目标时一次性带到前台（不抢焦点），便于查看半透明/黑底效果；
+            // 之后前后遮挡回归 Windows 默认逻辑，不永久置顶。
+            var entry = _entries.FirstOrDefault(e => e.Info == info);
+            if (entry != null)
+            {
+                BringTargetToTop(entry.Tracker.TargetHandle);
+                ApplyMaskNow(entry);
+            }
             if (!_settings.GlobalTransparency)
             {
                 int b = info.BackgroundAlpha;
@@ -309,16 +484,15 @@ namespace WindowTinter
                 bool sel = !global && _selectedTarget != null && _selectedTarget.Equals(kv.Key);
                 kv.Value.Text = sel ? "●" : "○";
                 kv.Value.Enabled = !global;
-                kv.Value.BackColor = sel ? Color.FromArgb(90, 120, 160) : Color.FromArgb(60, 60, 60);
+                kv.Value.BackColor = sel ? Color.FromArgb(74, 144, 217) : Color.FromArgb(65, 70, 78);
             }
-            // 高亮选中面板
+            // 卡片选中态（选中蓝色描边 + 背景）
             foreach (var e in _entries)
-                if (e.UIPanel != null)
-                    e.UIPanel.BackColor = (!global && _selectedTarget != null && _selectedTarget.Equals(e.Info))
-                        ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40);
+                if (e.UIPanel is TargetCard tc)
+                    tc.SetSelected(!global && _selectedTarget != null && _selectedTarget.Equals(e.Info));
             foreach (var kv in _pendingPanels)
-                kv.Value.BackColor = (!global && _selectedTarget != null && _selectedTarget.Equals(kv.Key))
-                    ? Color.FromArgb(50, 70, 95) : Color.FromArgb(40, 40, 40);
+                if (kv.Value is TargetCard tcp)
+                    tcp.SetSelected(!global && _selectedTarget != null && _selectedTarget.Equals(kv.Key));
         }
 
         /// <summary>非全局模式且未选中任何目标时，禁用手动滑块避免"空转"（此时调节无效果）。</summary>
@@ -335,308 +509,81 @@ namespace WindowTinter
         }
 
         // ════════════════════════════════════════════════════════════
-        // 托盘
+        // 目标列表 UI 重建（活跃 + 待激活，按配置顺序）
         // ════════════════════════════════════════════════════════════
 
-        private void BuildTray()
+        /// <summary>按状态统一重建目标卡片网格（3 列扑克牌式，按配置顺序）。</summary>
+        private void RebuildTargetList()
         {
-            _menu = new ContextMenuStrip();
-            _tray = new NotifyIcon { Icon = _appIcon, Text = $"暗幕 v{AppVersion}", ContextMenuStrip = _menu, Visible = true };
-            _tray.DoubleClick += (_, _) => ToggleWindow();
-            RefreshTrayMenu();
-        }
+            _pnlTargets.Controls.Clear();
+            _pendingPanels.Clear();
+            _selectButtons.Clear();
 
-        private void RefreshTrayMenu()
-        {
-            _menu.Items.Clear();
-            int total = _settings.Targets.Count;
-            int active = _entries.Count;
-            int pending = total - active;
-            string s = !_settings.Enabled ? "⏸ 已暂停"
-                : total == 0 ? "○ 等待选择窗口…"
-                : pending > 0 ? $"● {active} 监控中, {pending} 待激活"
-                : $"● 监控中 — {active} 窗口";
-            _menu.Items.Add(s).Enabled = false;
-            _menu.Items.Add("-");
-            _menu.Items.Add(IsWindowOpen() ? "最小化到托盘" : "打开设置窗口", null, (_, _) => ToggleWindow());
-            _menu.Items.Add(_settings.Enabled ? "⏸ 停用" : "▶ 启用", null, (_, _) => _chkEnabled.Checked = !_chkEnabled.Checked);
-            _menu.Items.Add("-");
-            _menu.Items.Add("退出", null, (_, _) => { _reallyQuit = true; Close(); });
-        }
-
-        /// <summary>窗口是否真正"打开"（可见且非最小化）。用于托盘菜单文案与开合判断，
-        /// 这样开机自启以最小化态驻留时，双击托盘会正确地"打开"而非"再最小化"。</summary>
-        private bool IsWindowOpen() => Visible && WindowState != FormWindowState.Minimized;
-
-        private void ToggleWindow()
-        {
-            if (IsWindowOpen())
+            if (_settings.Targets.Count == 0)
             {
-                Hide();
-                ShowInTaskbar = false;
+                // 空状态引导
+                _pnlTargets.Controls.Add(new Label
+                {
+                    Text = "○ 点击「+ 添加窗口」拾取要压暗的窗口",
+                    AutoSize = true, ForeColor = Color.FromArgb(140, 140, 140),
+                    Font = new Font("Microsoft YaHei UI", 9.5f), Margin = new Padding(24, 34, 0, 0)
+                });
             }
             else
             {
-                ShowInTaskbar = true;
-                Show();
-                WindowState = FormWindowState.Normal;
-                BringToFront();
-                Activate();
-            }
-        }
-
-        private void OnFormClosing(object sender, FormClosingEventArgs e)
-        {
-            if (!_reallyQuit && _settings.MinimizeToTray && e.CloseReason == CloseReason.UserClosing)
-            { _settings.Save(); e.Cancel = true; Hide(); ShowInTaskbar = false; }
-        }
-
-        // ════════════════════════════════════════════════════════════
-        // 核心操作（UI 按钮回调）
-        // ════════════════════════════════════════════════════════════
-
-        private void ToggleEnabled()
-        {
-            // 直接读 checkbox 状态，避免 _settings.Enabled 翻转与 UI 不一致
-            bool enable = _chkEnabled.Checked;
-            _settings.Enabled = enable;
-            _settings.Save();
-            if (enable)
-            {
+                int cardW = CalcCardWidth();
                 foreach (var t in _settings.Targets)
                 {
-                    if (_entries.Any(e => e.Info == t)) continue;
-                    TryBindTarget(t);
-                    if (_entries.Any(e => e.Info == t)) RemovePendingUI(t);
-                    else if (!_pendingPanels.ContainsKey(t)) AddPendingUI(t);
+                    var entry = _entries.FirstOrDefault(e => e.Info == t);
+                    var card = CreateTargetCard(t, pending: entry == null, cardW);
+                    if (entry != null) entry.UIPanel = card;
+                    else _pendingPanels[t] = card;
+                    _pnlTargets.Controls.Add(card);
                 }
-                foreach (var e in _entries) ApplyMaskNow(e);
             }
-            else
-            {
-                foreach (var e in _entries) { SetTargetAlpha(e.Tracker.TargetHandle, 255); e.Plate.HidePlate(); }
-            }
-            UpdateUI();
-        }
-
-        private void ToggleGlobalTransparency()
-        {
-            bool g = _chkGlobalTransparency.Checked;
-            _settings.GlobalTransparency = g;
-            if (!g)
-            {
-                // 关闭全局：把当前全局值写入每个目标作为各自起点
-                foreach (var t in _settings.Targets)
-                {
-                    t.BackgroundAlpha = _settings.BackgroundAlpha;
-                }
-                _selectedTarget = _settings.Targets.FirstOrDefault();
-            }
-            _settings.Save();
+            UpdateTargetBadge();
             UpdateSelectButtons();
-            UpdateUI();
-            foreach (var e in _entries) ApplyMaskNow(e);
         }
 
-        private void ToggleGlobalCornerRadius()
+        /// <summary>3 列网格卡片宽度：面板可用宽 / 3，留卡间距。</summary>
+        private int CalcCardWidth()
         {
-            bool g = _chkGlobalCornerRadius.Checked;
-            _settings.GlobalCornerRadius = g;
-            if (!g)
-            {
-                // 关闭全局：把当前全局圆角值写入每个目标作为各自起点
-                foreach (var t in _settings.Targets)
-                {
-                    t.CornerRadius = _settings.CornerRadius;
-                }
-                _selectedTarget = _settings.Targets.FirstOrDefault();
-            }
-            _settings.Save();
-            UpdateSelectButtons();
-            UpdateUI();
-            // 刷新所有底板的圆角
-            foreach (var e in _entries)
-            {
-                bool useGlobal = _settings.GlobalCornerRadius;
-                e.Plate.CornerRadius = useGlobal ? _settings.CornerRadius : e.Info.CornerRadius;
-                e.Tracker.RefreshForeground();
-            }
+            int cw = _pnlTargets.ClientSize.Width - 12; // 两侧 padding 6
+            return Math.Max((cw - 12) / 3, 110);        // 3 列 + 卡间距 12
         }
 
-        private void SetBgAlpha(int value)
+        /// <summary>创建单张目标卡片（活跃或待激活）。</summary>
+        private TargetCard CreateTargetCard(TargetInfo info, bool pending, int width)
         {
-            value = Math.Clamp(value, 0, 100);
-            if (_settings.GlobalTransparency)
-                _settings.BackgroundAlpha = value;
-            else
-            {
-                if (_selectedTarget == null) return;
-                _selectedTarget.BackgroundAlpha = value;
-            }
-            foreach (var e in _entries) ApplyMaskNow(e);
-            _lblBgAlpha.Text = $"{value}%";
-            // 200ms 防抖：停止拖动后再写盘
-            _saveDebounceTimer.Stop();
-            _saveDebounceTimer.Start();
+            bool sel = !_settings.GlobalTransparency && _selectedTarget != null && _selectedTarget.Equals(info);
+            var card = new TargetCard(info, pending, sel, width, _dpiScale,
+                SelectTarget, RenameTarget, RemoveTarget, RefreshTargetSnapshot);
+            _selectButtons[info] = card.BtnSelect;
+            return card;
         }
 
-        private void SetCornerRadius(int value)
+        /// <summary>目标卡头计数徽标：监控/待激活数量。</summary>
+        private void UpdateTargetBadge()
         {
-            value = Math.Clamp(value, 0, 20);
-            if (_settings.GlobalCornerRadius)
-            {
-                _settings.CornerRadius = value;
-                foreach (var e in _entries)
-                    SetPlateCornerRadius(e, value);
-            }
-            else
-            {
-                if (_selectedTarget == null) return;
-                _selectedTarget.CornerRadius = value;
-                foreach (var e in _entries)
-                {
-                    if (e.Info == _selectedTarget)
-                    {
-                        SetPlateCornerRadius(e, value);
-                        break;
-                    }
-                }
-            }
-            _lblCornerRadius.Text = value == 0 ? "关" : $"{value}px";
-            _saveDebounceTimer.Stop();
-            _saveDebounceTimer.Start();
+            int a = _entries.Count;
+            int p = _settings.Targets.Count - a;
+            _lblTargetBadge.Text = _settings.Targets.Count == 0 ? ""
+                : p > 0 ? $"● {a} 监控 · {p} 待激活" : $"● {a} 监控";
         }
 
-        private static void SetPlateCornerRadius(TargetEntry e, int value)
+        /// <summary>刷新单张卡片快照（单卡 ⟳ / 自动定时 / 绑定移动即时）。</summary>
+        private void RefreshTargetSnapshot(TargetInfo info)
         {
-            e.Plate.CornerRadius = value;
-            e.Tracker.RefreshForeground();
+            var entry = _entries.FirstOrDefault(e => e.Info == info);
+            if (entry == null || entry.UIPanel is not TargetCard card) return;
+            var shot = SnapshotService.Capture(entry.Tracker.TargetHandle, Math.Max(card.Width - 16, 90), 58);
+            card.SetSnapshot(shot);
         }
 
-        private void PickWindow()
+        /// <summary>全量刷新所有目标卡片快照（卡头「⟳ 刷新快照」）。</summary>
+        private void RefreshAllSnapshots()
         {
-            bool wasVisible = Visible; if (wasVisible) Hide();
-            using var picker = new WindowPickerForm();
-            var result = picker.ShowDialog();
-            if (wasVisible) { Show(); BringToFront(); Activate(); }
-
-            if (result != DialogResult.OK || picker.SelectedHandle == IntPtr.Zero) return;
-
-            Native.GetWindowThreadProcessId(picker.SelectedHandle, out uint pid);
-            string procName = "";
-            try { procName = Process.GetProcessById((int)pid).ProcessName ?? ""; } catch { }
-
-            string title = "";
-            int len = Native.GetWindowTextLength(picker.SelectedHandle);
-            if (len > 0)
-            {
-                var sb = new System.Text.StringBuilder(len + 1);
-                Native.GetWindowText(picker.SelectedHandle, sb, len + 1);
-                title = sb.ToString();
-            }
-            var info = new TargetInfo { ProcessName = procName, WindowTitle = title };
-
-            // 以当前全局值作为该窗口独立配置的起点
-            info.BackgroundAlpha = _settings.BackgroundAlpha;
-            info.CornerRadius = _settings.CornerRadius;
-
-            if (_settings.Targets.Contains(info))
-            {
-                MessageBox.Show("此窗口已添加。", "WindowTinter", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            _settings.Targets.Add(info);
-
-            if (_settings.Enabled)
-            {
-                TryBindTarget(info);
-                var entry = _entries.FirstOrDefault(e => e.Info == info);
-                if (entry != null) ApplyMaskNow(entry);
-                else AddPendingUI(info);
-            }
-            else AddPendingUI(info);
-            // 非全局模式下，自动选中刚添加的窗口
-            if (!_settings.GlobalTransparency || !_settings.GlobalCornerRadius) _selectedTarget = info;
-            UpdateUI();
-        }
-
-        private void RefindAllWindows()
-        {
-            UnbindAll();
-            foreach (var t in _settings.Targets)
-            {
-                TryBindTarget(t);
-                if (!_entries.Any(e => e.Info == t)) AddPendingUI(t);
-            }
-            UpdateUI();
-        }
-
-        private void OpenConfigFolder()
-        {
-            var dir = Path.GetDirectoryName(Environment.ProcessPath) ?? ".";
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
-            Process.Start("explorer.exe", dir);
-        }
-
-        private void ShowAbout()
-        {
-            var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            string v = ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.5.2";
-            MessageBox.Show(
-                $"暗幕 v{v}\n\n" +
-                "给任意窗口设置透明度、并在其正下方垫纯黑的常驻小工具。\n" +
-                "支持多窗口同时控制。\n\n" +
-                "• 配置: 与 exe 同目录 WindowTinter.settings.json\n" +
-                "• 图标: app.ico 与 exe 同目录\n\n" +
-                "https://github.com/Simiely/WindowTinter",
-                "关于");
-        }
-
-        private void SaveSettings()
-        {
-            _settings.Save();
-        }
-
-        // ════════════════════════════════════════════════════════════
-        // WinEvent
-        // ════════════════════════════════════════════════════════════
-
-        private void InstallWinEventHook()
-        {
-            _winEventProc = WinEventProcCallback;
-            _winEventHook = Native.SetWinEventHook(
-                Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_OBJECT_LOCATIONCHANGE,
-                IntPtr.Zero, _winEventProc, 0, 0,
-                Native.WINEVENT_OUTOFCONTEXT | Native.WINEVENT_SKIPOWNPROCESS);
-        }
-
-        private void WinEventProcCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
-            int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
-        {
-            if (idObject != 0 || idChild != 0) return;
-
-            if (eventType == Native.EVENT_SYSTEM_FOREGROUND)
-            {
-                try { BeginInvoke(new Action(() => { foreach (var e in _entries) e.Tracker.RefreshForeground(); })); }
-                catch (ObjectDisposedException) { }
-                catch (InvalidOperationException) { }
-                return;
-            }
-
-            // 目标特定事件：在 BeginInvoke 内读取 _entries，避免跨线程访问非安全集合
-            if (eventType is Native.EVENT_OBJECT_LOCATIONCHANGE or Native.EVENT_OBJECT_HIDE
-                               or Native.EVENT_OBJECT_SHOW or Native.EVENT_OBJECT_DESTROY)
-            {
-                var targetHwnd = hwnd;
-                try { BeginInvoke(new Action(() =>
-                {
-                    var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == targetHwnd);
-                    if (match != null) match.Tracker.RefreshNow();
-                })); }
-                catch (ObjectDisposedException) { }
-                catch (InvalidOperationException) { }
-            }
+            foreach (var t in _settings.Targets) RefreshTargetSnapshot(t);
         }
     }
 }

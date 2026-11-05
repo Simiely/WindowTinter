@@ -7,23 +7,37 @@ using Microsoft.Win32;
 
 namespace WindowTinter
 {
-    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题重新查找）。</summary>
+    /// <summary>存储一个目标窗口的标识信息（hwnd 不持久化，按进程名+标题/类名重新查找）。</summary>
     internal class TargetInfo : IEquatable<TargetInfo>
     {
         public string ProcessName { get; init; } = "";
         public string WindowTitle { get; init; } = "";
+        /// <summary>窗口类名（拾取时记录）。重绑定主键之一：浏览器/编辑器标题变化时按 进程+类名 仍能找回。</summary>
+        public string WindowClass { get; init; } = "";
+        /// <summary>自定义别名（用户重命名）。非空时 UI 列表优先显示它。JSON 缺省为空，旧配置向后兼容。</summary>
+        public string Alias { get; set; } = "";
         public int BackgroundAlpha { get; set; } = 50;  // 该目标窗口透明度（0~100），仅"全局统一透明度"关闭时生效
         public int CornerRadius { get; set; } = 15;       // 底板圆角半径 (0=关, 1-20px)，仅"全局统一圆角"关闭时生效
 
-        public override string ToString() => string.IsNullOrEmpty(WindowTitle) ? ProcessName : WindowTitle;
+        /// <summary>显示名：别名（用户重命名）优先，其次窗口标题，再退回进程名。名称兜底交给用户重命名，不特殊处理无名称窗口。</summary>
+        public override string ToString() =>
+            !string.IsNullOrEmpty(Alias) ? Alias
+            : !string.IsNullOrEmpty(WindowTitle) ? WindowTitle
+            : ProcessName;
 
         public bool Equals(TargetInfo other) =>
             other != null &&
             string.Equals(ProcessName, other.ProcessName, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(WindowTitle, other.WindowTitle, StringComparison.OrdinalIgnoreCase);
+            string.Equals(WindowTitle, other.WindowTitle, StringComparison.OrdinalIgnoreCase) &&
+            // 窗口类名仅在双方都非空时参与判定（旧配置 WindowClass="" 时身份退化为 进程+标题，向后兼容）
+            (string.IsNullOrEmpty(WindowClass) || string.IsNullOrEmpty(other.WindowClass)
+                || string.Equals(WindowClass, other.WindowClass, StringComparison.OrdinalIgnoreCase));
 
         public override bool Equals(object obj) => Equals(obj as TargetInfo);
 
+        // 注意：GetHashCode 故意只基于 进程+标题——
+        // Equals 允许"一方 class 为空则不比较 class"，若把 class 计入哈希会违反
+        // "Equals 相等则哈希必相等"的约束（旧条目 class 空 vs 新条目 class 非空会判等）。
         public override int GetHashCode() =>
             HashCode.Combine(
                 ProcessName?.ToLowerInvariant() ?? "",

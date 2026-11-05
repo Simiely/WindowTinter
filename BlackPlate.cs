@@ -24,6 +24,10 @@ namespace WindowTinter
         // 窗口区域缓存（SetWindowRgn 传入后由系统管理，我们不再持有句柄）
         private int _rgnW, _rgnH, _rgnRadius;
 
+        // ── 位置缓存（防闪烁）：仅当目标/坐标/尺寸变化时才重新 SetWindowPos + 渲染 ──
+        private IntPtr _lastTarget = IntPtr.Zero;
+        private int _lastX, _lastY, _lastW, _lastH;
+
         /// <summary>圆角半径（0=关，矩形；1~10=圆角px）。</summary>
         public int CornerRadius { get; set; } = 0;
 
@@ -64,32 +68,55 @@ namespace WindowTinter
             base.WndProc(ref m);
         }
 
-        /// <summary>把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。</summary>
+        /// <summary>
+        /// 把底板钉到目标正后方（hWndInsertAfter = 目标句柄），并渲染不透明纯黑。
+        /// 原型 B：每次调用都 SetWindowPos 维护"Z 序不变式"（黑底 = 目标紧邻下方）；
+        /// 渲染（ULW/圆角）仅在几何变化时执行，避免无谓 GDI 开销。
+        /// 
+        /// 关键 DPI 结论（2026-08 调研确认）：本进程是 PerMonitorV2，SetWindowPos /
+        /// UpdateLayeredWindow / GetWindowRect / DwmGetWindowAttribute 全部使用物理像素，
+        /// 坐标系一致，无需任何换算。曾经的 GetDpiScale(×96/dpi) 换算反而在 125%/150%
+        /// 缩放屏把黑底缩小/偏移（100% 屏 scale=1 看不出）——正是"高 DPI 下黑底错位、
+        /// 无法精准定位、尺寸不吻合窗口"的根因。
+        /// </summary>
         public void AlignBehind(IntPtr targetHandle, Native.RECT r)
         {
-            int w = r.Width, h = r.Height;
+            int w = r.Width;
+            int h = r.Height;
             if (w <= 0 || h <= 0) { HidePlate(); return; }
+            int x = r.Left;
+            int y = r.Top;
 
             if (!IsHandleCreated) CreateHandle();
 
+            bool posChanged = targetHandle != _lastTarget
+                || x != _lastX || y != _lastY || w != _lastW || h != _lastH;
+
             // 关键：用目标句柄作为 hWndInsertAfter，使底板在 Z 序中紧挨目标之下。
-            // 这样目标一旦半透明，透出的就是正后方的纯黑，而非桌面 / 其它窗口。
+            // 每次调用都执行——目标 Z 序一旦变化（EVENT_OBJECT_REORDER/轮询），此调用即把黑底重新插回。
             Native.SetWindowPos(Handle, targetHandle,
-                r.Left, r.Top, w, h,
+                x, y, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+
+            if (posChanged)
+                (_lastTarget, _lastX, _lastY, _lastW, _lastH) = (targetHandle, x, y, w, h);
 
             // 设置窗口区域（圆角裁剪），仅在尺寸/半径变化时重建 HRGN
             ApplyWindowRegion(w, h);
 
-            RenderSolidBlack(r.Left, r.Top, w, h);
+            if (posChanged)
+                RenderSolidBlack(x, y, w, h);
         }
 
         /// <summary>隐藏底板（不走 Control.Visible 状态机，避免额外重绘）。</summary>
         public void HidePlate()
         {
             if (IsHandleCreated)
+            {
+                // SWP_NOZORDER：隐藏时明确不改 Z 序，避免系统默认行为干扰黑底与目标的相对位置
                 Native.SetWindowPos(Handle, IntPtr.Zero, 0, 0, 0, 0,
-                    Native.SWP_HIDEWINDOW | Native.SWP_NOACTIVATE);
+                    Native.SWP_HIDEWINDOW | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+            }
         }
 
         /// <summary>
