@@ -86,12 +86,28 @@ namespace WindowTinter
         };
 
         private static string ConfigDir =>
-            Path.GetDirectoryName(Environment.ProcessPath) ?? ".";
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
 
         private static string FilePath => Path.Combine(ConfigDir, "WindowTinter.settings.json");
 
+        /// <summary>旧版本配置位置：exe 同目录（安装到 Program Files 时不可写，故迁走）。</summary>
+        private static string LegacyFilePath =>
+            Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "WindowTinter.settings.json");
+
         public static Settings Load()
         {
+            // 一次性迁移：旧版把配置写在 exe 同目录，先搬到 %LOCALAPPDATA%\WindowTinter 再读
+            try
+            {
+                if (!File.Exists(FilePath) && File.Exists(LegacyFilePath))
+                {
+                    Directory.CreateDirectory(ConfigDir);
+                    File.Copy(LegacyFilePath, FilePath, overwrite: false);
+                    try { File.Delete(LegacyFilePath); } catch { }
+                }
+            }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Settings migration failed: {ex.Message}"); }
+
             Settings s = null;
             try
             {
