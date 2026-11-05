@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -27,6 +29,11 @@ namespace WindowTinter.ViewModels
         private readonly Dictionary<TargetInfo, TargetViewModel> _vmByInfo = new();
 
         public ObservableCollection<TargetViewModel> Targets { get; } = new();
+
+        // ── 列表视图（纯表现层：筛选 + 搜索，不改变目标集合本身）──
+        public ICollectionView TargetsView { get; }
+        private string _targetFilter = "all";       // all / active / pending
+        private string _searchText = "";
 
         private TargetViewModel _selectedTarget;
         public TargetViewModel SelectedTarget
@@ -61,6 +68,9 @@ namespace WindowTinter.ViewModels
 
         public MainViewModel()
         {
+            TargetsView = CollectionViewSource.GetDefaultView(Targets);
+            TargetsView.Filter = FilterTarget;
+
             BuildCommands();
             _settings.ApplyStartWithWindows();
 
@@ -461,9 +471,10 @@ namespace WindowTinter.ViewModels
         {
             try { RebuildTargetList(); } catch { }
             OnPropertyChanged(nameof(StatusText));
-            OnPropertyChanged(nameof(StatusColor));
             OnPropertyChanged(nameof(BadgeText));
             RaiseSliderProperties();
+            foreach (var vm in _vmByInfo.Values) { vm.RefreshCardVisuals(); vm.RefreshMeta(); }
+            RefreshView();
         }
 
         private void RaiseSliderProperties()
@@ -474,7 +485,118 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(CornerRadiusText));
             OnPropertyChanged(nameof(IsAlphaSliderEnabled));
             OnPropertyChanged(nameof(IsCornerSliderEnabled));
+            OnPropertyChanged(nameof(GlobalDefaultsText));
+            OnPropertyChanged(nameof(GlobalStripText));
         }
+
+        // ════════════════════════════════════════════════════════════════
+        // 列表视图 / 概览（纯表现层：筛选、搜索、汇总文案）
+        // ════════════════════════════════════════════════════════════════
+
+        private bool FilterTarget(object item)
+        {
+            if (item is not TargetViewModel vm) return false;
+            bool stateMatch = _targetFilter switch
+            {
+                "active" => !vm.IsPending,
+                "pending" => vm.IsPending,
+                _ => true
+            };
+            if (!stateMatch) return false;
+
+            var q = (_searchText ?? "").Trim();
+            if (q.Length == 0) return true;
+            return vm.WindowName.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                || vm.AliasText.IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0
+                || (vm.Info.ProcessName ?? "").IndexOf(q, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void SetFilter(string filter)
+        {
+            if (_targetFilter == filter) return;
+            _targetFilter = filter;
+            RefreshView();
+        }
+
+        public bool IsFilterAllChecked
+        {
+            get => _targetFilter == "all";
+            set { if (value) SetFilter("all"); }
+        }
+        public bool IsFilterActiveChecked
+        {
+            get => _targetFilter == "active";
+            set { if (value) SetFilter("active"); }
+        }
+        public bool IsFilterPendingChecked
+        {
+            get => _targetFilter == "pending";
+            set { if (value) SetFilter("pending"); }
+        }
+
+        public string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (!SetProperty(ref _searchText, value ?? "")) return;
+                RefreshView();
+            }
+        }
+
+        private void RefreshView()
+        {
+            try { TargetsView?.Refresh(); } catch { }
+            OnPropertyChanged(nameof(IsFilterAllChecked));
+            OnPropertyChanged(nameof(IsFilterActiveChecked));
+            OnPropertyChanged(nameof(IsFilterPendingChecked));
+            RaiseOverview();
+        }
+
+        private void RaiseOverview()
+        {
+            OnPropertyChanged(nameof(TotalCount));
+            OnPropertyChanged(nameof(ActiveCount));
+            OnPropertyChanged(nameof(PendingCount));
+            OnPropertyChanged(nameof(IsEmpty));
+            OnPropertyChanged(nameof(ActiveSummary));
+            OnPropertyChanged(nameof(MissingSummary));
+            OnPropertyChanged(nameof(HasMissing));
+            OnPropertyChanged(nameof(TargetSubtitle));
+            OnPropertyChanged(nameof(FooterTone));
+            OnPropertyChanged(nameof(CanUnbind));
+        }
+
+        public int TotalCount => _settings.Targets.Count;
+        public int ActiveCount => _entries.Count;
+        public int PendingCount => TotalCount - ActiveCount;
+        public bool IsEmpty => TotalCount == 0;
+        public bool HasMissing => _settings.Enabled && PendingCount > 0;
+        public bool CanUnbind => _entries.Count > 0;
+
+        public string ActiveSummary => !_settings.Enabled
+            ? $"已暂停 · {TotalCount} 个目标"
+            : TotalCount == 0 ? "暂无绑定目标" : $"{ActiveCount} / {TotalCount} 目标生效";
+
+        public string MissingSummary => HasMissing ? $"{PendingCount} 个窗口未找到" : "";
+
+        public string TargetSubtitle => TotalCount == 0 ? "WindowTinter · 暂无目标" : $"WindowTinter · {TotalCount} 个目标";
+
+        /// <summary>底栏状态点语义：ok / warn / off（颜色在 XAML 里选）。</summary>
+        public string FooterTone => !_settings.Enabled || TotalCount == 0 ? "off" : PendingCount > 0 ? "warn" : "ok";
+
+        public string GlobalDefaultsText => $"全局默认：暗度 {_settings.BackgroundAlpha}% · 圆角 {_settings.CornerRadius}px";
+
+        public string GlobalStripText
+            => $"全局默认 暗度 {_settings.BackgroundAlpha}% · 圆角 {_settings.CornerRadius}px · 黑色底板{(_settings.BackdropBlackPlate ? "开" : "关")}";
+
+        /// <summary>目标当前生效的暗度（全局模式取全局值）。供卡片副行文案使用。</summary>
+        public int EffectiveAlpha(TargetInfo info)
+            => _settings.GlobalTransparency ? _settings.BackgroundAlpha : info.BackgroundAlpha;
+
+        /// <summary>目标当前生效的圆角（全局模式取全局值）。</summary>
+        public int EffectiveCorner(TargetInfo info)
+            => _settings.GlobalCornerRadius ? _settings.CornerRadius : info.CornerRadius;
 
         // ── 状态文案（对齐 UI_REDESIGN：无 ● 前缀、无 — 破折号，状态由左侧/右侧圆点表达）──
         public string StatusText
@@ -491,7 +613,11 @@ namespace WindowTinter.ViewModels
             }
         }
 
-        public Brush StatusColor => _settings.Enabled ? new SolidColorBrush(Color.FromRgb(0xFF, 0x92, 0x92)) : new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80));
+        private static readonly Brush StatusOnBrush = Freeze(new SolidColorBrush(Color.FromRgb(0xFF, 0x92, 0x92)));
+        private static readonly Brush StatusOffBrush = Freeze(new SolidColorBrush(Color.FromRgb(0x6B, 0x72, 0x80)));
+        public Brush StatusColor => _settings.Enabled ? StatusOnBrush : StatusOffBrush;
+
+        private static Brush Freeze(SolidColorBrush b) { b.Freeze(); return b; }
 
         public string BadgeText
         {
@@ -592,6 +718,7 @@ namespace WindowTinter.ViewModels
                 _settings.BackdropBlackPlate = value;
                 _settings.Save();
                 foreach (var e in _entries) e.Tracker.RefreshForeground();
+                OnPropertyChanged(nameof(GlobalStripText));
             }
         }
 
@@ -629,6 +756,11 @@ namespace WindowTinter.ViewModels
                 foreach (var e in _entries) ApplyMaskNow(e);
                 OnPropertyChanged(nameof(BackgroundAlpha));
                 OnPropertyChanged(nameof(BackgroundAlphaText));
+                OnPropertyChanged(nameof(GlobalAlpha));
+                OnPropertyChanged(nameof(GlobalAlphaText));
+                OnPropertyChanged(nameof(GlobalDefaultsText));
+                OnPropertyChanged(nameof(GlobalStripText));
+                foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
             }
@@ -641,7 +773,7 @@ namespace WindowTinter.ViewModels
             get => _settings.GlobalCornerRadius ? _settings.CornerRadius : (SelectedTarget?.Info.CornerRadius ?? 0);
             set
             {
-                int v = Math.Clamp(value, 0, 20);
+                int v = Math.Clamp(value, 0, 32);
                 if (_settings.GlobalCornerRadius)
                 {
                     _settings.CornerRadius = v;
@@ -663,12 +795,91 @@ namespace WindowTinter.ViewModels
                 }
                 OnPropertyChanged(nameof(CornerRadius));
                 OnPropertyChanged(nameof(CornerRadiusText));
+                OnPropertyChanged(nameof(GlobalCorner));
+                OnPropertyChanged(nameof(GlobalCornerText));
+                OnPropertyChanged(nameof(GlobalDefaultsText));
+                OnPropertyChanged(nameof(GlobalStripText));
+                foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
             }
         }
 
         public string CornerRadiusText => CornerRadius == 0 ? "关" : $"{CornerRadius}px";
+
+        // ── 全局默认参数（设置面板；全局统一模式下即时应用到所有目标）──
+        public int GlobalAlpha
+        {
+            get => _settings.BackgroundAlpha;
+            set
+            {
+                int v = Math.Clamp(value, 0, 100);
+                if (_settings.BackgroundAlpha == v) return;
+                _settings.BackgroundAlpha = v;
+                if (_settings.GlobalTransparency)
+                    foreach (var e in _entries) ApplyMaskNow(e);
+                OnPropertyChanged(nameof(GlobalAlpha));
+                OnPropertyChanged(nameof(GlobalAlphaText));
+                OnPropertyChanged(nameof(BackgroundAlpha));
+                OnPropertyChanged(nameof(BackgroundAlphaText));
+                OnPropertyChanged(nameof(GlobalDefaultsText));
+                OnPropertyChanged(nameof(GlobalStripText));
+                foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
+                _saveDebounceTimer.Stop();
+                _saveDebounceTimer.Start();
+            }
+        }
+
+        public string GlobalAlphaText => $"{GlobalAlpha}%";
+
+        public int GlobalCorner
+        {
+            get => _settings.CornerRadius;
+            set
+            {
+                int v = Math.Clamp(value, 0, 32);
+                if (_settings.CornerRadius == v) return;
+                _settings.CornerRadius = v;
+                if (_settings.GlobalCornerRadius)
+                    foreach (var e in _entries) SetPlateCornerRadius(e, v);
+                OnPropertyChanged(nameof(GlobalCorner));
+                OnPropertyChanged(nameof(GlobalCornerText));
+                OnPropertyChanged(nameof(CornerRadius));
+                OnPropertyChanged(nameof(CornerRadiusText));
+                OnPropertyChanged(nameof(GlobalDefaultsText));
+                OnPropertyChanged(nameof(GlobalStripText));
+                foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
+                _saveDebounceTimer.Stop();
+                _saveDebounceTimer.Start();
+            }
+        }
+
+        public string GlobalCornerText => GlobalCorner == 0 ? "直角" : $"{GlobalCorner}px";
+
+        /// <summary>把选中目标的暗度/圆角恢复成当前全局默认值。</summary>
+        private void RestoreGlobalForSelected()
+        {
+            var vm = SelectedTarget;
+            if (vm == null) return;
+            vm.Info.BackgroundAlpha = _settings.BackgroundAlpha;
+            vm.Info.CornerRadius = _settings.CornerRadius;
+            var e = FindEntry(vm.Info);
+            if (e != null)
+            {
+                ApplyMaskNow(e);
+                SetPlateCornerRadius(e, _settings.CornerRadius);
+            }
+            _settings.Save();
+            SyncUI();
+        }
+
+        /// <summary>恢复出厂默认参数（设置面板「恢复默认」）。</summary>
+        private void ResetGlobalDefaults()
+        {
+            GlobalAlpha = 50;
+            GlobalCorner = 14;
+            BackdropBlackPlate = true;
+        }
 
         public bool IsAlphaSliderEnabled => _settings.GlobalTransparency || SelectedTarget != null;
         public bool IsCornerSliderEnabled => _settings.GlobalCornerRadius || SelectedTarget != null;
@@ -790,7 +1001,9 @@ namespace WindowTinter.ViewModels
             if (vm == null) return;
             if (entry == null || entry.Tracker.TargetHandle == IntPtr.Zero || !Native.IsWindow(entry.Tracker.TargetHandle))
             {
-                vm.SetShotSource(null);
+                // 窗口不在：保留上一帧，只把占位文案切到「窗口未找到」
+                vm.SetShotFailed(true);
+                vm.SetRefreshing(false);
                 return;
             }
             IntPtr h = entry.Tracker.TargetHandle;
@@ -798,12 +1011,18 @@ namespace WindowTinter.ViewModels
             {
                 if (!_snapshotInFlight.Add(h)) return; // 同一目标已有抓图在跑，本次跳过
             }
+            vm.SetRefreshing(true);
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
                     var bmp = SnapshotService.Capture(h, 100, 48);
-                    if (bmp == null) return;
+                    if (bmp == null)
+                    {
+                        // 抓取失败：保留上一帧，占位文案切到「未能抓取」
+                        _dispatcher.BeginInvoke(new Action(() => vm.SetShotFailed(true)));
+                        return;
+                    }
                     try
                     {
                         IntPtr hbit = bmp.GetHbitmap();
@@ -815,8 +1034,11 @@ namespace WindowTinter.ViewModels
                         }
                         finally { Native.DeleteObject(hbit); }
                         src.Freeze(); // Freeze 后跨线程安全
-                        var target = vm;
-                        _dispatcher.BeginInvoke(new Action(() => target?.SetShotSource(src)));
+                        _dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            vm.SetShotSource(src);
+                            vm.SetShotFailed(false);
+                        }));
                     }
                     catch { }
                     finally { bmp.Dispose(); }
@@ -824,6 +1046,7 @@ namespace WindowTinter.ViewModels
                 finally
                 {
                     lock (_snapshotInFlight) _snapshotInFlight.Remove(h);
+                    _dispatcher.BeginInvoke(new Action(() => vm.SetRefreshing(false)));
                 }
             });
         }
@@ -939,6 +1162,10 @@ namespace WindowTinter.ViewModels
         public RelayCommand ExitCommand { get; private set; }              // 🚪 退出
         public RelayCommand OpenConfigFolderCommand { get; private set; }  // 📂 配置文件夹
         public RelayCommand AboutCommand { get; private set; }             // ℹ 关于
+        public RelayCommand OpenSettingsCommand { get; private set; }      // 设置面板
+        public RelayCommand UnbindAllCommand { get; private set; }         // 底栏「取消绑定」
+        public RelayCommand RestoreGlobalCommand { get; private set; }     // 卡片「恢复全局」
+        public RelayCommand ResetDefaultsCommand { get; private set; }     // 设置「恢复默认」
 
         private void BuildCommands()
         {
@@ -949,6 +1176,24 @@ namespace WindowTinter.ViewModels
             ExitCommand = new RelayCommand(ExitApplication);
             OpenConfigFolderCommand = new RelayCommand(OpenConfigFolder);
             AboutCommand = new RelayCommand(ShowAbout);
+            OpenSettingsCommand = new RelayCommand(ShowSettings);
+            UnbindAllCommand = new RelayCommand(UnbindAll);
+            RestoreGlobalCommand = new RelayCommand(RestoreGlobalForSelected);
+            ResetDefaultsCommand = new RelayCommand(ResetGlobalDefaults);
+        }
+
+        private void ShowSettings()
+        {
+            var owner = Application.Current.MainWindow;
+            // 托盘菜单唤起时主窗口可能已隐藏——先显示，避免模态面板无可见宿主
+            if (owner != null && !owner.IsVisible)
+            {
+                owner.ShowInTaskbar = true;
+                owner.Show();
+                owner.WindowState = WindowState.Normal;
+            }
+            var dlg = new SettingsDialog { Owner = owner, DataContext = this };
+            dlg.ShowDialog();
         }
 
         /// <summary>真实退出标记：MainWindow.Closing 据此走"释放+退出"而非"最小化到托盘"。</summary>

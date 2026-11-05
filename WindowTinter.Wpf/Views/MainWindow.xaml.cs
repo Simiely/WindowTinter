@@ -25,7 +25,8 @@ namespace WindowTinter.Views
             Closing += OnClosing;
             // 加载 → 恢复窗口状态 → 构建托盘
             SourceInitialized += (_, _) => RestoreWindowState();
-            Loaded += (_, _) => BuildTray();
+            Loaded += (_, _) => { BuildTray(); AdaptEmptyHeight(); };
+            _vm.Targets.CollectionChanged += (_, _) => AdaptEmptyHeight();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
             WindowTheme.EnableDarkTitleBar(this);
         }
@@ -65,7 +66,8 @@ namespace WindowTinter.Views
                 s.WindowLeft = Left;
                 s.WindowTop = Top;
                 s.WindowWidth = Width;
-                s.WindowHeight = Height;
+                // 空状态自动收缩的高度不写入配置，避免下次启动把 560 当成用户尺寸
+                s.WindowHeight = _autoShrunk ? (_heightBeforeEmpty > 0 ? _heightBeforeEmpty : 720) : Height;
             }
             else if (RestoreBounds != Rect.Empty)
             {
@@ -76,12 +78,54 @@ namespace WindowTinter.Views
             }
         }
 
-        /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（✎/× 按钮点击除外）。</summary>
+        /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（按钮点击除外）。</summary>
         private void Card_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             if (e.OriginalSource is ButtonBase) return; // 按钮自身操作，不触发选中
             if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
                 vm.SelectCommand.Execute(null);
+        }
+
+        /// <summary>卡片键盘可达：Tab 聚焦后 Enter / Space 展开。</summary>
+        private void Card_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter && e.Key != Key.Space) return;
+            if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
+            {
+                vm.SelectCommand.Execute(null);
+                e.Handled = true;
+            }
+        }
+
+        // ── 标题栏窗控（自绘 chrome）──
+        private void OnMinClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+        private void OnMaxClick(object sender, RoutedEventArgs e)
+            => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+        private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+        // ── 空状态高度自适应（空列表最小 560，恢复时回到用户原高度）──
+        private double _heightBeforeEmpty;
+        private bool _autoShrunk;
+
+        private void AdaptEmptyHeight()
+        {
+            if (WindowState != WindowState.Normal) return;
+            if (_vm.IsEmpty)
+            {
+                if (Height > 560)
+                {
+                    _heightBeforeEmpty = Height;
+                    Height = 560;
+                    _autoShrunk = true;
+                }
+            }
+            else if (_autoShrunk && Height <= 560.5)
+            {
+                Height = _heightBeforeEmpty > 0 ? _heightBeforeEmpty : 720;
+                _autoShrunk = false;
+            }
         }
 
         private void BuildTray() => _tray = new TrayService(_vm, IsWindowOpen, ToggleWindow);

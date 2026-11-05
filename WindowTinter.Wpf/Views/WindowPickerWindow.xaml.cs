@@ -1,17 +1,18 @@
 using System;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace WindowTinter.Views
 {
     /// <summary>
-    /// 窗口拾取器（WPF 版）：全屏近透明捕获层 + 十字光标 + 反转边框高亮。
-    /// 铁律：内部逻辑（GetWindowAtCursor/IsIgnoredWindow/FallbackEnumerate/PatBlt 高亮/30ms 节流）原样搬自
-    /// WinForms WindowPickerForm.cs，仅容器适配：Form→Window、MouseEventArgs→WPF 鼠标事件、
-    /// Keys.Escape→Key.Escape、Control.MousePosition→PointToScreen(物理像素)。
-    /// 左键点击窗口选定，右键取消，Esc 取消。
+    /// 窗口拾取器（WPF 版，对齐设计稿 C）：
+    /// 全屏 scrim + 目标蓝描边四角标 + 左侧 HUD（宽 304，与目标窗重叠时自动换到右侧）。
+    /// 内部命中逻辑（GetWindowAtCursor / IsIgnoredWindow / FallbackEnumerate / 30ms 节流）原样保留。
+    /// 左键点击窗口选定，右键 / Esc / HUD「取消」取消。
     /// </summary>
     public partial class WindowPickerWindow : Window
     {
@@ -28,6 +29,11 @@ namespace WindowTinter.Views
             Top = SystemParameters.VirtualScreenTop;
             Width = SystemParameters.VirtualScreenWidth;
             Height = SystemParameters.VirtualScreenHeight;
+            Loaded += (_, _) =>
+            {
+                Focus();
+                PositionHud(null);
+            };
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -72,6 +78,13 @@ namespace WindowTinter.Views
             return sb.ToString();
         }
 
+        private static string GetTitle(IntPtr hwnd)
+        {
+            var sb = new StringBuilder(512);
+            Native.GetWindowText(hwnd, sb, sb.Capacity);
+            return sb.ToString();
+        }
+
         /// <summary>兜底：EnumWindows 按 Z 序从顶到底枚举，取第一个"包含光标 + 可交互"的顶层窗口。</summary>
         private IntPtr FallbackEnumerate(System.Drawing.Point pt)
         {
@@ -101,11 +114,12 @@ namespace WindowTinter.Views
             IntPtr h = GetWindowAtCursor();
             if (h == _lastHwnd) return;
 
-            ClearHighlight();
             _lastHwnd = h;
 
             if (h != IntPtr.Zero && Native.GetWindowRect(h, out _highlight))
                 DrawHighlight(h, _highlight);
+            else
+                ClearHighlight();
         }
 
         private void OnMouseClick(object sender, MouseButtonEventArgs e)
@@ -116,7 +130,7 @@ namespace WindowTinter.Views
                 return;
             }
             if (e.ChangedButton != MouseButton.Left) return;
-            ClearHighlight();
+
             IntPtr h = GetWindowAtCursor();
             if (h != IntPtr.Zero)
             {
@@ -124,7 +138,9 @@ namespace WindowTinter.Views
                 DialogResult = true;
             }
             else
+            {
                 DialogResult = false;
+            }
             Close();
         }
 
@@ -135,6 +151,16 @@ namespace WindowTinter.Views
                 CancelPicker();
                 e.Handled = true;
             }
+        }
+
+        private void OnCancelHud(object sender, RoutedEventArgs e) => CancelPicker();
+
+        private void OnConfirmHud(object sender, RoutedEventArgs e)
+        {
+            if (_lastHwnd == IntPtr.Zero) return;
+            SelectedHandle = _lastHwnd;
+            DialogResult = true;
+            Close();
         }
 
         private void CancelPicker()
@@ -150,29 +176,90 @@ namespace WindowTinter.Views
             base.OnClosing(e);
         }
 
-        // ── 反转边框绘制（原样搬）──
+        // ── 覆盖层绘制（WPF 视觉，不再用 PatBlt 反转）──
 
         private void DrawHighlight(IntPtr hwnd, Native.RECT r)
         {
-            IntPtr hdc = Native.GetWindowDC(hwnd);
-            if (hdc == IntPtr.Zero) return;
-            try
+            var rect = ToDip(r);
+            TargetLabelText.Text = GetTitle(hwnd) is { Length: > 0 } t ? (t.Length > 42 ? t.Substring(0, 42) + "…" : t) : GetClass(hwnd);
+            TargetLabelSize.Text = $"{r.Width} × {r.Height}";
+            HudTitle.Text = TargetLabelText.Text;
+            HudMeta.Text = $"{r.Width} × {r.Height} px";
+            HudDot.Fill = (Brush)FindResource("Accent");
+            ConfirmButton.IsEnabled = true;
+
+            ApplyScrim(rect);
+            Canvas.SetLeft(FrameVisual, rect.X);
+            Canvas.SetTop(FrameVisual, rect.Y);
+            FrameVisual.Width = Math.Max(rect.Width, 8);
+            FrameVisual.Height = Math.Max(rect.Height, 8);
+            TargetFrame.Visibility = Visibility.Visible;
+            PositionHud(rect);
+        }
+
+        /// <summary>物理像素矩形 → 本窗口 DIP 坐标。</summary>
+        private Rect ToDip(Native.RECT r)
+        {
+            Point tl = PointFromScreen(new Point(r.Left, r.Top));
+            Point br = PointFromScreen(new Point(r.Right, r.Bottom));
+            return new Rect(tl, br);
+        }
+
+        private void ApplyScrim(Rect r)
+        {
+            double w = ActualWidth;
+            double h = ActualHeight;
+
+            Canvas.SetLeft(TopScrim, 0); Canvas.SetTop(TopScrim, 0);
+            TopScrim.Width = w; TopScrim.Height = Math.Max(0, r.Top);
+
+            Canvas.SetLeft(BottomScrim, 0); Canvas.SetTop(BottomScrim, r.Bottom);
+            BottomScrim.Width = w; BottomScrim.Height = Math.Max(0, h - r.Bottom);
+
+            Canvas.SetLeft(LeftScrim, 0); Canvas.SetTop(LeftScrim, r.Top);
+            LeftScrim.Width = Math.Max(0, r.Left); LeftScrim.Height = Math.Max(0, r.Height);
+
+            Canvas.SetLeft(RightScrim, r.Right); Canvas.SetTop(RightScrim, r.Top);
+            RightScrim.Width = Math.Max(0, w - r.Right); RightScrim.Height = Math.Max(0, r.Height);
+        }
+
+        /// <summary>HUD 定位：默认左上 16/32；与目标矩形相交时换到右侧，保持不遮挡目标。</summary>
+        private void PositionHud(Rect? target)
+        {
+            const double margin = 16;
+            const double top = 32;
+
+            if (!IsLoaded) return;
+
+            double hudW = Hud.Width;
+            Hud.Measure(new Size(hudW, double.PositiveInfinity));
+            double hudH = Hud.DesiredSize.Height > 0 ? Hud.DesiredSize.Height : 360;
+
+            double left = margin;
+            if (target.HasValue)
             {
-                int bw = 3;
-                Native.PatBlt(hdc, 0, 0, r.Width, bw, Native.DSTINVERT);
-                Native.PatBlt(hdc, 0, r.Height - bw, r.Width, bw, Native.DSTINVERT);
-                Native.PatBlt(hdc, 0, 0, bw, r.Height, Native.DSTINVERT);
-                Native.PatBlt(hdc, r.Width - bw, 0, bw, r.Height, Native.DSTINVERT);
+                var targetRect = target.Value;
+                var onLeft = new Rect(margin, top, hudW, hudH);
+                if (onLeft.IntersectsWith(targetRect))
+                {
+                    var onRight = new Rect(Math.Max(margin, ActualWidth - hudW - margin), top, hudW, hudH);
+                    if (!onRight.IntersectsWith(targetRect)) left = onRight.Left;
+                }
             }
-            finally { Native.ReleaseDC(hwnd, hdc); }
+
+            Canvas.SetLeft(Hud, left);
+            Canvas.SetTop(Hud, top);
         }
 
         private void ClearHighlight()
         {
-            if (_lastHwnd != IntPtr.Zero && Native.IsWindow(_lastHwnd)
-                && Native.GetWindowRect(_lastHwnd, out Native.RECT current))
-                DrawHighlight(_lastHwnd, current);
             _lastHwnd = IntPtr.Zero;
+            TargetFrame.Visibility = Visibility.Collapsed;
+            HudTitle.Text = "移动鼠标选择目标";
+            HudMeta.Text = "尚未命中任何窗口";
+            HudDot.Fill = (Brush)FindResource("Off");
+            ConfirmButton.IsEnabled = false;
+            PositionHud(null);
         }
     }
 }

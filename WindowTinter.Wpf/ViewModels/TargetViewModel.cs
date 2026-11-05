@@ -8,9 +8,8 @@ using System.Windows.Media.Imaging;
 namespace WindowTinter.ViewModels
 {
     /// <summary>
-    /// 单目标卡片 VM（设计稿扑克牌卡片）。
-    /// 数据源：TargetInfo（配置）+ TargetEntry（活跃绑定条目，null=待激活）。
-    /// 外观色板对齐 Themes/Dark.xaml 与 UI_REDESIGN.html；选中态由 MainViewModel.SelectedTarget 驱动。
+    /// 单目标卡片 VM。
+    /// 只暴露语义状态（生效 / 未找到 / 暂停 / 刷新中），不产出颜色——颜色由 XAML 按 StateTone 触发选择。
     /// </summary>
     internal class TargetViewModel : ObservableObject
     {
@@ -34,36 +33,57 @@ namespace WindowTinter.ViewModels
             RefreshShotCommand = new RelayCommand(() => _owner.RefreshTargetSnapshot(Info));
         }
 
-        // ── 外观色板（对齐 Themes/Dark.xaml）──
-        private static readonly Brush C_Card = Br("#32363C");
-        private static readonly Brush C_CardPending = Br("#26292E");
-        private static readonly Brush C_CardSel = Br("#2B3B52");
-        private static readonly Brush C_Border = Br("#3A3F46");
-        private static readonly Brush C_BorderPending = Br("#555555");
-        private static readonly Brush C_BorderSel = Br("#4A90D9");
-        private static readonly Brush C_Teal = Br("#FF9292");
-        private static readonly Brush C_Dim = Br("#6E747C");
-        private static readonly Brush C_Text = Br("#E8EAF0");
-        private static readonly Brush C_Shot = Br("#2A2E36");
-
-        // ── 状态派生 ──
+        // ── 状态派生（XAML 据 StateTone 选色）──
         public bool IsPending => Entry == null;
         public bool IsSelected => _owner.SelectedTarget == this;
 
+        /// <summary>ok = 已绑定生效；warn = 窗口未找到；off = 全局暂停。</summary>
+        public string StateTone => !_owner.IsEnabled ? "off" : IsPending ? "warn" : "ok";
+
+        // ── 文案：标题优先级 = 窗口标题 > 进程名；别名单独放副标题 ──
         public string DisplayName => Info.ToString();
-        public Visibility AliasVisible => string.IsNullOrEmpty(Info.Alias) ? Visibility.Collapsed : Visibility.Visible;
-        public Visibility PendingLabel => IsPending ? Visibility.Visible : Visibility.Collapsed;
+        public string WindowName
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(Info.WindowTitle)) return Info.WindowTitle;
+                if (!string.IsNullOrWhiteSpace(Info.ProcessName)) return Info.ProcessName;
+                return "未命名窗口";
+            }
+        }
+        public string AliasText => Info.Alias ?? "";
+        public bool HasAlias => !string.IsNullOrEmpty(Info.Alias);
+        public Visibility AliasVisible => HasAlias ? Visibility.Visible : Visibility.Collapsed;
 
-        public Brush ShotColor => C_Shot;
-        public Brush StateColor => IsPending ? C_Dim : C_Teal;
-        public Brush NameColor => IsPending ? C_Dim : C_Text;
-        // 选中效果（触发条件：非全局模式；全局时 SelectCommand 直接 return，天然无选中）
-        public Brush CardBg => IsSelected && !IsPending ? C_CardSel : IsPending ? C_CardPending : C_Card;
-        public Brush CardBorder => IsSelected && !IsPending ? C_BorderSel : IsPending ? C_BorderPending : C_Border;
+        // ── 副行：暗度 / 圆角（取该目标生效值，文本在 VM 内拼装，不涉及颜色）──
+        public string AlphaText => $"暗度 {_owner.EffectiveAlpha(Info)}%";
+        public string CornerText => _owner.EffectiveCorner(Info) == 0 ? "直角" : $"圆角 {_owner.EffectiveCorner(Info)}px";
+        public string MetaSuffix => $"{AlphaText} · {CornerText}";
 
-        // ── 快照（BitmapSource；null = 显示占位色块）──
+        // ── 快照（BitmapSource；null = 显示占位）──
         private ImageSource _shotImage;
-        public ImageSource ShotImage { get => _shotImage; private set => SetProperty(ref _shotImage, value); }
+        public ImageSource ShotImage { get => _shotImage; private set { if (SetProperty(ref _shotImage, value)) OnPropertyChanged(nameof(HasShot)); } }
+
+        public bool HasShot => _shotImage != null;
+        public Visibility ShotVisible => HasShot ? Visibility.Visible : Visibility.Collapsed;
+
+        private bool _shotFailed;
+        /// <summary>最近一次抓图失败（窗口最小化 / 受保护 / 全黑）。有旧帧时仍保留旧帧。</summary>
+        public bool ShotFailed => _shotFailed;
+
+        public string PlaceholderText => _shotFailed ? "未能抓取" : "窗口未找到";
+
+        public void SetShotFailed(bool failed)
+        {
+            if (_shotFailed == failed) return;
+            _shotFailed = failed;
+            OnPropertyChanged(nameof(ShotFailed));
+            OnPropertyChanged(nameof(PlaceholderText));
+        }
+
+        private bool _isRefreshing;
+        public bool IsRefreshing { get => _isRefreshing; private set => SetProperty(ref _isRefreshing, value); }
+        public void SetRefreshing(bool value) => IsRefreshing = value;
 
         /// <summary>设置快照（消费并释放 System.Drawing.Bitmap）；null = 清空回占位。</summary>
         public void SetShot(DrawingBitmap bmp)
@@ -96,13 +116,22 @@ namespace WindowTinter.ViewModels
         {
             OnPropertyChanged(nameof(IsPending));
             OnPropertyChanged(nameof(IsSelected));
+            OnPropertyChanged(nameof(StateTone));
             OnPropertyChanged(nameof(DisplayName));
+            OnPropertyChanged(nameof(WindowName));
+            OnPropertyChanged(nameof(AliasText));
+            OnPropertyChanged(nameof(HasAlias));
             OnPropertyChanged(nameof(AliasVisible));
-            OnPropertyChanged(nameof(PendingLabel));
-            OnPropertyChanged(nameof(StateColor));
-            OnPropertyChanged(nameof(NameColor));
-            OnPropertyChanged(nameof(CardBg));
-            OnPropertyChanged(nameof(CardBorder));
+            OnPropertyChanged(nameof(ShotVisible));
+            OnPropertyChanged(nameof(PlaceholderText));
+        }
+
+        /// <summary>暗度/圆角文案变化（全局模式或本目标被编辑时）。</summary>
+        public void RefreshMeta()
+        {
+            OnPropertyChanged(nameof(AlphaText));
+            OnPropertyChanged(nameof(CornerText));
+            OnPropertyChanged(nameof(MetaSuffix));
         }
 
         /// <summary>由 RebuildTargetList 调用：绑定条目变化（活跃↔待激活）。</summary>
@@ -117,11 +146,5 @@ namespace WindowTinter.ViewModels
         public RelayCommand RenameCommand { get; }
         public RelayCommand RemoveCommand { get; }
         public RelayCommand RefreshShotCommand { get; }
-
-        private static Brush Br(string hex)
-        {
-            var c = (Color)ColorConverter.ConvertFromString(hex);
-            return new SolidColorBrush(c);
-        }
     }
 }

@@ -1,226 +1,571 @@
 <Window x:Class="WindowTinter.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="暗幕 v6.0.1" Width="475" Height="691.2" MinWidth="475" MinHeight="691.2"
-        Background="{StaticResource Bg}"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="暗幕 v6.0.1" Width="640" Height="720" MinWidth="616" MinHeight="560"
+        Background="{StaticResource WinBg}"
+        WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Display">
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="53.7"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="228.6"/>
-            <RowDefinition Height="51.3"/>
-            <RowDefinition Height="55.9"/>
-            <RowDefinition Height="28.0"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+        TextOptions.TextFormattingMode="Display"
+        FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}">
 
-        <!-- ═══ ① 状态条 ═══ -->
-        <Border Grid.Row="0" Background="{StaticResource Card}" CornerRadius="8" Padding="14,0" Margin="0,0,0,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="23.3"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Ellipse Grid.Column="0" Width="8.6" Height="8.6" Fill="{Binding StatusColor}" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <Ellipse.Effect>
-                        <DropShadowEffect Color="#FF9292" BlurRadius="6" ShadowDepth="0"/>
-                    </Ellipse.Effect>
-                </Ellipse>
-                <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="15.7" FontWeight="Bold" VerticalAlignment="Center" Margin="6,0,0,0"/>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <ToggleButton Style="{StaticResource Switch}" IsChecked="{Binding IsEnabled, Mode=TwoWay}"/>
-                    <TextBlock Text="启用" Margin="6,0,0,0" FontSize="13.0" Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="12"
+                            GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
 
-        <!-- ═══ ② 目标窗口卡 ═══ -->
-        <Border Grid.Row="1" Background="{StaticResource Card}" CornerRadius="8">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="35.0"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="21.0"/>
-                </Grid.RowDefinitions>
-                <Border Grid.Row="0" Background="{StaticResource CardHeader}" CornerRadius="8,8,0,0">
-                    <Grid Margin="10,0,6,0">
+    <Window.Resources>
+        <!-- 搜索框：28 高，内嵌放大镜 + 占位文案（仅在 Text 为空时显示） -->
+        <Style x:Key="SearchBox" TargetType="TextBox" BasedOn="{StaticResource DarkTextBox}">
+            <Setter Property="Width" Value="196"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid>
+                            <Border x:Name="ring" Margin="-3" CornerRadius="11" BorderBrush="{StaticResource FocusRing}"
+                                    BorderThickness="2" Visibility="Collapsed"/>
+                            <Border x:Name="bd" Background="{StaticResource ControlBg}"
+                                    BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" CornerRadius="8">
+                                <Grid Margin="9,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="13"/>
+                                        <ColumnDefinition Width="6"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid Width="13" Height="13" VerticalAlignment="Center">
+                                        <Ellipse Width="9" Height="9" Stroke="{StaticResource Text3}" StrokeThickness="1.3"
+                                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0"/>
+                                        <Rectangle Width="5" Height="1.3" Fill="{StaticResource Text3}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,1,2"
+                                                   RenderTransformOrigin="0,0.5">
+                                            <Rectangle.RenderTransform>
+                                                <RotateTransform Angle="45"/>
+                                            </Rectangle.RenderTransform>
+                                        </Rectangle>
+                                    </Grid>
+                                    <ScrollViewer x:Name="PART_ContentHost" Grid.Column="2" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ph" Grid.Column="2" Text="搜索标题或别名" FontSize="10.5"
+                                               Foreground="{StaticResource Text3}" VerticalAlignment="Center"
+                                               IsHitTestVisible="False" Visibility="Collapsed"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Text.Length, RelativeSource={RelativeSource TemplatedParent}}" Value="0">
+                                <Setter TargetName="ph" Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource LineStrong}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="ring" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 卡片：正常 / 未找到 / 暂停三态 + 选中内联展开 -->
+        <DataTemplate x:Key="TargetCardTemplate">
+            <Border Margin="0,0,0,8" CornerRadius="10" BorderThickness="1" Focusable="True" Cursor="Hand"
+                    PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp" KeyDown="Card_KeyDown">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="{StaticResource CardBg}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource LineSoft}"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource CardHoverBg}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource LineSoftHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource CardSelBg}"/>
+                                <Setter Property="BorderBrush" Value="#660A84FF"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="64"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- ── 行：88×48 缩略图 + 标题 + 副行 + 展开箭头 ── -->
+                    <Grid Grid.Row="0" Margin="12,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="88"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="84.0"/>
-                            <ColumnDefinition Width="84.0"/>
-                            <ColumnDefinition Width="80.0"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="目标窗口" FontWeight="Bold" FontSize="14.0" VerticalAlignment="Center"/>
-                        <Button Grid.Column="2" Style="{StaticResource BtnBase}" Content="⟳ 刷新快照" FontSize="11.9" Width="80" Margin="0,3,4,3" Command="{Binding RefreshSnapshotsCommand}"/>
-                        <Button Grid.Column="3" Style="{StaticResource BtnBase}" Content="↻ 重新查找" FontSize="11.9" Width="80" Margin="0,3,4,3" Command="{Binding RefindAllCommand}"/>
-                        <Button Grid.Column="4" Style="{StaticResource BtnPrimary}" Content="+ 添加窗口" FontSize="11.9" Width="80" Margin="0,3,0,3" Command="{Binding AddWindowCommand}"/>
-                    </Grid>
-                </Border>
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="6">
-                    <ItemsControl ItemsSource="{Binding Targets}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Width="133.9" Height="136" Background="{Binding CardBg}" CornerRadius="10" Margin="3"
-                                        BorderBrush="{Binding CardBorder}" BorderThickness="1"
-                                        PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp">
-                                    <StackPanel Margin="8,8,8,6">
-                                        <Border Height="60.5" CornerRadius="6" Background="{StaticResource ShotBg}">
+
+                        <Border Grid.Column="0" Width="88" Height="48" CornerRadius="8"
+                                Background="{StaticResource InsetBg}" BorderBrush="#0FFFFFFF" BorderThickness="1"
+                                Padding="4" VerticalAlignment="Center" SnapsToDevicePixels="True">
+                            <Grid>
+                                <Border CornerRadius="6" ClipToBounds="True">
+                                    <Grid>
+                                        <Image Source="{Binding ShotImage}" Stretch="Uniform"/>
+
+                                        <!-- 占位：窗口未找到 / 未能抓取 -->
+                                        <Border x:Name="shotPlaceholder" CornerRadius="6"
+                                                Background="{StaticResource ShotPlaceholderBg}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasShot}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <Grid>
-                                                <Rectangle Fill="{Binding ShotColor}" RadiusX="3" RadiusY="3" Margin="4"/>
-                                                <Image Source="{Binding ShotImage}" Stretch="Uniform" Margin="4"/>
-                                                <TextBlock Text="⏳ 窗口未启动" FontSize="11.9" Foreground="{StaticResource Text3}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                           Visibility="{Binding PendingLabel}"/>
+                                                <Rectangle Stroke="{StaticResource ShotPlaceholderLine}" StrokeThickness="1"
+                                                           StrokeDashArray="3 2" RadiusX="6" RadiusY="6"/>
+                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Path Width="16" Height="12" HorizontalAlignment="Center"
+                                                          Data="M1,1 L15,1 L15,11 L1,11 Z M1,4 L15,4"
+                                                          Stroke="{StaticResource Text3}" StrokeThickness="1"/>
+                                                    <TextBlock Text="{Binding PlaceholderText}" FontSize="9.5"
+                                                               Foreground="{StaticResource Text3}" HorizontalAlignment="Center"
+                                                               Margin="0,2,0,0"/>
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
-                                        <Grid Margin="0,6,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="14.0"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="7.6" Height="7.6" Fill="{Binding StateColor}" VerticalAlignment="Center" HorizontalAlignment="Left"/>
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                <TextBlock Text="{Binding DisplayName}" FontSize="13.0" TextTrimming="CharacterEllipsis"
-                                                           VerticalAlignment="Center" Foreground="{Binding NameColor}"/>
-                                                <Border Background="#2A2A22" CornerRadius="4" BorderBrush="#5A4A20" BorderThickness="1" Padding="3,0" Margin="5,0,0,0"
-                                                        Visibility="{Binding AliasVisible}">
-                                                    <TextBlock Text="别名" FontSize="10.3" Foreground="{StaticResource Amber}" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </StackPanel>
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
-                                            <Button Content="✎" Style="{StaticResource BtnIcon}" Command="{Binding RenameCommand}"/>
-                                            <Button Content="×" Style="{StaticResource BtnIcon}" Command="{Binding RemoveCommand}"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-                <TextBlock Grid.Row="2" Text="▼ 更多目标 · 窗口拉高后卡片自动增行" FontSize="10.8" Foreground="{StaticResource Text3}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Grid>
-        </Border>
 
-        <!-- ═══ ③ 效果控制卡 ═══ -->
-        <Border Grid.Row="2" Background="{StaticResource Card}" CornerRadius="8" Margin="0,8,0,8">
-            <Grid>
+                                        <!-- 刷新中：保留上一帧，只转细弧，不闪骨架 -->
+                                        <Path x:Name="spinArc" Width="12" Height="12" HorizontalAlignment="Right"
+                                              VerticalAlignment="Top" Margin="0,2,2,0"
+                                              Data="M1,6 A5,5 0 0 1 6,1" Stroke="{StaticResource Accent}" StrokeThickness="1.4"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Path.Style>
+                                                <Style TargetType="Path">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </Style>
+                                            </Path.Style>
+                                            <Path.RenderTransform>
+                                                <RotateTransform x:Name="spinRotate" Angle="0"/>
+                                            </Path.RenderTransform>
+                                        </Path>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 1px inset 描边 -->
+                                <Border CornerRadius="6" BorderBrush="#1AFFFFFF" BorderThickness="1" IsHitTestVisible="False"/>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding WindowName}" FontSize="12.5" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                <Ellipse Grid.Column="1" Width="6" Height="6" Margin="8,1,0,0" VerticalAlignment="Center">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="{StaticResource Off}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StateTone}" Value="ok">
+                                                    <Setter Property="Fill" Value="{StaticResource Ok}"/>
+                                                    <Setter Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect Color="#30D158" BlurRadius="7" ShadowDepth="0" Opacity="0.8"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding StateTone}" Value="warn">
+                                                    <Setter Property="Fill" Value="{StaticResource Warn}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <Border Grid.Column="2" Background="{StaticResource BadgeBg}" BorderBrush="{StaticResource BadgeBorder}"
+                                        BorderThickness="1" CornerRadius="4" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                                        Visibility="{Binding AliasVisible}">
+                                    <TextBlock Text="自定义" FontSize="9" Foreground="{StaticResource BadgeText}"/>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock Text="{Binding AliasText}" FontSize="10.5" Foreground="{StaticResource Text2}"
+                                           MaxWidth="220" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="·" FontSize="10.5" Foreground="{StaticResource Text3}" Margin="6,0"
+                                           Visibility="{Binding AliasVisible}"/>
+                                <TextBlock Text="{Binding MetaSuffix}" FontSize="10.5" Foreground="{StaticResource Text3}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Path x:Name="caretPath" Grid.Column="2" Width="16" Height="16" Margin="0,0,12,0"
+                              VerticalAlignment="Center" Data="M4,6 L8,10 L12,6" Stroke="{StaticResource Text3}"
+                              StrokeThickness="1.8" StrokeLineJoin="Round" RenderTransformOrigin="0.5,0.5">
+                            <Path.RenderTransform>
+                                <RotateTransform x:Name="caretRotate" Angle="0"/>
+                            </Path.RenderTransform>
+                        </Path>
+                    </Grid>
+
+                    <!-- ── 内联展开：选中卡片后直接出现滑块（无右侧检查器）── -->
+                    <StackPanel Grid.Row="1">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <Border Height="1" Background="{StaticResource LineSoft}" Margin="12,0"/>
+
+                        <Grid Height="32" Margin="12,6,12,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="56"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="44"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="压暗强度" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                            <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="100" SmallChange="1" LargeChange="5"
+                                    Value="{Binding DataContext.BackgroundAlpha, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"
+                                    IsEnabled="{Binding DataContext.IsAlphaSliderEnabled, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                            <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
+                                    BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DataContext.BackgroundAlphaText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                           FontSize="10" Foreground="{StaticResource Text2}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+
+                        <Grid Height="32" Margin="12,6,12,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="56"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="44"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="圆角半径" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                            <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="32" SmallChange="1" LargeChange="4"
+                                    Value="{Binding DataContext.CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"
+                                    IsEnabled="{Binding DataContext.IsCornerSliderEnabled, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                            <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
+                                    BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding DataContext.CornerRadiusText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                           FontSize="10" Foreground="{StaticResource Text2}" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+
+                        <Grid Margin="12,6,12,12">
+                            <TextBlock Text="{Binding DataContext.GlobalDefaultsText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+                                       FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="重命名" Style="{StaticResource LinkButton}" Command="{Binding RenameCommand}"/>
+                                <Button Content="恢复全局" Style="{StaticResource LinkButton}" Margin="4,0,0,0"
+                                        Command="{Binding DataContext.RestoreGlobalCommand, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                                <Button Content="删除目标" Style="{StaticResource LinkButtonDanger}" Margin="4,0,0,0"
+                                        Command="{Binding RemoveCommand}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter TargetName="caretPath" Property="RenderTransform">
+                        <Setter.Value>
+                            <RotateTransform Angle="90"/>
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsRefreshing}" Value="True">
+                    <Setter TargetName="spinArc" Property="Visibility" Value="Visible"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard x:Name="spinStoryboard">
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetName="spinRotate" Storyboard.TargetProperty="Angle"
+                                                 From="0" To="360" Duration="0:0:0.9" RepeatBehavior="Forever"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <StopStoryboard BeginStoryboardName="spinStoryboard"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Border Background="{StaticResource WinBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="48"/>
+                <RowDefinition Height="56"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="64"/>
+            </Grid.RowDefinitions>
+
+            <!-- ═══ ① 标题栏 48 ═══ -->
+            <Grid Grid.Row="0" Background="{StaticResource TitleBarBg}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource TrafficDot}" Background="#FF5F57" ToolTip="关闭" Click="OnCloseClick"
+                            Margin="0,0,8,0"/>
+                    <Button Style="{StaticResource TrafficDot}" Background="#FEBC2E" ToolTip="最小化" Click="OnMinClick"
+                            Margin="0,0,8,0"/>
+                    <Button Style="{StaticResource TrafficDot}" Background="#28C840" ToolTip="最大化 / 还原" Click="OnMaxClick"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="暗幕" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding TargetSubtitle}" FontSize="9.5" Foreground="{StaticResource Text3}"
+                               HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                </StackPanel>
+
+                <Button Grid.Column="2" Style="{StaticResource BtnIcon}" Margin="0,0,12,0" ToolTip="全局默认参数"
+                        Command="{Binding OpenSettingsCommand}"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Canvas Width="18" Height="18">
+                        <Rectangle Canvas.Left="2" Canvas.Top="4" Width="14" Height="1" Fill="{StaticResource Text2}"/>
+                        <Rectangle Canvas.Left="2" Canvas.Top="9" Width="14" Height="1" Fill="{StaticResource Text2}"/>
+                        <Rectangle Canvas.Left="2" Canvas.Top="14" Width="14" Height="1" Fill="{StaticResource Text2}"/>
+                        <Ellipse Canvas.Left="10" Canvas.Top="2.5" Width="4" Height="4" Fill="{StaticResource Text2}"/>
+                        <Ellipse Canvas.Left="5" Canvas.Top="7.5" Width="4" Height="4" Fill="{StaticResource Text2}"/>
+                        <Ellipse Canvas.Left="10" Canvas.Top="12.5" Width="4" Height="4" Fill="{StaticResource Text2}"/>
+                    </Canvas>
+                </Button>
+
+                <Border Grid.ColumnSpan="3" Height="1" Background="{StaticResource LineSoft}" VerticalAlignment="Bottom"/>
+            </Grid>
+
+            <!-- ═══ ② 工具栏 56（空状态整行隐藏）═══ -->
+            <Grid Grid.Row="1">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 分段筛选 28 高 -->
+                <Border Grid.Column="0" Background="#0BFFFFFF" BorderBrush="#0DFFFFFF" BorderThickness="1"
+                        CornerRadius="9" Padding="2" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <ToggleButton Style="{StaticResource SegToggle}" IsChecked="{Binding IsFilterAllChecked, Mode=TwoWay}" Margin="0,0,2,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="全部" FontSize="10.5"/>
+                                <TextBlock Text="{Binding TotalCount}" FontSize="9" Foreground="{StaticResource Text3}"
+                                           Margin="5,1,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource SegToggle}" IsChecked="{Binding IsFilterActiveChecked, Mode=TwoWay}" Margin="0,0,2,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="生效中" FontSize="10.5"/>
+                                <TextBlock Text="{Binding ActiveCount}" FontSize="9" Foreground="{StaticResource Text3}"
+                                           Margin="5,1,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource SegToggle}" IsChecked="{Binding IsFilterPendingChecked, Mode=TwoWay}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="未连接" FontSize="10.5"/>
+                                <TextBlock Text="{Binding PendingCount}" FontSize="9" Foreground="{StaticResource Text3}"
+                                           Margin="5,1,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </ToggleButton>
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,16,0">
+                    <Button Style="{StaticResource BtnIcon}" ToolTip="刷新快照" Command="{Binding RefreshSnapshotsCommand}">
+                        <Viewbox Width="16" Height="16">
+                            <Canvas Width="16" Height="16">
+                                <Path Data="M13.6,8 A5.6,5.6 0 1 1 8,2.4" Stroke="{StaticResource Text2}" StrokeThickness="1.6"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                <Path Data="M10.9,0.4 L10.9,4.4 L14.6,2.6 Z" Fill="{StaticResource Text2}"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                    <TextBox Style="{StaticResource SearchBox}" Margin="8,0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Button Style="{StaticResource BtnIconAccent}" ToolTip="拾取目标窗口" Command="{Binding AddWindowCommand}">
+                        <Canvas Width="16" Height="16">
+                            <Rectangle Canvas.Left="7.2" Canvas.Top="2" Width="1.6" Height="12" Fill="White"/>
+                            <Rectangle Canvas.Left="2" Canvas.Top="7.2" Width="12" Height="1.6" Fill="White"/>
+                        </Canvas>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- ═══ ③ 列表区（表头 36 + 可滚动卡片 + 全局条 44）═══ -->
+            <Grid Grid.Row="2">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="30.3"/>
+                    <RowDefinition Height="36"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Border Grid.Row="0" Background="{StaticResource CardHeader}" CornerRadius="8,8,0,0">
-                    <TextBlock Text=" 效果控制" FontWeight="Bold" FontSize="14.0" VerticalAlignment="Center"/>
-                </Border>
-                <Grid Grid.Row="1" Margin="10,4,10,4">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="35.0"/>
-                        <RowDefinition Height="39.6"/>
-                        <RowDefinition Height="35.0"/>
-                        <RowDefinition Height="39.6"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <CheckBox Content="垫黑底" IsChecked="{Binding BackdropBlackPlate, Mode=TwoWay}"
-                                  ToolTip="在目标窗口正下方垫不透明纯黑，配合半透明形成压暗效果。关闭后目标只变半透明、透出后面内容。"/>
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <CheckBox Content="全局统一压暗" FontWeight="Bold" IsChecked="{Binding GlobalTransparency, Mode=TwoWay}"
-                                      ToolTip="所有窗口共用同一压暗强度。关闭后可在目标列表点击卡片选中窗口单独配置。"/>
-                        </StackPanel>
-                    </Grid>
-                    <Grid Grid.Row="1">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="74.6"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="46.7"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="压暗强度" FontSize="13.5" Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
-                        <Slider Grid.Column="1" Minimum="0" Maximum="100" Value="{Binding BackgroundAlpha, Mode=TwoWay}"
-                                IsEnabled="{Binding IsAlphaSliderEnabled}" VerticalAlignment="Center" Margin="6,0"/>
-                        <TextBlock Grid.Column="2" Text="{Binding BackgroundAlphaText}" FontSize="13.5" FontWeight="Bold" Foreground="{StaticResource Text}"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    </Grid>
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <CheckBox Content="全局统一圆角" FontWeight="Bold" IsChecked="{Binding GlobalCornerRadius, Mode=TwoWay}"
-                                      ToolTip="所有窗口共用同一圆角。关闭后可在目标列表点击卡片选中窗口单独配置。"/>
-                        </StackPanel>
-                    </Grid>
-                    <Grid Grid.Row="3">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="74.6"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="46.7"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="圆角半径" FontSize="13.5" Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
-                        <Slider Grid.Column="1" Minimum="0" Maximum="20" Value="{Binding CornerRadius, Mode=TwoWay}"
-                                IsEnabled="{Binding IsCornerSliderEnabled}" VerticalAlignment="Center" Margin="6,0"/>
-                        <TextBlock Grid.Column="2" Text="{Binding CornerRadiusText}" FontSize="13.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
-                    </Grid>
-                    <TextBlock Grid.Row="4" Text="关闭「全局统一」后，点击窗口卡片选中单独调整" FontSize="11.9" Foreground="{StaticResource Text3}" VerticalAlignment="Top"/>
+
+                <Grid Grid.Row="0" Margin="20,0,20,0">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <TextBlock Text="已绑定目标" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Text2}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="选中卡片即可调整参数" FontSize="9.5" Foreground="{StaticResource Text3}"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                              Padding="16,0,6,16">
+                    <ScrollViewer.Style>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource DarkScrollViewer}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ScrollViewer.Style>
+                    <StackPanel>
+                        <ItemsControl ItemsSource="{Binding TargetsView}" ItemTemplate="{StaticResource TargetCardTemplate}"/>
+
+                        <!-- 全局默认条（列表内，44 高）-->
+                        <Border Height="44" CornerRadius="9" Background="{StaticResource CardBg}"
+                                BorderBrush="{StaticResource LineSoft}" BorderThickness="1" Margin="0,4,2,0" Padding="12,0">
+                            <Grid>
+                                <TextBlock Text="{Binding GlobalStripText}" FontSize="10" Foreground="{StaticResource Text3}"
+                                           VerticalAlignment="Center"/>
+                                <Button Content="调整" Style="{StaticResource LinkButton}" HorizontalAlignment="Right"
+                                        VerticalAlignment="Center" Command="{Binding OpenSettingsCommand}"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- 空状态 -->
+                <Grid Grid.Row="1">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400">
+                        <Canvas Width="132" Height="104" HorizontalAlignment="Center">
+                            <Border Canvas.Left="14" Canvas.Top="14" Width="96" Height="70" CornerRadius="10"
+                                    Background="#1A1D24" BorderBrush="#1FFFFFFF" BorderThickness="1"/>
+                            <Rectangle Canvas.Left="30" Canvas.Top="34" Width="40" Height="4" RadiusX="2" RadiusY="2" Fill="#33FFFFFF"/>
+                            <Rectangle Canvas.Left="30" Canvas.Top="46" Width="56" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="#1FFFFFFF"/>
+                            <Rectangle Canvas.Left="30" Canvas.Top="55" Width="30" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="#1FFFFFFF"/>
+                            <Path Canvas.Left="86" Canvas.Top="60" Data="M0,0 L16,7 L9,9.5 L6,17 L3,16 L6,9 Z"
+                                  Fill="{StaticResource Accent}" Stroke="#FFFFFF" StrokeThickness="1.2"/>
+                        </Canvas>
+                        <TextBlock Text="还没有绑定任何窗口" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,16,0,0"/>
+                        <TextBlock Text="拾取一个窗口后，它会自动变暗。效果只作用于你选中的那个窗口，不影响系统设置。"
+                                   FontSize="10.5" Foreground="{StaticResource Text3}" TextAlignment="Center" TextWrapping="Wrap"
+                                   Margin="0,6,0,0"/>
+                        <Button Style="{StaticResource BtnPrimary}" Height="36" HorizontalAlignment="Center" Margin="0,20,0,0"
+                                Command="{Binding AddWindowCommand}">
+                            <StackPanel Orientation="Horizontal">
+                                <Canvas Width="14" Height="14" VerticalAlignment="Center">
+                                    <Rectangle Canvas.Left="6.2" Canvas.Top="1" Width="1.6" Height="12" Fill="White"/>
+                                    <Rectangle Canvas.Left="1" Canvas.Top="6.2" Width="12" Height="1.6" Fill="White"/>
+                                </Canvas>
+                                <TextBlock Text="拾取目标窗口" FontSize="11.5" FontWeight="SemiBold" Foreground="White"
+                                           Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Grid>
-        </Border>
 
-        <!-- ═══ ④ 系统卡 ═══ -->
-        <Border Grid.Row="3" Background="{StaticResource Card}" CornerRadius="8" Padding="14,0" Margin="0,0,0,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-                <CheckBox Content="开机自启" IsChecked="{Binding StartWithWindows, Mode=TwoWay}" VerticalAlignment="Center"
-                          ToolTip="登录 Windows 时自动启动本程序（写入注册表 Run 项）。"/>
-                <CheckBox Grid.Column="1" Content="关闭时最小化到托盘" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" Margin="18,0,0,0" VerticalAlignment="Center"
-                          ToolTip="勾选后点关闭按钮最小化到托盘常驻；不勾选则直接退出程序。"/>
+            <!-- ═══ ④ 底栏 64 ═══ -->
+            <Grid Grid.Row="3" Background="{StaticResource FooterBg}">
+                <Border Height="1" Background="{StaticResource LineSoft}" VerticalAlignment="Top"/>
+                <Grid Margin="16,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ToggleButton Style="{StaticResource Switch}" IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                      ToolTip="暂停后所有目标立即还原"/>
+                        <TextBlock Text="启用" FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        <Ellipse Width="6" Height="6" Margin="14,0,0,0" VerticalAlignment="Center">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource Off}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding FooterTone}" Value="ok">
+                                            <Setter Property="Fill" Value="{StaticResource Ok}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding FooterTone}" Value="warn">
+                                            <Setter Property="Fill" Value="{StaticResource Warn}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ActiveSummary}" FontSize="10.5" Foreground="{StaticResource Text2}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <TextBlock Text="{Binding MissingSummary}" FontSize="10.5" Foreground="{StaticResource Warn}"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Content="取消绑定" Style="{StaticResource BtnGhostDanger}" Height="32" Margin="0,0,8,0"
+                                Command="{Binding UnbindAllCommand}" IsEnabled="{Binding CanUnbind}"
+                                ToolTip="停止对所有目标的压暗（保留列表）"/>
+                        <Button Style="{StaticResource BtnPrimary}" Height="32" Command="{Binding AddWindowCommand}">
+                            <StackPanel Orientation="Horizontal">
+                                <Canvas Width="14" Height="14" VerticalAlignment="Center">
+                                    <Rectangle Canvas.Left="6.2" Canvas.Top="1" Width="1.6" Height="12" Fill="White"/>
+                                    <Rectangle Canvas.Left="1" Canvas.Top="6.2" Width="12" Height="1.6" Fill="White"/>
+                                </Canvas>
+                                <TextBlock Text="拾取目标窗口" FontSize="11" FontWeight="SemiBold" Foreground="White"
+                                           Margin="7,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Grid>
-        </Border>
-
-        <!-- ═══ ⑤ 操作栏 ═══ -->
-        <Border Grid.Row="4" Background="{StaticResource Card}" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal">
-                    <Button Style="{StaticResource BtnBase}" Content="📂 配置文件夹" Margin="0,0,6,0" Command="{Binding OpenConfigFolderCommand}"/>
-                    <Button Style="{StaticResource BtnBase}" Content="ℹ 关于" Command="{Binding AboutCommand}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Style="{StaticResource BtnBase}" Content="💾 保存配置" Margin="0,0,6,0" Command="{Binding SaveCommand}"/>
-                    <Button Style="{StaticResource BtnDanger}" Content="🚪 退出" Command="{Binding ExitCommand}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ═══ ⑥ 页脚 ═══ -->
-        <TextBlock Grid.Row="5" Text="20260804 · 世界的风吹向你 · 开源软件  |  GitHub →" FontSize="11.3"
-                   Foreground="{StaticResource Text3}" VerticalAlignment="Center" Margin="4,0,0,0" Cursor="Hand"
-                   ToolTip="https://github.com/Simiely/WindowTinter"/>
-    </Grid>
+        </Grid>
+    </Border>
 </Window>
