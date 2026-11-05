@@ -82,9 +82,18 @@ namespace WindowTinter.Views
         /// <summary>卡片整卡点击选中：非全局时点卡片任意处 = 选中（按钮点击除外）。</summary>
         private void Card_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (e.OriginalSource is ButtonBase) return; // 按钮自身操作，不触发选中
+            // 命中测试的最内层元素通常是按钮里的 Path/Ellipse，不是 ButtonBase 本身：
+            // 沿可视树向上找，只要落在按钮内就不触发卡片的选中/展开（例如单卡开关）。
+            if (FindAncestor<ButtonBase>(e.OriginalSource as DependencyObject) != null) return;
             if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
                 vm.SelectCommand.Execute(null);
+        }
+
+        private static T FindAncestor<T>(DependencyObject d) where T : DependencyObject
+        {
+            while (d != null && !(d is T))
+                d = System.Windows.Media.VisualTreeHelper.GetParent(d);
+            return d as T;
         }
 
         /// <summary>卡片键盘可达：Tab 聚焦后 Enter / Space 展开。</summary>

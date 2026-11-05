@@ -16,6 +16,9 @@ namespace WindowTinter
         public string WindowClass { get; init; } = "";
         /// <summary>鑷畾涔夊埆鍚嶏紙鐢ㄦ埛閲嶅懡鍚嶏級銆傞潪绌烘椂 UI 鍒楄〃浼樺厛鏄剧ず瀹冦€侸SON 缂虹渷涓虹┖锛屾棫閰嶇疆鍚戝悗鍏煎銆?/summary>
         public string Alias { get; set; } = "";
+        /// <summary>单卡启用开关。与全局 Enabled 分层：全局开关是总闸，单卡只决定这张卡片是否遮罩该窗口。
+        /// 旧配置没有该字段；System.Text.Json 反序列化会先执行属性初始化器，缺失字段保持 true（启用）。</summary>
+        public bool Enabled { get; set; } = true;
         public int BackgroundAlpha { get; set; } = 50;  // 璇ョ洰鏍囩獥鍙ｉ€忔槑搴︼紙0~100锛夛紝浠?鍏ㄥ眬缁熶竴閫忔槑搴?鍏抽棴鏃剁敓鏁?
         public int CornerRadius { get; set; } = 14;       // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛屼粎"鍏ㄥ眬缁熶竴鍦嗚"鍏抽棴鏃剁敓鏁?
 
@@ -71,6 +74,9 @@ namespace WindowTinter
         public double WindowWidth { get; set; } = 0;     // 0=未保存，使用 XAML 默认
         public double WindowHeight { get; set; } = 0;
         public bool WindowMaximized { get; set; } = false;
+
+        // 每行卡片数（1 / 2）。旧配置无此字段 → 反序列化保留初始化值 1。
+        public int CardsPerRow { get; set; } = 1;
 
         // 鏃у瓧娈碉紙浠呯敤浜庝粠 v2.x 鏃ф牸寮忚縼绉伙紝涓嶅啀鍐欏叆锛?
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -150,12 +156,16 @@ namespace WindowTinter
                         WindowClass = t.WindowClass,
                         Alias = t.Alias,
                         BackgroundAlpha = t.BackgroundAlpha,
-                        CornerRadius = t.CornerRadius
+                        CornerRadius = t.CornerRadius,
+                        Enabled = t.Enabled
                     };
                     migratedExe = true;
                 }
             }
             if (migratedExe) s.Save();
+
+            // 迁移/兜底：每行卡片数只接受 1 或 2（旧配置缺失时由初始化器给 1）
+            if (s.CardsPerRow < 1 || s.CardsPerRow > 2) s.CardsPerRow = 1;
 
             return s;
         }

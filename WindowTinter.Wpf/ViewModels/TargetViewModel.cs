@@ -37,8 +37,18 @@ namespace WindowTinter.ViewModels
         public bool IsPending => Entry == null;
         public bool IsSelected => _owner.SelectedTarget == this;
 
-        /// <summary>ok = 已绑定生效；warn = 窗口未找到；off = 全局暂停。</summary>
-        public string StateTone => !_owner.IsEnabled ? "off" : IsPending ? "warn" : "ok";
+        /// <summary>单卡启用开关（双向绑定卡片右侧的 32×20 开关）。与全局总闸分层。</summary>
+        public bool IsEnabled
+        {
+            get => Info.Enabled;
+            set => _owner.SetTargetEnabled(this, value);
+        }
+
+        public bool IsDisabled => !Info.Enabled;
+        public Visibility DisabledVisible => Info.Enabled ? Visibility.Collapsed : Visibility.Visible;
+
+        /// <summary>ok = 已绑定生效；warn = 窗口未找到；off = 全局暂停或本卡已停用。</summary>
+        public string StateTone => !_owner.IsEnabled || !Info.Enabled ? "off" : IsPending ? "warn" : "ok";
 
         // ── 文案：标题优先级 = 窗口标题 > 进程名；别名单独放副标题 ──
         public string DisplayName => Info.ToString();
@@ -116,6 +126,9 @@ namespace WindowTinter.ViewModels
         {
             OnPropertyChanged(nameof(IsPending));
             OnPropertyChanged(nameof(IsSelected));
+            OnPropertyChanged(nameof(IsEnabled));
+            OnPropertyChanged(nameof(IsDisabled));
+            OnPropertyChanged(nameof(DisabledVisible));
             OnPropertyChanged(nameof(StateTone));
             OnPropertyChanged(nameof(DisplayName));
             OnPropertyChanged(nameof(WindowName));

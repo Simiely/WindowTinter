@@ -19,7 +19,7 @@ namespace WindowTinter.ViewModels
     /// <summary>
     /// 主 VM：目标生命周期（绑定/释放/删除/全量解绑）+ 效果应用（透明度+黑底）+ UI 状态。
     /// 铁律：领域逻辑（BindTarget/ReleaseTarget/ApplyEntryEffect/SetTargetAlpha/SetTargetTopmost/
-    /// BringTargetToTop/RemoveTarget/UnbindAll）原样搬自 WinForms 版 MainForm，不改逻辑；
+    /// BringTargetToTop/RemoveTarget/ReleaseAll）原样搬自 WinForms 版 MainForm，不改逻辑；
     /// 仅容器适配：Timer→DispatcherTimer、BeginInvoke→Dispatcher.BeginInvoke、托盘气泡→MessageBox（D 阶段换回托盘）。
     /// </summary>
     internal class MainViewModel : ObservableObject
@@ -149,7 +149,9 @@ namespace WindowTinter.ViewModels
                 Environment.TickCount64 - entry.MinimizeSuppressedAtMs >= 250)
                 entry.MinimizeSuppressed = false;
 
-            if (!_settings.Enabled || !visible || entry.MinimizeSuppressed)
+            // 全局总闸关闭 / 本卡停用 / 目标不可见 / 最小化抑制：一律隐藏底板并还原窗口原透明度。
+            // 单卡停用与全局暂停分层：全局关闭时各卡自己的 Enabled 状态保持不变。
+            if (!_settings.Enabled || !entry.Info.Enabled || !visible || entry.MinimizeSuppressed)
             {
                 entry.Plate.HidePlate();
                 // 目标本来就置顶时不剥掉；否则清理历史置顶残留
@@ -411,18 +413,19 @@ namespace WindowTinter.ViewModels
             _settings.Save();
         }
 
-        /// <summary>全部解绑（保留配置，转待激活）。</summary>
-        private void UnbindAll()
+        /// <summary>解除全部绑定（还原窗口透明度/置顶，配置保留 → 转待激活）。
+        /// 与单卡开关的区别：单卡开关只关遮罩、不解除绑定；这里会释放 ExStyle 并移除条目。</summary>
+        private void ReleaseAll()
         {
             foreach (var e in _entries.ToList())
-                ReleaseTarget(e, "unbind", updateUI: false);
+                ReleaseTarget(e, "release", updateUI: false);
             SyncUI();
         }
 
         /// <summary>重新查找 = 全量重绑定（原样搬）。</summary>
         private void RefindAllWindows()
         {
-            UnbindAll();
+            ReleaseAll();
             foreach (var t in _settings.Targets)
                 BindTarget(t, refreshUI: false);
             SyncUI();
@@ -498,7 +501,7 @@ namespace WindowTinter.ViewModels
             if (item is not TargetViewModel vm) return false;
             bool stateMatch = _targetFilter switch
             {
-                "active" => !vm.IsPending,
+                "active" => !vm.IsPending && vm.IsEnabled,   // 停用的卡片不算「生效中」，仍留在「全部」里
                 "pending" => vm.IsPending,
                 _ => true
             };
@@ -558,6 +561,7 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(TotalCount));
             OnPropertyChanged(nameof(ActiveCount));
             OnPropertyChanged(nameof(PendingCount));
+            OnPropertyChanged(nameof(DisabledCount));
             OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(ActiveSummary));
             OnPropertyChanged(nameof(MissingSummary));
@@ -568,22 +572,28 @@ namespace WindowTinter.ViewModels
         }
 
         public int TotalCount => _settings.Targets.Count;
-        public int ActiveCount => _entries.Count;
-        public int PendingCount => TotalCount - ActiveCount;
+        /// <summary>生效中 = 已绑定且该卡自身启用（全局总闸关闭时仍按单卡状态统计）。</summary>
+        public int ActiveCount => _entries.Count(e => e.Info.Enabled);
+        public int DisabledCount => _settings.Targets.Count(t => !t.Enabled);
+        /// <summary>待激活 = 配置里有、当前找不到窗口（与单卡启停无关）。</summary>
+        public int PendingCount => _settings.Targets.Count(t => !_entries.Any(e => e.Info == t));
         public bool IsEmpty => TotalCount == 0;
         public bool HasMissing => _settings.Enabled && PendingCount > 0;
         public bool CanUnbind => _entries.Count > 0;
 
         public string ActiveSummary => !_settings.Enabled
             ? $"已暂停 · {TotalCount} 个目标"
-            : TotalCount == 0 ? "暂无绑定目标" : $"{ActiveCount} / {TotalCount} 目标生效";
+            : TotalCount == 0 ? "暂无绑定目标"
+            : DisabledCount > 0 ? $"{ActiveCount} / {TotalCount} 目标生效 · {DisabledCount} 已停用"
+            : $"{ActiveCount} / {TotalCount} 目标生效";
 
         public string MissingSummary => HasMissing ? $"{PendingCount} 个窗口未找到" : "";
 
         public string TargetSubtitle => TotalCount == 0 ? "WindowTinter · 暂无目标" : $"WindowTinter · {TotalCount} 个目标";
 
-        /// <summary>底栏状态点语义：ok / warn / off（颜色在 XAML 里选）。</summary>
-        public string FooterTone => !_settings.Enabled || TotalCount == 0 ? "off" : PendingCount > 0 ? "warn" : "ok";
+        /// <summary>底栏状态点语义：ok / warn / off（颜色在 XAML 里选）。全部停用时同样给 warn。</summary>
+        public string FooterTone => !_settings.Enabled || TotalCount == 0 ? "off"
+            : ActiveCount == 0 || PendingCount > 0 ? "warn" : "ok";
 
         public string GlobalDefaultsText => $"全局默认：暗度 {_settings.BackgroundAlpha}% · 圆角 {_settings.CornerRadius}px";
 
@@ -604,11 +614,13 @@ namespace WindowTinter.ViewModels
             get
             {
                 int total = _settings.Targets.Count;
-                int active = _entries.Count;
-                int pending = total - active;
+                int active = ActiveCount;
+                int pending = PendingCount;
+                int disabled = DisabledCount;
                 return !_settings.Enabled ? "⏸ 已暂停"
                     : total == 0 ? "等待选择窗口…"
                     : pending > 0 ? $"{active} 个监控中, {pending} 个待激活"
+                    : disabled > 0 ? $"{active} 个监控中, {disabled} 个已停用"
                     : $"监控中 {active} 个窗口";
             }
         }
@@ -623,10 +635,11 @@ namespace WindowTinter.ViewModels
         {
             get
             {
-                int a = _entries.Count;
-                int p = _settings.Targets.Count - a;
-                return _settings.Targets.Count == 0 ? ""
-                    : p > 0 ? $"{a} 监控 · {p} 待激活" : $"{a} 监控";
+                if (_settings.Targets.Count == 0) return "";
+                int a = ActiveCount;
+                int p = PendingCount;
+                string text = p > 0 ? $"{a} 监控 · {p} 待激活" : $"{a} 监控";
+                return DisabledCount > 0 ? $"{text} · {DisabledCount} 停用" : text;
             }
         }
 
@@ -658,6 +671,35 @@ namespace WindowTinter.ViewModels
                 }
                 SyncUI();
             }
+        }
+
+        /// <summary>每行卡片数（1 / 2）。切换即时生效并持久化；双列时选中的卡片自动占满整行。</summary>
+        public int CardsPerRow
+        {
+            get => _settings.CardsPerRow;
+            set
+            {
+                int v = value >= 2 ? 2 : 1;
+                if (_settings.CardsPerRow == v) return;
+                _settings.CardsPerRow = v;
+                _settings.Save();
+                OnPropertyChanged(nameof(CardsPerRow));
+                OnPropertyChanged(nameof(IsOnePerRow));
+                OnPropertyChanged(nameof(IsTwoPerRow));
+            }
+        }
+
+        public bool IsOnePerRow
+        {
+            get => CardsPerRow == 1;
+            // 点击已选中的分段时会把 IsChecked 置 false：回推一次让绑定重新读源值，避免「看起来取消了」
+            set { if (value) CardsPerRow = 1; else OnPropertyChanged(nameof(IsOnePerRow)); }
+        }
+
+        public bool IsTwoPerRow
+        {
+            get => CardsPerRow == 2;
+            set { if (value) CardsPerRow = 2; else OnPropertyChanged(nameof(IsTwoPerRow)); }
         }
 
         public bool GlobalTransparency
@@ -905,6 +947,32 @@ namespace WindowTinter.ViewModels
             SyncUI();
             var entry = _entries.FirstOrDefault(e => e.Info == vm.Info);
             if (entry != null) BringTargetToTop(entry.Tracker.TargetHandle);
+        }
+
+        /// <summary>
+        /// 单卡启用/停用（卡片右侧开关）。
+        /// 停用：只还原该目标的遮罩（底板隐藏 + 原透明度/置顶还原），配置与位置全部保留，卡片留在列表里；
+        /// 启用：若尚未绑定则先尝试重绑，再立即刷新效果。全局总闸关闭时只记录状态，不产生视觉变化。
+        /// </summary>
+        public void SetTargetEnabled(TargetViewModel vm, bool enabled)
+        {
+            if (vm == null || vm.Info.Enabled == enabled) return;
+            vm.Info.Enabled = enabled;
+            _settings.Save();
+
+            if (enabled)
+            {
+                if (!_entries.Any(e => e.Info == vm.Info)) BindTarget(vm.Info, refreshUI: false);
+                var entry = FindEntry(vm.Info);
+                if (entry != null) ApplyMaskNow(entry);
+                RefreshTargetSnapshot(vm.Info);
+            }
+            else
+            {
+                var entry = FindEntry(vm.Info);
+                if (entry != null) ApplyMaskNow(entry);
+            }
+            SyncUI();
         }
 
         /// <summary>重命名（✎）：弹 RenameDialog，空输入 = 清除别名（原样搬 WinForms Actions.RenameTarget）。</summary>
@@ -1164,7 +1232,7 @@ namespace WindowTinter.ViewModels
         public RelayCommand OpenConfigFolderCommand { get; private set; }  // 📂 配置文件夹
         public RelayCommand AboutCommand { get; private set; }             // ℹ 关于
         public RelayCommand OpenSettingsCommand { get; private set; }      // 设置面板
-        public RelayCommand UnbindAllCommand { get; private set; }         // 底栏「取消绑定」
+        public RelayCommand ReleaseAllCommand { get; private set; }        // 底栏「解除绑定」
         public RelayCommand RestoreGlobalCommand { get; private set; }     // 卡片「恢复全局」
         public RelayCommand ResetDefaultsCommand { get; private set; }     // 设置「恢复默认」
 
@@ -1178,7 +1246,7 @@ namespace WindowTinter.ViewModels
             OpenConfigFolderCommand = new RelayCommand(OpenConfigFolder);
             AboutCommand = new RelayCommand(ShowAbout);
             OpenSettingsCommand = new RelayCommand(ShowSettings);
-            UnbindAllCommand = new RelayCommand(UnbindAll);
+            ReleaseAllCommand = new RelayCommand(ReleaseAll);
             RestoreGlobalCommand = new RelayCommand(RestoreGlobalForSelected);
             ResetDefaultsCommand = new RelayCommand(ResetGlobalDefaults);
         }

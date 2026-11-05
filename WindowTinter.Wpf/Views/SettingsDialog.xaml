@@ -94,6 +94,26 @@
                 </Border>
 
                 <Border Background="#14FFFFFF" BorderBrush="{StaticResource LineSoft}" BorderThickness="1" CornerRadius="9"
+                        Height="48" Padding="12,0" Margin="0,8,0,0"
+                        ToolTip="双列时每张卡片约占半行宽；展开的卡片会自动占满整行，保证滑块行程够用。切换即时生效。">
+                    <Grid>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="每行卡片数" FontSize="11.5"/>
+                            <TextBlock Text="单列信息更全；双列更紧凑（悬停查看说明）" FontSize="9" Foreground="{StaticResource Text3}" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="#0BFFFFFF"
+                                BorderBrush="#0DFFFFFF" BorderThickness="1" CornerRadius="8" Padding="2">
+                            <StackPanel Orientation="Horizontal">
+                                <ToggleButton Style="{StaticResource SegToggle}" Content="1 张" Margin="0,0,2,0"
+                                              IsChecked="{Binding IsOnePerRow, Mode=TwoWay}"/>
+                                <ToggleButton Style="{StaticResource SegToggle}" Content="2 张"
+                                              IsChecked="{Binding IsTwoPerRow, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border Background="#14FFFFFF" BorderBrush="{StaticResource LineSoft}" BorderThickness="1" CornerRadius="9"
                         Height="48" Padding="12,0" Margin="0,8,0,0">
                     <Grid>
                         <StackPanel VerticalAlignment="Center">
