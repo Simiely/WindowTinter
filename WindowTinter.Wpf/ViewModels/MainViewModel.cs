@@ -119,8 +119,15 @@ namespace WindowTinter.ViewModels
             return entry;
         }
 
-        /// <summary>效果应用（唯一入口）：差异计算 alpha/黑底，有变化才落系统调用。</summary>
+        /// <summary>效果应用（唯一入口）：任何 Win32 失败都记录后继续，不得冒到 UI 线程。</summary>
         private void ApplyEntryEffect(TargetEntry entry, bool visible)
+        {
+            try { ApplyEntryEffectCore(entry, visible); }
+            catch (Exception ex) { Debug.WriteLine($"ApplyEntryEffect failed for 0x{entry.Tracker.TargetHandle:X}: {ex.Message}"); }
+        }
+
+        /// <summary>效果应用实现：差异计算 alpha/黑底，有变化才落系统调用。</summary>
+        private void ApplyEntryEffectCore(TargetEntry entry, bool visible)
         {
             IntPtr h = entry.Tracker.TargetHandle;
             if (h == IntPtr.Zero) return;
@@ -177,9 +184,12 @@ namespace WindowTinter.ViewModels
                 bool isTop = (ex & Native.WS_EX_TOPMOST) != 0;
                 if (isTop == topmost) return;
 
-                Native.SetWindowPos(hwnd, topmost ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST,
+                if (!Native.SetWindowPos(hwnd, topmost ? Native.HWND_TOPMOST : Native.HWND_NOTOPMOST,
                     0, 0, 0, 0,
-                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE))
+                {
+                    Debug.WriteLine($"SetTargetTopmost({topmost}) failed for 0x{hwnd:X}");
+                }
             }
             catch (Exception ex2) { Debug.WriteLine($"SetTargetTopmost failed for 0x{hwnd:X}: {ex2.Message}"); }
         }
@@ -209,21 +219,25 @@ namespace WindowTinter.ViewModels
                 {
                     if (hasLayered && !originallyLayered)
                     {
-                        Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, (IntPtr)(ex & ~Native.WS_EX_LAYERED));
+                        if (Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, (IntPtr)(ex & ~Native.WS_EX_LAYERED)) == IntPtr.Zero)
+                            Debug.WriteLine($"SetWindowLongPtr(clear LAYERED) failed for 0x{hwnd:X}");
                         Native.RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero,
                             Native.RDW_INVALIDATE | Native.RDW_ERASE | Native.RDW_FRAME | Native.RDW_ALLCHILDREN);
                     }
                     else if (hasLayered)
                     {
-                        Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA);
+                        if (!Native.SetLayeredWindowAttributes(hwnd, 0, 255, Native.LWA_ALPHA))
+                            Debug.WriteLine($"SetLayeredWindowAttributes(255) failed for 0x{hwnd:X}");
                         Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                     }
                 }
                 else
                 {
-                    if (!hasLayered)
-                        Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, (IntPtr)(ex | Native.WS_EX_LAYERED));
-                    Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA);
+                    if (!hasLayered &&
+                        Native.SetWindowLongPtr(hwnd, Native.GWL_EXSTYLE, (IntPtr)(ex | Native.WS_EX_LAYERED)) == IntPtr.Zero)
+                        Debug.WriteLine($"SetWindowLongPtr(set LAYERED) failed for 0x{hwnd:X}");
+                    if (!Native.SetLayeredWindowAttributes(hwnd, 0, alpha, Native.LWA_ALPHA))
+                        Debug.WriteLine($"SetLayeredWindowAttributes({alpha}) failed for 0x{hwnd:X}");
                     Native.InvalidateRect(hwnd, IntPtr.Zero, true);
                 }
             }

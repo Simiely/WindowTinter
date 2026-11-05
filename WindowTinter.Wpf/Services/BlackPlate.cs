@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
@@ -80,6 +81,8 @@ namespace WindowTinter
             _hwnd = Native.CreateWindowExW(Native.WS_EX_LAYERED | WS_EX_TOOLWINDOW,
                 ClassName, "WindowTinter.BlackPlate", WS_POPUP,
                 0, 0, 1, 1, IntPtr.Zero, IntPtr.Zero, _hInstance, IntPtr.Zero);
+            if (_hwnd == IntPtr.Zero)
+                Debug.WriteLine("BlackPlate.CreateWindowEx failed: plate window not created");
         }
 
         /// <summary>
@@ -88,6 +91,13 @@ namespace WindowTinter
         /// 渲染（ULW/圆角）仅在几何变化时执行，避免无谓 GDI 开销。
         /// </summary>
         public void AlignBehind(IntPtr targetHandle, Native.RECT r)
+        {
+            // 摆板失败不得抛到 UI 线程（事件回调/轮询都在 UI 线程）
+            try { AlignBehindCore(targetHandle, r); }
+            catch (Exception ex) { Debug.WriteLine($"BlackPlate.AlignBehind failed: {ex.Message}"); }
+        }
+
+        private void AlignBehindCore(IntPtr targetHandle, Native.RECT r)
         {
             int w = r.Width;
             int h = r.Height;
@@ -102,9 +112,13 @@ namespace WindowTinter
                 || x != _lastX || y != _lastY || w != _lastW || h != _lastH;
 
             // 关键：用目标句柄作为 hWndInsertAfter，使底板在 Z 序中紧挨目标之下。
-            Native.SetWindowPos(_hwnd, targetHandle,
+            if (!Native.SetWindowPos(_hwnd, targetHandle,
                 x, y, w, h,
-                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+                Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW))
+            {
+                Debug.WriteLine($"BlackPlate.SetWindowPos failed: hwnd=0x{_hwnd:X} target=0x{targetHandle:X} rect=({x},{y},{w},{h})");
+                return; // 位置没落下去，不写缓存，下次继续尝试
+            }
             _isShown = true;
 
             if (posChanged)
@@ -119,12 +133,19 @@ namespace WindowTinter
         /// <summary>隐藏底板（SWP_NOZORDER：隐藏时明确不改 Z 序）。幂等：已隐藏时不再发系统调用。</summary>
         public void HidePlate()
         {
-            if (_hwnd != IntPtr.Zero && _isShown)
+            if (_hwnd == IntPtr.Zero || !_isShown) return;
+            try
             {
-                Native.SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                bool ok = Native.SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0,
                     Native.SWP_HIDEWINDOW | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+                if (!ok)
+                {
+                    Debug.WriteLine($"BlackPlate.HidePlate failed: hwnd=0x{_hwnd:X}");
+                    return; // 保留 _isShown，下次轮询/事件再试
+                }
                 _isShown = false;
             }
+            catch (Exception ex) { Debug.WriteLine($"BlackPlate.HidePlate failed: {ex.Message}"); }
         }
 
         /// <summary>通过 SetWindowRgn 裁剪窗口形状。radius=0 恢复全矩形；radius&gt;0 圆角矩形。</summary>
@@ -184,9 +205,12 @@ namespace WindowTinter
                     AlphaFormat = 0            // 全局不透明（圆角由 SetWindowRgn 裁剪）
                 };
 
-                Native.UpdateLayeredWindow(_hwnd, hdcScreen,
+                if (!Native.UpdateLayeredWindow(_hwnd, hdcScreen,
                     ref ptDst, ref sz, hdcMem, ref ptSrc,
-                    0, ref blend, Native.ULW_ALPHA);
+                    0, ref blend, Native.ULW_ALPHA))
+                {
+                    Debug.WriteLine($"BlackPlate.UpdateLayeredWindow failed: hwnd=0x{_hwnd:X} rect=({w},{h})");
+                }
             }
             finally
             {
