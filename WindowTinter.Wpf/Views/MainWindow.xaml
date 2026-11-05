@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:views="clr-namespace:WindowTinter.Views"
-        Title="暗幕 v6.0.1" Width="640" Height="720" MinWidth="616" MinHeight="560"
+        Title="暗幕 v7.2.0" Width="640" Height="720" MinWidth="616" MinHeight="560"
         Background="{StaticResource WinBg}"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
+        PreviewKeyDown="OnWindowPreviewKeyDown"
         TextOptions.TextFormattingMode="Display"
         FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}">
 
@@ -236,13 +237,39 @@
                                       IsChecked="{Binding IsEnabled, Mode=TwoWay}"
                                       ToolTip="停用只关闭这张卡片的压暗，配置与位置保留"/>
 
-                        <Path x:Name="caretPath" Grid.Column="3" Width="16" Height="16" Margin="0,0,12,0"
-                              VerticalAlignment="Center" Data="M4,6 L8,10 L12,6" Stroke="{StaticResource Text3}"
-                              StrokeThickness="1.8" StrokeLineJoin="Round" RenderTransformOrigin="0.5,0.5">
-                            <Path.RenderTransform>
-                                <RotateTransform x:Name="caretRotate" Angle="0"/>
-                            </Path.RenderTransform>
-                        </Path>
+                        <!-- chevron：独立的折叠/展开按钮（24×24 热区，悬停高亮 + 手型），不触发整卡选中手势 -->
+                        <Button Grid.Column="3" Width="24" Height="24" Margin="0,0,4,0" VerticalAlignment="Center"
+                                Focusable="False" Cursor="Hand" ToolTip="折叠 / 展开"
+                                Click="Card_Caret_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverFill}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource PressFillDark}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                            <Path x:Name="caretPath" Width="16" Height="16" Data="M4,6 L8,10 L12,6" Stroke="{StaticResource Text3}"
+                                  StrokeThickness="1.8" StrokeLineJoin="Round" RenderTransformOrigin="0.5,0.5">
+                                <Path.RenderTransform>
+                                    <RotateTransform x:Name="caretRotate" Angle="0"/>
+                                </Path.RenderTransform>
+                            </Path>
+                        </Button>
                     </Grid>
 
                     <!-- ── 内联展开：选中卡片后直接出现滑块（无右侧检查器）── -->

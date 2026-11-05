@@ -28,6 +28,8 @@ namespace WindowTinter.ViewModels
             _owner = owner;
             Info = info;
             SelectCommand = new RelayCommand(() => _owner.SelectTarget(this));
+            ExpandCommand = new RelayCommand(() => _owner.ExpandTarget(this));
+            CaretCommand = new RelayCommand(() => _owner.ToggleExpandedFromCaret(this));
             RenameCommand = new RelayCommand(() => _owner.RenameTarget(this));
             RemoveCommand = new RelayCommand(() => _owner.RemoveTarget(this));
             RefreshShotCommand = new RelayCommand(() => _owner.RefreshTargetSnapshot(Info));
@@ -159,6 +161,8 @@ namespace WindowTinter.ViewModels
 
         // ── 卡片命令 ──
         public RelayCommand SelectCommand { get; }
+        public RelayCommand ExpandCommand { get; }
+        public RelayCommand CaretCommand { get; }
         public RelayCommand RenameCommand { get; }
         public RelayCommand RemoveCommand { get; }
         public RelayCommand RefreshShotCommand { get; }

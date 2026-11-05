@@ -33,7 +33,7 @@ namespace WindowTinter
             _toggleWindow = toggleWindow;
 
             var version = Assembly.GetExecutingAssembly().GetName().Version;
-            string ver = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "6.0.1";
+            string ver = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "7.2.0";
 
             _toggleItem = Item("显示主窗口", "双击托盘", new RelayCommand(_toggleWindow));
             var pickItem = Item("拾取目标窗口", "", new RelayCommand(() => _vm.AddWindowCommand.Execute(null)));

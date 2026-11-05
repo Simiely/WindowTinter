@@ -96,15 +96,37 @@ namespace WindowTinter.Views
             return d as T;
         }
 
-        /// <summary>卡片键盘可达：Tab 聚焦后 Enter / Space 展开。</summary>
+        /// <summary>卡片键盘可达：Tab 聚焦后 Enter / Space 展开（已展开则保持展开）。</summary>
         private void Card_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter && e.Key != Key.Space) return;
             if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
             {
-                vm.SelectCommand.Execute(null);
+                vm.ExpandCommand.Execute(null);
                 e.Handled = true;
             }
+        }
+
+        /// <summary>chevron 单独点击：只折叠/展开这张卡，不把目标带到前台、不滚动列表。</summary>
+        private void Card_Caret_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is TargetViewModel vm)
+                vm.CaretCommand.Execute(null);
+        }
+
+        /// <summary>Esc 收起当前展开卡片；滑块拖动中先释放捕获结束拖动（本次不收起）。</summary>
+        private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape) return;
+            if (Mouse.Captured is Thumb)
+            {
+                Mouse.Capture(null);
+                e.Handled = true;
+                return;
+            }
+            if (_vm.SelectedTarget == null) return;
+            _vm.CollapseTarget();
+            e.Handled = true;
         }
 
         // ── 无边框窗口最大化：按显示器工作区钳制（否则 Win10 会连任务栏区域一起盖掉 + 顶部越界 7px）──

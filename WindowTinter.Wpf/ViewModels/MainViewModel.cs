@@ -297,7 +297,7 @@ namespace WindowTinter.ViewModels
 
             if (!entry.StateCaptured)
             {
-                // 捕获失败：退回 v6.0.1 旧逻辑（alpha 255 + 取消置顶）
+                // 捕获失败：退回旧逻辑（alpha 255 + 取消置顶）
                 if (entry.LastAlpha != 255) SetTargetAlpha(h, 255, entry.OriginallyLayered ?? false);
                 SetTargetTopmost(h, false);
                 return;
@@ -917,16 +917,43 @@ namespace WindowTinter.ViewModels
         // ════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// 点击卡片选中目标：一次性带到前台便于查看效果。
+        /// 点击卡片：切换展开态——未展开 → 展开并带到前台；已展开 → 收起（再次点击同一张卡）。
         /// 全局统一模式（透明度和圆角都走全局）下同样允许选中——新版卡片是「选中即内联展开」，
         /// 选中态是唯一的展开入口；此时卡片内的滑块改的就是全局值（BackgroundAlpha/CornerRadius 的 getter 已按模式取值）。
         /// </summary>
         public void SelectTarget(TargetViewModel vm)
         {
+            if (vm == null) return;
+            if (ReferenceEquals(SelectedTarget, vm)) { CollapseTarget(); return; }
             SelectedTarget = vm;
             SyncUI();
             var entry = _entries.FirstOrDefault(e => e.Info == vm.Info);
             if (entry != null) BringTargetToTop(entry.Tracker.TargetHandle);
+        }
+
+        /// <summary>展开卡片（键盘 Enter/Space）：已展开时保持展开，不切换成收起。</summary>
+        public void ExpandTarget(TargetViewModel vm)
+        {
+            if (vm == null || ReferenceEquals(SelectedTarget, vm)) return;
+            SelectTarget(vm);
+        }
+
+        /// <summary>
+        /// chevron 单独点击：只折叠/展开这张卡。
+        /// 不把目标窗口带到前台、不刷新列表视图，因此不会改变列表滚动位置；同一时刻仍只有一张卡展开。
+        /// </summary>
+        public void ToggleExpandedFromCaret(TargetViewModel vm)
+        {
+            if (vm == null) return;
+            if (ReferenceEquals(SelectedTarget, vm)) CollapseTarget();
+            else SelectedTarget = vm;   // setter 已负责逐卡刷新 IsSelected 与滑块可用性
+        }
+
+        /// <summary>收起当前展开卡片：纯视图状态，不改目标绑定/滑块值/停用态，也不写 settings.json。</summary>
+        public void CollapseTarget()
+        {
+            if (SelectedTarget == null) return;
+            SelectedTarget = null;
         }
 
         /// <summary>
