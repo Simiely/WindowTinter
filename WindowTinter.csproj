@@ -18,6 +18,10 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
   <ItemGroup>
+    <!-- WPF 子项目独立构建；根项目仍为 v5.6.0 WinForms 版本，默认递归通配会把 WPF 的 .cs 一并编译导致重复定义。 -->
+    <Compile Remove="WindowTinter.Wpf\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <None Update="app.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
