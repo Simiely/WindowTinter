@@ -197,6 +197,10 @@ namespace WindowTinter
         public const uint EVENT_OBJECT_REORDER = 0x8004;     // Z 搴忓彉鍖栵紙鍘熷瀷 B锛氭敹鍒板嵆閲嶆彃榛戝簳锛?
         public const uint EVENT_OBJECT_DESTROY = 0x8001;
         public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+        // Minimize events: measured black-plate exposure happens ~175 ms after the command
+        // (when the animation ends), so hide on MINIMIZESTART instead of waiting for polling.
+        public const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
+        public const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
 
         public delegate void WinEventProc(
             IntPtr hWinEventHook, uint eventType, IntPtr hwnd,

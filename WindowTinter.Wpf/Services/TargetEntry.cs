@@ -18,5 +18,9 @@ namespace WindowTinter
         public bool OriginalAlphaKnown;       // 是否成功读回原始 alpha（UpdateLayeredWindow 窗口读不到）
         public byte OriginalAlpha = 255;      // 原始 alpha（SetLayeredWindowAttributes 读回值）
         public bool StateCaptured;            // 是否成功捕获（失败时释放回退到旧逻辑）
+
+        // ── 最小化抑制（实测：事件即隐藏 0–16ms，黑块在动画结束 ~175ms 才暴露）──
+        public bool MinimizeSuppressed;       // MINIMIZESTART 后抑制底板重显，直到恢复或轮询确认非最小化
+        public long MinimizeSuppressedAtMs;   // 抑制起始 tick（避免动画期间的 LOCATIONCHANGE 提前解除抑制）
     }
 }

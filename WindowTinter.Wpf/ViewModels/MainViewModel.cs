@@ -127,7 +127,12 @@ namespace WindowTinter.ViewModels
 
             int bgPct = _settings.GlobalTransparency ? _settings.BackgroundAlpha : entry.Info.BackgroundAlpha;
 
-            if (!_settings.Enabled || !visible)
+            // 最小化抑制兜底：恢复后（可见且非图标化）且已过动画窗口，才允许底板重新显示
+            if (entry.MinimizeSuppressed && visible &&
+                Environment.TickCount64 - entry.MinimizeSuppressedAtMs >= 250)
+                entry.MinimizeSuppressed = false;
+
+            if (!_settings.Enabled || !visible || entry.MinimizeSuppressed)
             {
                 entry.Plate.HidePlate();
                 // 目标本来就置顶时不剥掉；否则清理历史置顶残留
@@ -844,6 +849,36 @@ namespace WindowTinter.ViewModels
                     app.Dispatcher.BeginInvoke(new Action(() =>
                     {
                         foreach (var e in _entries) e.Tracker.RefreshForeground();
+                    }));
+                }
+                catch { }
+                return;
+            }
+
+            // 最小化/恢复：实测事件到达 0–16ms 即可隐藏，而黑块要等动画结束 ~175ms 才暴露。
+            // 事件丢失时由 TargetTracker 的 500ms 轮询（IsIconic）兜底。
+            if (eventType is Native.EVENT_SYSTEM_MINIMIZESTART or Native.EVENT_SYSTEM_MINIMIZEEND)
+            {
+                var minHwnd = hwnd;
+                if (Array.IndexOf(_boundHandles, minHwnd) < 0) return;
+                bool start = eventType == Native.EVENT_SYSTEM_MINIMIZESTART;
+                try
+                {
+                    app.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        var match = _entries.FirstOrDefault(e => e.Tracker.TargetHandle == minHwnd);
+                        if (match == null) return;
+                        if (start)
+                        {
+                            match.MinimizeSuppressed = true;
+                            match.MinimizeSuppressedAtMs = Environment.TickCount64;
+                            match.Plate.HidePlate();
+                        }
+                        else
+                        {
+                            match.MinimizeSuppressed = false;
+                            match.Tracker.RefreshNow();
+                        }
                     }));
                 }
                 catch { }
