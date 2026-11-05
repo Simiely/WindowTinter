@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -85,28 +85,30 @@ namespace WindowTinter
             PropertyNameCaseInsensitive = true
         };
 
-        private static string ConfigDir =>
+        // Single-file app: settings live next to the exe (as before 015c44a).
+        private static string FilePath =>
+            Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "WindowTinter.settings.json");
+
+        // One-shot reverse migration for the build that briefly used %LOCALAPPDATA%.
+        // Copies the file back only when no exe-dir file exists, then deletes that
+        // directory, so the branch can never fire twice.
+        private static string LegacyDir =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowTinter");
 
-        private static string FilePath => Path.Combine(ConfigDir, "WindowTinter.settings.json");
-
-        /// <summary>旧版本配置位置：exe 同目录（安装到 Program Files 时不可写，故迁走）。</summary>
-        private static string LegacyFilePath =>
-            Path.Combine(Path.GetDirectoryName(Environment.ProcessPath) ?? ".", "WindowTinter.settings.json");
+        private static string LegacyFile => Path.Combine(LegacyDir, "WindowTinter.settings.json");
 
         public static Settings Load()
         {
-            // 一次性迁移：旧版把配置写在 exe 同目录，先搬到 %LOCALAPPDATA%\WindowTinter 再读
             try
             {
-                if (!File.Exists(FilePath) && File.Exists(LegacyFilePath))
+                if (!File.Exists(FilePath) && File.Exists(LegacyFile))
                 {
-                    Directory.CreateDirectory(ConfigDir);
-                    File.Copy(LegacyFilePath, FilePath, overwrite: false);
-                    try { File.Delete(LegacyFilePath); } catch { }
+                    File.Copy(LegacyFile, FilePath, overwrite: false);
+                    if (new FileInfo(FilePath).Length == new FileInfo(LegacyFile).Length)
+                        try { Directory.Delete(LegacyDir, recursive: true); } catch { }
                 }
             }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Settings migration failed: {ex.Message}"); }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Settings reverse migration failed: {ex.Message}"); }
 
             Settings s = null;
             try
@@ -162,7 +164,6 @@ namespace WindowTinter
         {
             try
             {
-                if (!Directory.Exists(ConfigDir)) Directory.CreateDirectory(ConfigDir);
                 var json = JsonSerializer.Serialize(this, _jsonOptions);
                 var tmp = FilePath + ".tmp";
                 File.WriteAllText(tmp, json);
