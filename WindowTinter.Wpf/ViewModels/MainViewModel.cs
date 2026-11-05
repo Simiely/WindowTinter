@@ -17,9 +17,9 @@ using WindowTinter.Views;
 namespace WindowTinter.ViewModels
 {
     /// <summary>
-    /// 主 VM：目标生命周期（绑定/释放/删除/全量解绑）+ 效果应用（透明度+黑底）+ UI 状态。
+    /// 主 VM：目标生命周期（绑定/释放/删除）+ 效果应用（透明度+黑底）+ UI 状态。
     /// 铁律：领域逻辑（BindTarget/ReleaseTarget/ApplyEntryEffect/SetTargetAlpha/SetTargetTopmost/
-    /// BringTargetToTop/RemoveTarget/ReleaseAll）原样搬自 WinForms 版 MainForm，不改逻辑；
+    /// BringTargetToTop/RemoveTarget）原样搬自 WinForms 版 MainForm，不改逻辑；
     /// 仅容器适配：Timer→DispatcherTimer、BeginInvoke→Dispatcher.BeginInvoke、托盘气泡→MessageBox（D 阶段换回托盘）。
     /// </summary>
     internal class MainViewModel : ObservableObject
@@ -413,24 +413,6 @@ namespace WindowTinter.ViewModels
             _settings.Save();
         }
 
-        /// <summary>解除全部绑定（还原窗口透明度/置顶，配置保留 → 转待激活）。
-        /// 与单卡开关的区别：单卡开关只关遮罩、不解除绑定；这里会释放 ExStyle 并移除条目。</summary>
-        private void ReleaseAll()
-        {
-            foreach (var e in _entries.ToList())
-                ReleaseTarget(e, "release", updateUI: false);
-            SyncUI();
-        }
-
-        /// <summary>重新查找 = 全量重绑定（原样搬）。</summary>
-        private void RefindAllWindows()
-        {
-            ReleaseAll();
-            foreach (var t in _settings.Targets)
-                BindTarget(t, refreshUI: false);
-            SyncUI();
-        }
-
         // ════════════════════════════════════════════════════════════════
         // UI 编排（WinForms RebuildTargetList/UpdateUI → XAML 绑定 + 属性通知）
         // ════════════════════════════════════════════════════════════════
@@ -568,7 +550,6 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(HasMissing));
             OnPropertyChanged(nameof(TargetSubtitle));
             OnPropertyChanged(nameof(FooterTone));
-            OnPropertyChanged(nameof(CanUnbind));
         }
 
         public int TotalCount => _settings.Targets.Count;
@@ -579,7 +560,6 @@ namespace WindowTinter.ViewModels
         public int PendingCount => _settings.Targets.Count(t => !_entries.Any(e => e.Info == t));
         public bool IsEmpty => TotalCount == 0;
         public bool HasMissing => _settings.Enabled && PendingCount > 0;
-        public bool CanUnbind => _entries.Count > 0;
 
         public string ActiveSummary => !_settings.Enabled
             ? $"已暂停 · {TotalCount} 个目标"
@@ -1058,6 +1038,14 @@ namespace WindowTinter.ViewModels
         // 快照
         // ════════════════════════════════════════════════════════════════
 
+        /// <summary>是否有卡片快照抓图在进行（工具栏刷新按钮据此只旋转图标，文字保持「刷新」）。</summary>
+        public bool IsRefreshing
+        {
+            get { lock (_snapshotInFlight) return _snapshotInFlight.Count > 0; }
+        }
+
+        private void RaiseRefreshing() => OnPropertyChanged(nameof(IsRefreshing));
+
         /// <summary>
         /// 刷新单张卡片快照（绑定即时 / 移动即时 / 定时 / 手动全量）。
         /// 性能：抓图（PrintWindow GDI）+ 缩放 + 转 BitmapSource 全部放后台线程（Task.Run），
@@ -1081,6 +1069,7 @@ namespace WindowTinter.ViewModels
                 if (!_snapshotInFlight.Add(h)) return; // 同一目标已有抓图在跑，本次跳过
             }
             vm.SetRefreshing(true);
+            RaiseRefreshing();
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
@@ -1115,7 +1104,7 @@ namespace WindowTinter.ViewModels
                 finally
                 {
                     lock (_snapshotInFlight) _snapshotInFlight.Remove(h);
-                    _dispatcher.BeginInvoke(new Action(() => vm.SetRefreshing(false)));
+                    _dispatcher.BeginInvoke(new Action(() => { vm.SetRefreshing(false); RaiseRefreshing(); }));
                 }
             });
         }
@@ -1226,13 +1215,11 @@ namespace WindowTinter.ViewModels
 
         public RelayCommand RefreshSnapshotsCommand { get; private set; }  // 卡头 ⟳
         public RelayCommand AddWindowCommand { get; private set; }         // + 添加窗口（D 阶段：WindowPickerWindow）
-        public RelayCommand RefindAllCommand { get; private set; }         // ↻ 重新查找
         public RelayCommand SaveCommand { get; private set; }              // 💾 保存配置
         public RelayCommand ExitCommand { get; private set; }              // 🚪 退出
         public RelayCommand OpenConfigFolderCommand { get; private set; }  // 📂 配置文件夹
         public RelayCommand AboutCommand { get; private set; }             // ℹ 关于
         public RelayCommand OpenSettingsCommand { get; private set; }      // 设置面板
-        public RelayCommand ReleaseAllCommand { get; private set; }        // 底栏「解除绑定」
         public RelayCommand RestoreGlobalCommand { get; private set; }     // 卡片「恢复全局」
         public RelayCommand ResetDefaultsCommand { get; private set; }     // 设置「恢复默认」
 
@@ -1240,13 +1227,11 @@ namespace WindowTinter.ViewModels
         {
             RefreshSnapshotsCommand = new RelayCommand(RefreshAllSnapshots);
             AddWindowCommand = new RelayCommand(PickWindow);
-            RefindAllCommand = new RelayCommand(RefindAllWindows);
             SaveCommand = new RelayCommand(() => _settings.Save());
             ExitCommand = new RelayCommand(ExitApplication);
             OpenConfigFolderCommand = new RelayCommand(OpenConfigFolder);
             AboutCommand = new RelayCommand(ShowAbout);
             OpenSettingsCommand = new RelayCommand(ShowSettings);
-            ReleaseAllCommand = new RelayCommand(ReleaseAll);
             RestoreGlobalCommand = new RelayCommand(RestoreGlobalForSelected);
             ResetDefaultsCommand = new RelayCommand(ResetGlobalDefaults);
         }

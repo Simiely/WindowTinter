@@ -450,7 +450,6 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- 分段筛选 28 高 -->
@@ -481,18 +480,56 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,16,0">
-                    <Button Style="{StaticResource BtnIcon}" ToolTip="刷新快照" Command="{Binding RefreshSnapshotsCommand}">
-                        <Viewbox Width="16" Height="16">
-                            <Canvas Width="16" Height="16">
-                                <Path Data="M13.6,8 A5.6,5.6 0 1 1 8,2.4" Stroke="{StaticResource Text2}" StrokeThickness="1.6"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                                <Path Data="M10.9,0.4 L10.9,4.4 L14.6,2.6 Z" Fill="{StaticResource Text2}"/>
-                            </Canvas>
-                        </Viewbox>
+                <!-- 右侧组：弹性留白 + 刷新（图标+文字）+ 搜索框（宽度固定，按钮不被压扁） -->
+                <Grid Grid.Column="1" Margin="12,0,16,0" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="1" Style="{StaticResource BtnSmall}" Foreground="{StaticResource Text2}"
+                            ToolTip="刷新所有卡片快照" Command="{Binding RefreshSnapshotsCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <Viewbox Width="13" Height="13" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5">
+                                <Viewbox.RenderTransform>
+                                    <RotateTransform/>
+                                </Viewbox.RenderTransform>
+                                <Viewbox.Style>
+                                    <Style TargetType="Viewbox">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsRefreshing}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="spinStory">
+                                                        <Storyboard>
+                                                            <DoubleAnimation
+                                                                Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                From="0" To="360" Duration="0:0:1.1" RepeatBehavior="Forever"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <StopStoryboard BeginStoryboardName="spinStory"/>
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Viewbox.Style>
+                                <Canvas Width="16" Height="16">
+                                    <Path Data="M13.6,8 A5.6,5.6 0 1 1 8,2.4" Stroke="{StaticResource Text2}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Path Data="M10.9,0.4 L10.9,4.4 L14.6,2.6 Z" Fill="{StaticResource Text2}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="刷新" FontSize="10.5" Foreground="{StaticResource Text2}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </Button>
-                    <TextBox Style="{StaticResource SearchBox}" Margin="0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                </StackPanel>
+
+                    <TextBox Grid.Column="3" Style="{StaticResource SearchBox}" VerticalAlignment="Center"
+                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                </Grid>
             </Grid>
 
             <!-- ═══ ③ 列表区（表头 36 + 可滚动卡片 + 全局条 44）═══ -->
@@ -618,9 +655,6 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="解除绑定" Style="{StaticResource BtnGhostDanger}" Height="32" Margin="0,0,8,0"
-                                Command="{Binding ReleaseAllCommand}" IsEnabled="{Binding CanUnbind}"
-                                ToolTip="解除全部目标的绑定：把窗口透明度与置顶还原到原样，目标仍保留在列表里"/>
                         <Button Style="{StaticResource BtnPrimary}" Height="32" Command="{Binding AddWindowCommand}">
                             <StackPanel Orientation="Horizontal">
                                 <Canvas Width="14" Height="14" VerticalAlignment="Center">

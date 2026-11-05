@@ -300,39 +300,6 @@
         </Setter>
     </Style>
 
-    <!-- 危险操作：默认红字，hover 才铺红底 -->
-    <Style x:Key="BtnGhostDanger" TargetType="Button" BasedOn="{StaticResource BtnBase}">
-        <Setter Property="Background" Value="Transparent"/>
-        <Setter Property="Foreground" Value="{StaticResource Danger}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DangerBorder}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Grid>
-                        <Border x:Name="bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"
-                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
-                                              TextElement.FontSize="{TemplateBinding FontSize}"/>
-                        </Border>
-                    </Grid>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="{StaticResource DangerSoft}"/>
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="bd" Property="Background" Value="#33FF453A"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="bd" Property="Opacity" Value="0.35"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <Style x:Key="BtnSmall" TargetType="Button" BasedOn="{StaticResource BtnBase}">
         <Setter Property="Height" Value="28"/>
         <Setter Property="FontSize" Value="10.5"/>
