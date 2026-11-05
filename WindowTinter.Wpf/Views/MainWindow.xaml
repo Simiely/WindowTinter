@@ -360,7 +360,7 @@
             </Grid>
 
             <!-- ═══ ② 工具栏 56（空状态整行隐藏）═══ -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1" Margin="16,0,0,0">
                 <Grid.Style>
                     <Style TargetType="Grid">
                         <Style.Triggers>
@@ -431,7 +431,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="20,0,20,0">
+                <Grid Grid.Row="0" Margin="16,0,16,0">
                     <Grid.Style>
                         <Style TargetType="Grid">
                             <Style.Triggers>
