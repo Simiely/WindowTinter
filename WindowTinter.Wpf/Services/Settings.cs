@@ -124,7 +124,16 @@ namespace WindowTinter
                 var t = s.Targets[i];
                 if (!string.IsNullOrEmpty(t.ProcessName) && t.ProcessName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 {
-                    s.Targets[i] = new TargetInfo { ProcessName = t.ProcessName[..^4], WindowTitle = t.WindowTitle };
+                    // Keep Alias/WindowClass/alpha/radius when trimming the legacy ".exe" suffix.
+                    s.Targets[i] = new TargetInfo
+                    {
+                        ProcessName = t.ProcessName[..^4],
+                        WindowTitle = t.WindowTitle,
+                        WindowClass = t.WindowClass,
+                        Alias = t.Alias,
+                        BackgroundAlpha = t.BackgroundAlpha,
+                        CornerRadius = t.CornerRadius
+                    };
                     migratedExe = true;
                 }
             }

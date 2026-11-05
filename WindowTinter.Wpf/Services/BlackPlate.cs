@@ -38,6 +38,7 @@ namespace WindowTinter
 
         private IntPtr _lastTarget = IntPtr.Zero;
         private int _lastX, _lastY, _lastW, _lastH;
+        private bool _isShown; // 当前是否已 ShowWindow 状态（避免停用时每 500ms 重复 SetWindowPos）
 
         /// <summary>圆角半径（0=关，矩形；1~20=px）。设值后下次 AlignBehind 生效（走 RefreshForeground 触发）。</summary>
         public int CornerRadius { get; set; } = 14;
@@ -104,6 +105,7 @@ namespace WindowTinter
             Native.SetWindowPos(_hwnd, targetHandle,
                 x, y, w, h,
                 Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+            _isShown = true;
 
             if (posChanged)
                 (_lastTarget, _lastX, _lastY, _lastW, _lastH) = (targetHandle, x, y, w, h);
@@ -114,13 +116,14 @@ namespace WindowTinter
                 RenderSolidBlack(x, y, w, h);
         }
 
-        /// <summary>隐藏底板（SWP_NOZORDER：隐藏时明确不改 Z 序）。</summary>
+        /// <summary>隐藏底板（SWP_NOZORDER：隐藏时明确不改 Z 序）。幂等：已隐藏时不再发系统调用。</summary>
         public void HidePlate()
         {
-            if (_hwnd != IntPtr.Zero)
+            if (_hwnd != IntPtr.Zero && _isShown)
             {
                 Native.SetWindowPos(_hwnd, IntPtr.Zero, 0, 0, 0, 0,
                     Native.SWP_HIDEWINDOW | Native.SWP_NOZORDER | Native.SWP_NOACTIVATE);
+                _isShown = false;
             }
         }
 

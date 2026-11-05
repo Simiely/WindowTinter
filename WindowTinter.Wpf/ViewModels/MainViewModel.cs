@@ -52,6 +52,11 @@ namespace WindowTinter.ViewModels
         private Native.WinEventProc _winEventProc;
         private IntPtr _winEventHook = IntPtr.Zero;
 
+        // 已绑定目标句柄快照：WinEvent 回调线程只读，用于过滤无关窗口事件（不把全桌面事件投递到 UI 线程）
+        private volatile IntPtr[] _boundHandles = Array.Empty<IntPtr>();
+        // 正在抓图的目标句柄：同一目标已有 PrintWindow 在跑时不重复排队
+        private readonly HashSet<IntPtr> _snapshotInFlight = new HashSet<IntPtr>();
+
         private bool _elevationWarned;
 
         public MainViewModel()
@@ -234,6 +239,7 @@ namespace WindowTinter.ViewModels
             var entry = CreateEntry(info);
             entry.Tracker.TargetHandle = h;
             _entries.Add(entry);
+            UpdateBoundHandles();
             entry.Tracker.RefreshNow();
             // 启动时绑定目标 → 自动快照（用户首次启动看到卡片即有图）
             RefreshTargetSnapshot(info);
@@ -262,7 +268,10 @@ namespace WindowTinter.ViewModels
             {
                 if (entry.Tracker.TargetHandle != IntPtr.Zero && Native.IsWindow(entry.Tracker.TargetHandle))
                 {
-                    SetTargetAlpha(entry.Tracker.TargetHandle, 255, entry.OriginallyLayered ?? false);
+                    // 只还原本程序改过的透明度：LastAlpha==255 表示从未改过，
+                    // 此时调用会误移除目标窗口原生的 WS_EX_LAYERED（原本就分层的窗口外观被破坏）
+                    if (entry.LastAlpha != 255)
+                        SetTargetAlpha(entry.Tracker.TargetHandle, 255, entry.OriginallyLayered ?? false);
                     SetTargetTopmost(entry.Tracker.TargetHandle, false);
                 }
             }
@@ -273,8 +282,18 @@ namespace WindowTinter.ViewModels
             try { entry.Plate.Dispose(); } catch { }
 
             _entries.Remove(entry);
+            UpdateBoundHandles();
 
             if (updateUI) SyncUI();
+        }
+
+        /// <summary>刷新已绑定句柄快照（仅供 WinEvent 回调线程做事件过滤）。</summary>
+        private void UpdateBoundHandles()
+        {
+            _boundHandles = _entries
+                .Select(e => e.Tracker.TargetHandle)
+                .Where(h => h != IntPtr.Zero)
+                .ToArray();
         }
 
         /// <summary>统一删除入口：从配置移除 + 解绑（若有）+ 同步 UI + 保存。</summary>
@@ -682,26 +701,37 @@ namespace WindowTinter.ViewModels
                 return;
             }
             IntPtr h = entry.Tracker.TargetHandle;
+            lock (_snapshotInFlight)
+            {
+                if (!_snapshotInFlight.Add(h)) return; // 同一目标已有抓图在跑，本次跳过
+            }
             System.Threading.Tasks.Task.Run(() =>
             {
-                var bmp = SnapshotService.Capture(h, 100, 48);
-                if (bmp == null) return;
                 try
                 {
-                    IntPtr hbit = bmp.GetHbitmap();
-                    BitmapSource src;
+                    var bmp = SnapshotService.Capture(h, 100, 48);
+                    if (bmp == null) return;
                     try
                     {
-                        src = Imaging.CreateBitmapSourceFromHBitmap(
-                            hbit, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        IntPtr hbit = bmp.GetHbitmap();
+                        BitmapSource src;
+                        try
+                        {
+                            src = Imaging.CreateBitmapSourceFromHBitmap(
+                                hbit, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                        }
+                        finally { Native.DeleteObject(hbit); }
+                        src.Freeze(); // Freeze 后跨线程安全
+                        var target = vm;
+                        _dispatcher.BeginInvoke(new Action(() => target?.SetShotSource(src)));
                     }
-                    finally { Native.DeleteObject(hbit); }
-                    src.Freeze(); // Freeze 后跨线程安全
-                    var target = vm;
-                    _dispatcher.BeginInvoke(new Action(() => target?.SetShotSource(src)));
+                    catch { }
+                    finally { bmp.Dispose(); }
                 }
-                catch { }
-                finally { bmp.Dispose(); }
+                finally
+                {
+                    lock (_snapshotInFlight) _snapshotInFlight.Remove(h);
+                }
             });
         }
 
@@ -752,6 +782,8 @@ namespace WindowTinter.ViewModels
                                or Native.EVENT_OBJECT_DESTROY)
             {
                 var targetHwnd = hwnd;
+                // 先在本线程按句柄过滤：桌面级 LOCATIONCHANGE 量很大，无关窗口不投递到 UI 线程
+                if (Array.IndexOf(_boundHandles, targetHwnd) < 0) return;
                 try
                 {
                     app.Dispatcher.BeginInvoke(new Action(() =>
