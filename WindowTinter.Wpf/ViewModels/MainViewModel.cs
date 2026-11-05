@@ -674,7 +674,7 @@ namespace WindowTinter.ViewModels
                 }
                 else if (_settings.GlobalCornerRadius)
                 {
-                    SelectedTarget = null; // 进入全全局：卡片不可选，清空选中（无选中发光）
+                    SelectedTarget = null; // 进入全全局：清空选中（收起卡片展开态，仍可再次点选）
                 }
                 _settings.Save();
                 SyncUI();
@@ -696,7 +696,7 @@ namespace WindowTinter.ViewModels
                 }
                 else if (_settings.GlobalTransparency)
                 {
-                    SelectedTarget = null; // 进入全全局：卡片不可选，清空选中（无选中发光）
+                    SelectedTarget = null; // 进入全全局：清空选中（收起卡片展开态，仍可再次点选）
                 }
                 _settings.Save();
                 SyncUI();
@@ -894,10 +894,13 @@ namespace WindowTinter.ViewModels
         // 卡片回调（TargetViewModel 命令 → 主 VM）
         // ════════════════════════════════════════════════════════════════
 
-        /// <summary>点击卡片选中目标：非全局模式下生效，一次性带到前台便于查看效果。</summary>
+        /// <summary>
+        /// 点击卡片选中目标：一次性带到前台便于查看效果。
+        /// 全局统一模式（透明度和圆角都走全局）下同样允许选中——新版卡片是「选中即内联展开」，
+        /// 选中态是唯一的展开入口；此时卡片内的滑块改的就是全局值（BackgroundAlpha/CornerRadius 的 getter 已按模式取值）。
+        /// </summary>
         public void SelectTarget(TargetViewModel vm)
         {
-            if (_settings.GlobalTransparency && _settings.GlobalCornerRadius) return;
             SelectedTarget = vm;
             SyncUI();
             var entry = _entries.FirstOrDefault(e => e.Info == vm.Info);
@@ -971,11 +974,9 @@ namespace WindowTinter.ViewModels
             }
             else SyncUI();
 
-            if (!_settings.GlobalTransparency || !_settings.GlobalCornerRadius)
-            {
-                var vm = FindVm(info);
-                if (vm != null) SelectedTarget = vm;
-            }
+            // 新卡片直接展开（选中态 = 展开态），全局统一模式下也一样
+            var vm = FindVm(info);
+            if (vm != null) SelectedTarget = vm;
             SyncUI();
             // 添加窗口后立即生成快照：BindTarget 内的快照发生在 SyncUI（建卡片 VM）之前，
             // FindVm 为 null 会被丢弃——此处 SyncUI 已完成，必须补一次才能让新卡片立刻出图。
