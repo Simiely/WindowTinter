@@ -320,30 +320,21 @@
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
-            <!-- ═══ ① 标题栏 48 ═══ -->
+            <!-- ═══ ① 标题栏 48（Windows 版式：左标题 16，右上角窗控 46×32）═══ -->
             <Grid Grid.Row="0" Background="{StaticResource TitleBarBg}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0"
-                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button Style="{StaticResource TrafficDot}" Background="#FF5F57" ToolTip="关闭" Click="OnCloseClick"
-                            Margin="0,0,8,0"/>
-                    <Button Style="{StaticResource TrafficDot}" Background="#FEBC2E" ToolTip="最小化" Click="OnMinClick"
-                            Margin="0,0,8,0"/>
-                    <Button Style="{StaticResource TrafficDot}" Background="#28C840" ToolTip="最大化 / 还原" Click="OnMaxClick"/>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="暗幕" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="16,0,8,0">
+                    <TextBlock Text="暗幕" FontSize="13" FontWeight="SemiBold"/>
                     <TextBlock Text="{Binding TargetSubtitle}" FontSize="9.5" Foreground="{StaticResource Text3}"
-                               HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                               Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="2" Style="{StaticResource BtnIcon}" Margin="0,0,12,0" ToolTip="全局默认参数"
+                <Button Grid.Column="1" Style="{StaticResource BtnIcon}" Margin="0,0,8,0" ToolTip="全局默认参数"
                         Command="{Binding OpenSettingsCommand}"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Canvas Width="18" Height="18">
@@ -355,6 +346,61 @@
                         <Ellipse Canvas.Left="10" Canvas.Top="12.5" Width="4" Height="4" Fill="{StaticResource Text2}"/>
                     </Canvas>
                 </Button>
+
+                <!-- 窗控：整块在 chrome 上可命中（否则会落到拖动区）-->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource BtnCaption}" ToolTip="最小化" Click="OnMinClick">
+                        <Canvas Width="10" Height="10">
+                            <Path Data="M0.5,5.5 H9.5"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1"/>
+                        </Canvas>
+                    </Button>
+
+                    <Button Style="{StaticResource BtnCaption}" ToolTip="最大化 / 还原" Click="OnMaxClick">
+                        <Canvas Width="10" Height="10">
+                            <Path Data="M0.5,0.5 H9.5 V9.5 H0.5 Z"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         Value="Maximized">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
+                            <Path Data="M2.5,0.5 H9.5 V7.5 M0.5,2.5 H7.5 V9.5 H0.5 Z"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1">
+                                <Path.Style>
+                                    <Style TargetType="Path">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         Value="Maximized">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Path.Style>
+                            </Path>
+                        </Canvas>
+                    </Button>
+
+                    <Button Style="{StaticResource BtnCaptionClose}" ToolTip="关闭" Click="OnCloseClick">
+                        <Canvas Width="10" Height="10">
+                            <Path Data="M0.5,0.5 L9.5,9.5 M9.5,0.5 L0.5,9.5"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1"/>
+                        </Canvas>
+                    </Button>
+                </StackPanel>
 
                 <Border Grid.ColumnSpan="3" Height="1" Background="{StaticResource LineSoft}" VerticalAlignment="Bottom"/>
             </Grid>
