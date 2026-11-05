@@ -214,18 +214,20 @@
                                 </Border>
                             </Grid>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <TextBlock Text="{Binding AliasText}" FontSize="10.5" Foreground="{StaticResource Text2}"
-                                           MaxWidth="220" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="·" FontSize="10.5" Foreground="{StaticResource Text3}" Margin="6,0"
-                                           Visibility="{Binding AliasVisible}"/>
-                                <TextBlock Text="{Binding MetaSuffix}" FontSize="10.5" Foreground="{StaticResource Text3}"/>
-                                <Border Background="#26FF9F0A" BorderBrush="#4DFF9F0A" BorderThickness="1" CornerRadius="4"
-                                        Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
+                            <!-- 副行：单行省略，窄卡片（双列）下不横向溢出 -->
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding MetaLine}" FontSize="10.5"
+                                           Foreground="{StaticResource Text3}" TextTrimming="CharacterEllipsis"/>
+                                <Border Grid.Column="1" Background="#26FF9F0A" BorderBrush="#4DFF9F0A" BorderThickness="1"
+                                        CornerRadius="4" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
                                         Visibility="{Binding DisabledVisible}">
                                     <TextBlock Text="已停用" FontSize="9" Foreground="{StaticResource Warn}"/>
                                 </Border>
-                            </StackPanel>
+                            </Grid>
                         </StackPanel>
 
                         <!-- 单卡开关：32×20，停用只影响这一张卡片（保留配置与位置） -->

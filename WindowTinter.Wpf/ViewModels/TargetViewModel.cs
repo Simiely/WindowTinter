@@ -69,6 +69,8 @@ namespace WindowTinter.ViewModels
         public string AlphaText => $"暗度 {_owner.EffectiveAlpha(Info)}%";
         public string CornerText => _owner.EffectiveCorner(Info) == 0 ? "直角" : $"圆角 {_owner.EffectiveCorner(Info)}px";
         public string MetaSuffix => $"{AlphaText} · {CornerText}";
+        /// <summary>副行整行文本（窄卡片下由 TextBlock 单行省略，避免横向溢出）。</summary>
+        public string MetaLine => HasAlias ? $"{AliasText} · {MetaSuffix}" : MetaSuffix;
 
         // ── 快照（BitmapSource；null = 显示占位）──
         private ImageSource _shotImage;
@@ -124,6 +126,7 @@ namespace WindowTinter.ViewModels
         /// <summary>绑定状态变化时刷新卡片外观。由 MainViewModel 统一驱动。</summary>
         public void RefreshCardVisuals()
         {
+            OnPropertyChanged(nameof(MetaLine));
             OnPropertyChanged(nameof(IsPending));
             OnPropertyChanged(nameof(IsSelected));
             OnPropertyChanged(nameof(IsEnabled));
