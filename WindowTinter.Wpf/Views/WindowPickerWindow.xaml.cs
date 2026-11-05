@@ -19,6 +19,7 @@ namespace WindowTinter.Views
         public IntPtr SelectedHandle { get; private set; } = IntPtr.Zero;
         private Native.RECT _highlight;
         private IntPtr _lastHwnd = IntPtr.Zero;
+        private IntPtr _selfHwnd = IntPtr.Zero;
         private DateTime _lastMoveCheck = DateTime.MinValue;
 
         public WindowPickerWindow()
@@ -32,6 +33,7 @@ namespace WindowTinter.Views
             Loaded += (_, _) =>
             {
                 Focus();
+                InitScrim();
                 PositionHud(null);
             };
         }
@@ -39,20 +41,22 @@ namespace WindowTinter.Views
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
+            _selfHwnd = new WindowInteropHelper(this).Handle;
             Activate();
         }
 
         /// <summary>
         /// 命中测试：优先用 WindowFromPoint（系统级命中测试，尊重 Z 序、子窗口与 WS_EX_TRANSPARENT 语义）。
         /// 若命中自己 / 桌面 / 任务栏等"不可交互"窗口，退回 Z 序枚举。
+        /// 光标位置直接问系统（GetCursorPos，物理像素），不依赖 WPF 路由事件的坐标换算。
         /// </summary>
         private IntPtr GetWindowAtCursor()
         {
-            var pt = PointToScreen(Mouse.GetPosition(this)); // 物理像素，供 Win32 使用
-            var spt = new System.Drawing.Point((int)pt.X, (int)pt.Y);
+            if (!Native.GetCursorPos(out Native.POINT p)) return IntPtr.Zero;
+            var spt = new System.Drawing.Point(p.X, p.Y);
             IntPtr h = Native.WindowFromPoint(spt);
 
-            if (h == IntPtr.Zero || h == new WindowInteropHelper(this).Handle || IsIgnoredWindow(h))
+            if (h == IntPtr.Zero || h == _selfHwnd || IsIgnoredWindow(h))
                 h = FallbackEnumerate(spt);
 
             return h != IntPtr.Zero ? Native.GetAncestor(h, Native.GA_ROOT) : IntPtr.Zero;
@@ -91,7 +95,7 @@ namespace WindowTinter.Views
             IntPtr found = IntPtr.Zero;
             Native.EnumWindows((hwnd, _) =>
             {
-                if (hwnd == new WindowInteropHelper(this).Handle || IsIgnoredWindow(hwnd)) return true;
+                if (hwnd == _selfHwnd || IsIgnoredWindow(hwnd)) return true;
 
                 Native.GetWindowRect(hwnd, out Native.RECT r);
                 if (pt.X >= r.Left && pt.X < r.Right && pt.Y >= r.Top && pt.Y < r.Bottom)
@@ -130,6 +134,12 @@ namespace WindowTinter.Views
                 return;
             }
             if (e.ChangedButton != MouseButton.Left) return;
+
+            // 点在 HUD 上（按钮以外的空白）不当作"选中下面的窗口"
+            var pos = e.GetPosition(this);
+            double hudLeft = Canvas.GetLeft(Hud), hudTop = Canvas.GetTop(Hud);
+            if (pos.X >= hudLeft && pos.X <= hudLeft + Hud.ActualWidth &&
+                pos.Y >= hudTop && pos.Y <= hudTop + Hud.ActualHeight) return;
 
             IntPtr h = GetWindowAtCursor();
             if (h != IntPtr.Zero)
@@ -203,6 +213,25 @@ namespace WindowTinter.Views
             Point tl = PointFromScreen(new Point(r.Left, r.Top));
             Point br = PointFromScreen(new Point(r.Right, r.Bottom));
             return new Rect(tl, br);
+        }
+
+        /// <summary>初始遮罩：整屏压暗（未命中目标前没有"挖空"区域）。</summary>
+        private void InitScrim()
+        {
+            double w = ActualWidth;
+            double h = ActualHeight;
+
+            Canvas.SetLeft(TopScrim, 0); Canvas.SetTop(TopScrim, 0);
+            TopScrim.Width = 0; TopScrim.Height = 0;
+
+            Canvas.SetLeft(LeftScrim, 0); Canvas.SetTop(LeftScrim, 0);
+            LeftScrim.Width = 0; LeftScrim.Height = 0;
+
+            Canvas.SetLeft(RightScrim, w); Canvas.SetTop(RightScrim, 0);
+            RightScrim.Width = 0; RightScrim.Height = 0;
+
+            Canvas.SetLeft(BottomScrim, 0); Canvas.SetTop(BottomScrim, 0);
+            BottomScrim.Width = w; BottomScrim.Height = h;
         }
 
         private void ApplyScrim(Rect r)
