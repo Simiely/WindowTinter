@@ -86,8 +86,6 @@ namespace WindowTinter.ViewModels
                     BindTarget(t, refreshUI: false);
                 }
             }
-            if (!_settings.GlobalTransparency && SelectedTarget == null)
-                SelectedTarget = Targets.FirstOrDefault();
 
             // 3s 自动重绑（窗口销毁→待激活→重开自动绑回）
             _autoBindTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
@@ -124,7 +122,7 @@ namespace WindowTinter.ViewModels
             var tracker = new TargetTracker();
             var plate = new BlackPlate();
             var entry = new TargetEntry { Info = info, Tracker = tracker, Plate = plate };
-            plate.CornerRadius = _settings.GlobalCornerRadius ? _settings.CornerRadius : info.CornerRadius;
+            plate.CornerRadius = EffectiveCorner(info);
             tracker.OnUpdate += (r, visible) => ApplyEntryEffect(entry, visible);
             return entry;
         }
@@ -142,7 +140,7 @@ namespace WindowTinter.ViewModels
             IntPtr h = entry.Tracker.TargetHandle;
             if (h == IntPtr.Zero) return;
 
-            int bgPct = _settings.GlobalTransparency ? _settings.BackgroundAlpha : entry.Info.BackgroundAlpha;
+            int bgPct = EffectiveAlpha(entry.Info);
 
             // 最小化抑制兜底：恢复后（可见且非图标化）且已过动画窗口，才允许底板重新显示
             if (entry.MinimizeSuppressed && visible &&
@@ -468,10 +466,8 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(BackgroundAlphaText));
             OnPropertyChanged(nameof(CornerRadius));
             OnPropertyChanged(nameof(CornerRadiusText));
-            OnPropertyChanged(nameof(IsAlphaSliderEnabled));
-            OnPropertyChanged(nameof(IsCornerSliderEnabled));
             OnPropertyChanged(nameof(GlobalDefaultsText));
-            OnPropertyChanged(nameof(GlobalStripText));
+            RaiseCustomState();
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -575,18 +571,51 @@ namespace WindowTinter.ViewModels
         public string FooterTone => !_settings.Enabled || TotalCount == 0 ? "off"
             : ActiveCount == 0 || PendingCount > 0 ? "warn" : "ok";
 
+        // ── 全局默认面板（底栏上方独立折叠区）──
+        public string CustomSummaryText => $"已自定义 {CustomizedCount} 张 · 跟随全局 {FollowingCount} 张";
+        public int CustomizedCount => _settings.Targets.Count(t => t.IsCustomized);
+        public int FollowingCount => _settings.Targets.Count - CustomizedCount;
+        public bool HasCustomized => CustomizedCount > 0;
         public string GlobalDefaultsText => $"全局默认：暗度 {_settings.BackgroundAlpha}% · 圆角 {_settings.CornerRadius}px";
 
-        public string GlobalStripText
-            => $"全局默认 暗度 {_settings.BackgroundAlpha}% · 圆角 {_settings.CornerRadius}px · 黑色底板{(_settings.BackdropBlackPlate ? "开" : "关")}";
+        /// <summary>折叠状态持久化到 settings.json；折叠时内容区 Visibility=Collapsed，不占高度。</summary>
+        public bool GlobalPanelExpanded
+        {
+            get => _settings.GlobalPanelExpanded;
+            set
+            {
+                if (_settings.GlobalPanelExpanded == value) return;
+                _settings.GlobalPanelExpanded = value;
+                OnPropertyChanged(nameof(GlobalPanelExpanded));
+                _settings.Save();
+            }
+        }
 
-        /// <summary>目标当前生效的暗度（全局模式取全局值）。供卡片副行文案使用。</summary>
+        /// <summary>目标当前生效的暗度：已自定义取卡片自己的值，否则跟随全局默认值。</summary>
         public int EffectiveAlpha(TargetInfo info)
-            => _settings.GlobalTransparency ? _settings.BackgroundAlpha : info.BackgroundAlpha;
+            => info != null && info.IsCustomized ? info.BackgroundAlpha : _settings.BackgroundAlpha;
 
-        /// <summary>目标当前生效的圆角（全局模式取全局值）。</summary>
+        /// <summary>目标当前生效的圆角：已自定义取卡片自己的值，否则跟随全局默认值。</summary>
         public int EffectiveCorner(TargetInfo info)
-            => _settings.GlobalCornerRadius ? _settings.CornerRadius : info.CornerRadius;
+            => info != null && info.IsCustomized ? info.CornerRadius : _settings.CornerRadius;
+
+        /// <summary>首次自定义：先把当前生效的全局值抄进卡片字段，再改被拖动的那一项，避免另一项凭空跳变。</summary>
+        private void MarkCustomized(TargetInfo info)
+        {
+            if (info == null || info.IsCustomized) return;
+            info.BackgroundAlpha = _settings.BackgroundAlpha;
+            info.CornerRadius = _settings.CornerRadius;
+            info.IsCustomized = true;
+        }
+
+        private void RaiseCustomState()
+        {
+            OnPropertyChanged(nameof(CustomizedCount));
+            OnPropertyChanged(nameof(FollowingCount));
+            OnPropertyChanged(nameof(HasCustomized));
+            OnPropertyChanged(nameof(CustomSummaryText));
+            OnPropertyChanged(nameof(GlobalDefaultsText));
+        }
 
         // ── 状态文案（对齐 UI_REDESIGN：无 ● 前缀、无 — 破折号，状态由左侧/右侧圆点表达）──
         public string StatusText
@@ -682,55 +711,6 @@ namespace WindowTinter.ViewModels
             set { if (value) CardsPerRow = 2; else OnPropertyChanged(nameof(IsTwoPerRow)); }
         }
 
-        public bool GlobalTransparency
-        {
-            get => _settings.GlobalTransparency;
-            set
-            {
-                if (_settings.GlobalTransparency == value) return;
-                _settings.GlobalTransparency = value;
-                if (!value)
-                {
-                    foreach (var t in _settings.Targets) t.BackgroundAlpha = _settings.BackgroundAlpha;
-                    SelectedTarget = Targets.FirstOrDefault();
-                }
-                else if (_settings.GlobalCornerRadius)
-                {
-                    SelectedTarget = null; // 进入全全局：清空选中（收起卡片展开态，仍可再次点选）
-                }
-                _settings.Save();
-                SyncUI();
-                foreach (var e in _entries) ApplyMaskNow(e);
-            }
-        }
-
-        public bool GlobalCornerRadius
-        {
-            get => _settings.GlobalCornerRadius;
-            set
-            {
-                if (_settings.GlobalCornerRadius == value) return;
-                _settings.GlobalCornerRadius = value;
-                if (!value)
-                {
-                    foreach (var t in _settings.Targets) t.CornerRadius = _settings.CornerRadius;
-                    SelectedTarget = Targets.FirstOrDefault();
-                }
-                else if (_settings.GlobalTransparency)
-                {
-                    SelectedTarget = null; // 进入全全局：清空选中（收起卡片展开态，仍可再次点选）
-                }
-                _settings.Save();
-                SyncUI();
-                foreach (var e in _entries)
-                {
-                    bool useGlobal = _settings.GlobalCornerRadius;
-                    e.Plate.CornerRadius = useGlobal ? _settings.CornerRadius : e.Info.CornerRadius;
-                    e.Tracker.RefreshForeground();
-                }
-            }
-        }
-
         public bool BackdropBlackPlate
         {
             get => _settings.BackdropBlackPlate;
@@ -740,7 +720,6 @@ namespace WindowTinter.ViewModels
                 _settings.BackdropBlackPlate = value;
                 _settings.Save();
                 foreach (var e in _entries) e.Tracker.RefreshForeground();
-                OnPropertyChanged(nameof(GlobalStripText));
             }
         }
 
@@ -767,21 +746,23 @@ namespace WindowTinter.ViewModels
             }
         }
 
+        /// <summary>卡片内压暗强度：只作用于当前展开的这张卡，并把它标记为已自定义（此后不再跟随全局）。</summary>
         public int BackgroundAlpha
         {
-            get => _settings.GlobalTransparency ? _settings.BackgroundAlpha : (SelectedTarget?.Info.BackgroundAlpha ?? 0);
+            get => SelectedTarget == null ? _settings.BackgroundAlpha : EffectiveAlpha(SelectedTarget.Info);
             set
             {
                 int v = Math.Clamp(value, 0, 100);
-                if (_settings.GlobalTransparency) _settings.BackgroundAlpha = v;
-                else { if (SelectedTarget == null) return; SelectedTarget.Info.BackgroundAlpha = v; }
-                foreach (var e in _entries) ApplyMaskNow(e);
+                if (SelectedTarget == null) return;
+                var info = SelectedTarget.Info;
+                if (EffectiveAlpha(info) == v) return;   // 值没变就不置自定义标记
+                MarkCustomized(info);
+                info.BackgroundAlpha = v;
+                var e = FindEntry(info);
+                if (e != null) ApplyMaskNow(e);
                 OnPropertyChanged(nameof(BackgroundAlpha));
                 OnPropertyChanged(nameof(BackgroundAlphaText));
-                OnPropertyChanged(nameof(GlobalAlpha));
-                OnPropertyChanged(nameof(GlobalAlphaText));
-                OnPropertyChanged(nameof(GlobalDefaultsText));
-                OnPropertyChanged(nameof(GlobalStripText));
+                RaiseCustomState();
                 foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
@@ -790,37 +771,23 @@ namespace WindowTinter.ViewModels
 
         public string BackgroundAlphaText => $"{BackgroundAlpha}%";
 
+        /// <summary>卡片内圆角：只作用于当前展开的这张卡，并把它标记为已自定义。</summary>
         public int CornerRadius
         {
-            get => _settings.GlobalCornerRadius ? _settings.CornerRadius : (SelectedTarget?.Info.CornerRadius ?? 0);
+            get => SelectedTarget == null ? _settings.CornerRadius : EffectiveCorner(SelectedTarget.Info);
             set
             {
                 int v = Math.Clamp(value, 0, 32);
-                if (_settings.GlobalCornerRadius)
-                {
-                    _settings.CornerRadius = v;
-                    foreach (var e in _entries)
-                        SetPlateCornerRadius(e, v);
-                }
-                else
-                {
-                    if (SelectedTarget == null) return;
-                    SelectedTarget.Info.CornerRadius = v;
-                    foreach (var e in _entries)
-                    {
-                        if (e.Info == SelectedTarget.Info)
-                        {
-                            SetPlateCornerRadius(e, v);
-                            break;
-                        }
-                    }
-                }
+                if (SelectedTarget == null) return;
+                var info = SelectedTarget.Info;
+                if (EffectiveCorner(info) == v) return;  // 值没变就不置自定义标记
+                MarkCustomized(info);
+                info.CornerRadius = v;
+                var e = FindEntry(info);
+                if (e != null) SetPlateCornerRadius(e, v);
                 OnPropertyChanged(nameof(CornerRadius));
                 OnPropertyChanged(nameof(CornerRadiusText));
-                OnPropertyChanged(nameof(GlobalCorner));
-                OnPropertyChanged(nameof(GlobalCornerText));
-                OnPropertyChanged(nameof(GlobalDefaultsText));
-                OnPropertyChanged(nameof(GlobalStripText));
+                RaiseCustomState();
                 foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
@@ -829,7 +796,7 @@ namespace WindowTinter.ViewModels
 
         public string CornerRadiusText => CornerRadius == 0 ? "关" : $"{CornerRadius}px";
 
-        // ── 全局默认参数（设置面板；全局统一模式下即时应用到所有目标）──
+        // ── 全局默认参数（底栏上方折叠面板；只推送到未自定义的卡片）──
         public int GlobalAlpha
         {
             get => _settings.BackgroundAlpha;
@@ -838,14 +805,13 @@ namespace WindowTinter.ViewModels
                 int v = Math.Clamp(value, 0, 100);
                 if (_settings.BackgroundAlpha == v) return;
                 _settings.BackgroundAlpha = v;
-                if (_settings.GlobalTransparency)
-                    foreach (var e in _entries) ApplyMaskNow(e);
+                foreach (var e in _entries)
+                    if (!e.Info.IsCustomized) ApplyMaskNow(e);
                 OnPropertyChanged(nameof(GlobalAlpha));
                 OnPropertyChanged(nameof(GlobalAlphaText));
                 OnPropertyChanged(nameof(BackgroundAlpha));
                 OnPropertyChanged(nameof(BackgroundAlphaText));
-                OnPropertyChanged(nameof(GlobalDefaultsText));
-                OnPropertyChanged(nameof(GlobalStripText));
+                RaiseCustomState();
                 foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
@@ -862,14 +828,13 @@ namespace WindowTinter.ViewModels
                 int v = Math.Clamp(value, 0, 32);
                 if (_settings.CornerRadius == v) return;
                 _settings.CornerRadius = v;
-                if (_settings.GlobalCornerRadius)
-                    foreach (var e in _entries) SetPlateCornerRadius(e, v);
+                foreach (var e in _entries)
+                    if (!e.Info.IsCustomized) SetPlateCornerRadius(e, v);
                 OnPropertyChanged(nameof(GlobalCorner));
                 OnPropertyChanged(nameof(GlobalCornerText));
                 OnPropertyChanged(nameof(CornerRadius));
                 OnPropertyChanged(nameof(CornerRadiusText));
-                OnPropertyChanged(nameof(GlobalDefaultsText));
-                OnPropertyChanged(nameof(GlobalStripText));
+                RaiseCustomState();
                 foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
                 _saveDebounceTimer.Stop();
                 _saveDebounceTimer.Start();
@@ -878,21 +843,46 @@ namespace WindowTinter.ViewModels
 
         public string GlobalCornerText => GlobalCorner == 0 ? "直角" : $"{GlobalCorner}px";
 
-        /// <summary>把选中目标的暗度/圆角恢复成当前全局默认值。</summary>
+        /// <summary>把这张卡恢复成跟随全局（清自定义标记，之后全局改动重新作用到它）。</summary>
         private void RestoreGlobalForSelected()
         {
             var vm = SelectedTarget;
             if (vm == null) return;
-            vm.Info.BackgroundAlpha = _settings.BackgroundAlpha;
-            vm.Info.CornerRadius = _settings.CornerRadius;
+            vm.Info.IsCustomized = false;
             var e = FindEntry(vm.Info);
             if (e != null)
             {
                 ApplyMaskNow(e);
+                SetPlateCornerRadius(e, EffectiveCorner(vm.Info));
+            }
+            ApplyCustomStateChange();
+        }
+
+        /// <summary>一键把全部卡片恢复为跟随全局（用户自定义后唯一回退入口）。</summary>
+        public void ResetAllToGlobal()
+        {
+            bool changed = false;
+            foreach (var t in _settings.Targets)
+                if (t.IsCustomized) { t.IsCustomized = false; changed = true; }
+            if (!changed) return;
+            foreach (var e in _entries)
+            {
+                ApplyMaskNow(e);
                 SetPlateCornerRadius(e, _settings.CornerRadius);
             }
+            ApplyCustomStateChange();
+        }
+
+        /// <summary>自定义状态变化后的统一收尾：刷新滑块显示、卡片文案并立即落盘。</summary>
+        private void ApplyCustomStateChange()
+        {
+            OnPropertyChanged(nameof(BackgroundAlpha));
+            OnPropertyChanged(nameof(BackgroundAlphaText));
+            OnPropertyChanged(nameof(CornerRadius));
+            OnPropertyChanged(nameof(CornerRadiusText));
+            RaiseCustomState();
+            foreach (var vm in _vmByInfo.Values) vm.RefreshMeta();
             _settings.Save();
-            SyncUI();
         }
 
         /// <summary>恢复出厂默认参数（设置面板「恢复默认」）。</summary>
@@ -902,9 +892,6 @@ namespace WindowTinter.ViewModels
             GlobalCorner = 14;
             BackdropBlackPlate = true;
         }
-
-        public bool IsAlphaSliderEnabled => _settings.GlobalTransparency || SelectedTarget != null;
-        public bool IsCornerSliderEnabled => _settings.GlobalCornerRadius || SelectedTarget != null;
 
         private static void SetPlateCornerRadius(TargetEntry e, int value)
         {
@@ -1248,6 +1235,7 @@ namespace WindowTinter.ViewModels
         public RelayCommand AboutCommand { get; private set; }             // ℹ 关于
         public RelayCommand OpenSettingsCommand { get; private set; }      // 设置面板
         public RelayCommand RestoreGlobalCommand { get; private set; }     // 卡片「恢复全局」
+        public RelayCommand ResetAllToGlobalCommand { get; private set; }  // 全局面板「全部恢复跟随全局」
         public RelayCommand ResetDefaultsCommand { get; private set; }     // 设置「恢复默认」
 
         private void BuildCommands()
@@ -1260,6 +1248,7 @@ namespace WindowTinter.ViewModels
             AboutCommand = new RelayCommand(ShowAbout);
             OpenSettingsCommand = new RelayCommand(ShowSettings);
             RestoreGlobalCommand = new RelayCommand(RestoreGlobalForSelected);
+            ResetAllToGlobalCommand = new RelayCommand(ResetAllToGlobal);
             ResetDefaultsCommand = new RelayCommand(ResetGlobalDefaults);
         }
 

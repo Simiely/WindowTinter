@@ -19,8 +19,11 @@ namespace WindowTinter
         /// <summary>单卡启用开关。与全局 Enabled 分层：全局开关是总闸，单卡只决定这张卡片是否遮罩该窗口。
         /// 旧配置没有该字段；System.Text.Json 反序列化会先执行属性初始化器，缺失字段保持 true（启用）。</summary>
         public bool Enabled { get; set; } = true;
-        public int BackgroundAlpha { get; set; } = 50;  // 璇ョ洰鏍囩獥鍙ｉ€忔槑搴︼紙0~100锛夛紝浠?鍏ㄥ眬缁熶竴閫忔槑搴?鍏抽棴鏃剁敓鏁?
-        public int CornerRadius { get; set; } = 14;       // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛屼粎"鍏ㄥ眬缁熶竴鍦嗚"鍏抽棴鏃剁敓鏁?
+        /// <summary>单卡已自定义（压暗强度/圆角）：true 后不再跟随全局默认值。
+        /// 旧配置无此字段 → 反序列化保留初始化值 false，即全部跟随全局，不会把全局值硬拷贝成自定义值。</summary>
+        public bool IsCustomized { get; set; } = false;
+        public int BackgroundAlpha { get; set; } = 50;   // 单卡自定义压暗强度（0~100）；IsCustomized=false 时忽略，取全局值
+        public int CornerRadius { get; set; } = 14;       // 单卡自定义圆角（0~32px）；IsCustomized=false 时忽略，取全局值
 
         /// <summary>鏄剧ず鍚嶏細鍒悕锛堢敤鎴烽噸鍛藉悕锛変紭鍏堬紝鍏舵绐楀彛鏍囬锛屽啀閫€鍥炶繘绋嬪悕銆傚悕绉板厹搴曚氦缁欑敤鎴烽噸鍛藉悕锛屼笉鐗规畩澶勭悊鏃犲悕绉扮獥鍙ｃ€?/summary>
         public override string ToString() =>
@@ -59,31 +62,27 @@ namespace WindowTinter
     internal class Settings
     {
         public List<TargetInfo> Targets { get; set; } = new();
-        public int BackgroundAlpha { get; set; } = 50;
+        public int BackgroundAlpha { get; set; } = 50;   // 全局默认压暗强度（0~100）；未自定义的卡片跟随此值
+        public int CornerRadius { get; set; } = 14;       // 全局默认圆角（0~32px）；未自定义的卡片跟随此值
         public bool Enabled { get; set; } = true;
         public bool StartWithWindows { get; set; } = false;
         public bool MinimizeToTray { get; set; } = true;
-        public bool GlobalTransparency { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€閫忔槑搴︼紱false=姣忎釜鐩爣鍗曠嫭閰嶇疆
-        public bool GlobalCornerRadius { get; set; } = true; // true=鎵€鏈夊簲鐢ㄧ粺涓€鐢ㄥ叏灞€鍦嗚锛沠alse=姣忎釜鐩爣鍗曠嫭閰嶇疆
-        public bool BackdropBlackPlate { get; set; } = true;  // 鍦ㄧ洰鏍囨鍚庢柟鍙犲姞绾粦搴曟澘锛堜笅灞傞伄缃╋級锛岄粯璁ゅ紑鍚?
-        public int CornerRadius { get; set; } = 14;            // 搴曟澘鍦嗚鍗婂緞 (0=鍏? 1-20px)锛岄粯璁?6px
-
+        public bool BackdropBlackPlate { get; set; } = true;
         // 窗口状态（关闭时保存最终位置/尺寸/最大化，下次启动恢复）
         public double WindowLeft { get; set; } = -1;
         public double WindowTop { get; set; } = -1;
-        public double WindowWidth { get; set; } = 0;     // 0=未保存，使用 XAML 默认
+        public double WindowWidth { get; set; } = 0;
         public double WindowHeight { get; set; } = 0;
         public bool WindowMaximized { get; set; } = false;
-
         // 每行卡片数（1 / 2）。旧配置无此字段 → 反序列化保留初始化值 1。
         public int CardsPerRow { get; set; } = 1;
-
-        // 鏃у瓧娈碉紙浠呯敤浜庝粠 v2.x 鏃ф牸寮忚縼绉伙紝涓嶅啀鍐欏叆锛?
+        // 底部「全局默认」折叠面板的展开状态。旧配置无此字段 → 默认折叠。
+        public bool GlobalPanelExpanded { get; set; } = false;
+        // 旧字段：仅用于旧格式迁移读取，不再写入
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetProcessName { get; set; } = "";
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetWindowTitle { get; set; } = "";
-        // StartWithWindows 瀛楁宸插簾寮冿紝JSON 鍙嶅簭鍒楀寲鏃惰嚜鍔ㄥ拷鐣?
 
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
@@ -141,6 +140,32 @@ namespace WindowTinter
                 s.TargetWindowTitle = "";
             }
 
+            // 旧格式兼容：老版本用 GlobalTransparency / GlobalCornerRadius 两个开关控制
+            // 「全局统一」还是「按目标值生效」。升级后语义收敛为「每卡是否已自定义」：
+            // 旧开关为 false（当时按单卡值生效）→ 该卡标记为已自定义，保留其单卡值；
+            // 旧开关为 true 的维度写回当前全局值，绝不把全局值硬拷贝成该卡的自定义值。
+            // 字段缺失 = 旧默认 true = 全部未自定义、全部跟随全局。
+            bool legacyAlphaUnified = true, legacyCornerUnified = true;
+            try
+            {
+                if (File.Exists(FilePath))
+                {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(FilePath));
+                    legacyAlphaUnified = LegacyUnifiedFlag(doc.RootElement, "GlobalTransparency");
+                    legacyCornerUnified = LegacyUnifiedFlag(doc.RootElement, "GlobalCornerRadius");
+                }
+            }
+            catch { }
+            if (!legacyAlphaUnified || !legacyCornerUnified)
+            {
+                foreach (var t in s.Targets)
+                {
+                    t.IsCustomized = true;
+                    if (legacyAlphaUnified) t.BackgroundAlpha = s.BackgroundAlpha;
+                    if (legacyCornerUnified) t.CornerRadius = s.CornerRadius;
+                }
+            }
+
             // 杩佺Щ鏃?ProcessName 鍚庣紑锛氬幓鎺?.exe锛坴2.x 鏇剧粡瀛樺偍 "notepad.exe" 鏍煎紡锛?
             bool migratedExe = false;
             for (int i = 0; i < s.Targets.Count; i++)
@@ -157,7 +182,8 @@ namespace WindowTinter
                         Alias = t.Alias,
                         BackgroundAlpha = t.BackgroundAlpha,
                         CornerRadius = t.CornerRadius,
-                        Enabled = t.Enabled
+                        Enabled = t.Enabled,
+                        IsCustomized = t.IsCustomized
                     };
                     migratedExe = true;
                 }
@@ -168,6 +194,13 @@ namespace WindowTinter
             if (s.CardsPerRow < 1 || s.CardsPerRow > 2) s.CardsPerRow = 1;
 
             return s;
+        }
+
+        /// <summary>读取旧 JSON 的「全局统一」开关：字段缺失按 true（旧默认）；只有明确的 false 才表示按单卡值生效。</summary>
+        private static bool LegacyUnifiedFlag(JsonElement root, string property)
+        {
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(property, out var v)) return true;
+            return v.ValueKind != JsonValueKind.False;
         }
 
         public void Save()

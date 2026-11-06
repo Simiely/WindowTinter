@@ -37,7 +37,7 @@ namespace WindowTinter
 
             _toggleItem = Item("显示主窗口", "双击托盘", new RelayCommand(_toggleWindow));
             var pickItem = Item("拾取目标窗口", "", new RelayCommand(() => _vm.AddWindowCommand.Execute(null)));
-            var settingsItem = Item("全局默认参数", "", new RelayCommand(() => _vm.OpenSettingsCommand.Execute(null)));
+            var settingsItem = Item("设置", "", new RelayCommand(() => _vm.OpenSettingsCommand.Execute(null)));
             _enableItem = Item("停用", "", new RelayCommand(() => _vm.IsEnabled = !_vm.IsEnabled));
             var exitItem = Item("退出暗幕", "", new RelayCommand(_vm.ExitApplication), danger: true);
 

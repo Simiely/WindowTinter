@@ -74,6 +74,24 @@ namespace WindowTinter.ViewModels
         /// <summary>副行整行文本（窄卡片下由 TextBlock 单行省略，避免横向溢出）。</summary>
         public string MetaLine => HasAlias ? $"{AliasText} · {MetaSuffix}" : MetaSuffix;
 
+        /// <summary>该卡片是否已自定义（脱离全局默认）。</summary>
+        public bool IsCustomized => Info.IsCustomized;
+        public Visibility CustomizedVisible => Info.IsCustomized ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>卡片展开区底部：明确说明当前卡片是自定义值还是跟随全局，避免误以为在改全局。</summary>
+        public string FollowStateText
+        {
+            get
+            {
+                int a = _owner.EffectiveAlpha(Info);
+                int r = _owner.EffectiveCorner(Info);
+                string corner = r == 0 ? "直角" : $"圆角 {r}px";
+                return Info.IsCustomized
+                    ? $"已自定义 · 暗度 {a}% · {corner}"
+                    : $"跟随全局 · 暗度 {a}% · {corner}";
+            }
+        }
+
         // ── 快照（BitmapSource；null = 显示占位）──
         private ImageSource _shotImage;
         public ImageSource ShotImage { get => _shotImage; private set { if (SetProperty(ref _shotImage, value)) OnPropertyChanged(nameof(HasShot)); } }
@@ -142,6 +160,9 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(AliasVisible));
             OnPropertyChanged(nameof(ShotVisible));
             OnPropertyChanged(nameof(PlaceholderText));
+            OnPropertyChanged(nameof(IsCustomized));
+            OnPropertyChanged(nameof(CustomizedVisible));
+            OnPropertyChanged(nameof(FollowStateText));
         }
 
         /// <summary>暗度/圆角文案变化（全局模式或本目标被编辑时）。</summary>
@@ -150,6 +171,10 @@ namespace WindowTinter.ViewModels
             OnPropertyChanged(nameof(AlphaText));
             OnPropertyChanged(nameof(CornerText));
             OnPropertyChanged(nameof(MetaSuffix));
+            OnPropertyChanged(nameof(MetaLine));
+            OnPropertyChanged(nameof(IsCustomized));
+            OnPropertyChanged(nameof(CustomizedVisible));
+            OnPropertyChanged(nameof(FollowStateText));
         }
 
         /// <summary>由 RebuildTargetList 调用：绑定条目变化（活跃↔待激活）。</summary>

@@ -223,11 +223,19 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{Binding MetaLine}" FontSize="10.5"
                                            Foreground="{StaticResource Text3}" TextTrimming="CharacterEllipsis"/>
-                                <Border Grid.Column="1" Background="#26FF9F0A" BorderBrush="#4DFF9F0A" BorderThickness="1"
-                                        CornerRadius="4" Padding="4,0" Margin="6,0,0,0" VerticalAlignment="Center"
-                                        Visibility="{Binding DisabledVisible}">
-                                    <TextBlock Text="已停用" FontSize="9" Foreground="{StaticResource Warn}"/>
-                                </Border>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,0,0" VerticalAlignment="Center">
+                                    <!-- 已自定义：该卡不再跟随全局默认值 -->
+                                    <Border Background="{StaticResource AccentSoft}" BorderBrush="#4D0A84FF" BorderThickness="1"
+                                            CornerRadius="4" Padding="4,0" VerticalAlignment="Center"
+                                            Visibility="{Binding CustomizedVisible}">
+                                        <TextBlock Text="已自定义" FontSize="9" Foreground="{StaticResource Accent}"/>
+                                    </Border>
+                                    <Border Background="#26FF9F0A" BorderBrush="#4DFF9F0A" BorderThickness="1"
+                                            CornerRadius="4" Padding="4,0" Margin="4,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding DisabledVisible}">
+                                        <TextBlock Text="已停用" FontSize="9" Foreground="{StaticResource Warn}"/>
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
 
@@ -295,8 +303,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="压暗强度" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
                             <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="100" SmallChange="1" LargeChange="5"
-                                    Value="{Binding DataContext.BackgroundAlpha, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"
-                                    IsEnabled="{Binding DataContext.IsAlphaSliderEnabled, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                                    Value="{Binding DataContext.BackgroundAlpha, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"/>
                             <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
                                     BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding DataContext.BackgroundAlphaText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
@@ -313,8 +320,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="圆角半径" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
                             <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="32" SmallChange="1" LargeChange="4"
-                                    Value="{Binding DataContext.CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"
-                                    IsEnabled="{Binding DataContext.IsCornerSliderEnabled, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                                    Value="{Binding DataContext.CornerRadius, RelativeSource={RelativeSource AncestorType={x:Type Window}}, Mode=TwoWay}"/>
                             <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
                                     BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding DataContext.CornerRadiusText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
@@ -324,12 +330,23 @@
                         </Grid>
 
                         <Grid Margin="12,6,12,12">
-                            <TextBlock Text="{Binding DataContext.GlobalDefaultsText, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
-                                       FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding FollowStateText}"
+                                       FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" Margin="0,0,200,0"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <Button Content="重命名" Style="{StaticResource LinkButton}" Command="{Binding RenameCommand}"/>
-                                <Button Content="恢复全局" Style="{StaticResource LinkButton}" Margin="4,0,0,0"
-                                        Command="{Binding DataContext.RestoreGlobalCommand, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"/>
+                                <Button Content="恢复全局" Margin="4,0,0,0" Command="{Binding DataContext.RestoreGlobalCommand, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource LinkButton}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsCustomized}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                                 <Button Content="删除目标" Style="{StaticResource LinkButtonDanger}" Margin="4,0,0,0"
                                         Command="{Binding RemoveCommand}"/>
                             </StackPanel>
@@ -375,6 +392,7 @@
                 <RowDefinition Height="48"/>
                 <RowDefinition Height="56"/>
                 <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
@@ -392,7 +410,7 @@
                                Margin="0,2,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" Style="{StaticResource BtnIcon}" Margin="0,0,8,0" ToolTip="全局默认参数"
+                <Button Grid.Column="1" Style="{StaticResource BtnIcon}" Margin="0,0,8,0" ToolTip="设置"
                         Command="{Binding OpenSettingsCommand}"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                     <Canvas Width="18" Height="18">
@@ -603,17 +621,6 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                         </ItemsControl>
-
-                        <!-- 全局默认条（列表内，44 高）-->
-                        <Border Height="44" CornerRadius="9" Background="{StaticResource CardBg}"
-                                BorderBrush="{StaticResource LineSoft}" BorderThickness="1" Margin="0,4,2,0" Padding="12,0">
-                            <Grid>
-                                <TextBlock Text="{Binding GlobalStripText}" FontSize="10" Foreground="{StaticResource Text3}"
-                                           VerticalAlignment="Center"/>
-                                <Button Content="调整" Style="{StaticResource LinkButton}" HorizontalAlignment="Right"
-                                        VerticalAlignment="Center" Command="{Binding OpenSettingsCommand}"/>
-                            </Grid>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -647,8 +654,126 @@
                 </Grid>
             </Grid>
 
-            <!-- ═══ ④ 底栏 64 ═══ -->
-            <Grid Grid.Row="3" Background="{StaticResource FooterBg}">
+            <!-- ═══ ④ 全局默认（底栏上方的独立折叠区，不与底栏按钮混排）═══ -->
+            <Border Grid.Row="3" Background="{StaticResource FooterBg}"
+                    BorderBrush="{StaticResource LineSoft}" BorderThickness="0,1,0,0">
+                <StackPanel>
+
+                    <!-- 折叠头（40 高整行可点）：左标题 + 已自定义/跟随全局摘要 + 箭头 -->
+                    <ToggleButton IsChecked="{Binding GlobalPanelExpanded, Mode=TwoWay}"
+                                  Focusable="False" Cursor="Hand" Height="40"
+                                  ToolTip="展开 / 收起全局默认参数">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="bd" Background="Transparent">
+                                    <Grid Margin="16,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="全局默认" FontSize="10.5" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource Text2}" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding CustomSummaryText}" FontSize="9.5"
+                                                   Foreground="{StaticResource Text3}" VerticalAlignment="Center"
+                                                   Margin="10,0,8,0" TextTrimming="CharacterEllipsis"/>
+                                        <Path Grid.Column="2" x:Name="chev" Width="12" Height="12"
+                                              Data="M2.5,4.5 L6,8 L9.5,4.5" Stroke="{StaticResource Text3}"
+                                              StrokeThickness="1.6" StrokeLineJoin="Round"
+                                              RenderTransformOrigin="0.5,0.5" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="{StaticResource HoverFill}"/>
+                                    </Trigger>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="chev" Property="RenderTransform">
+                                            <Setter.Value>
+                                                <RotateTransform Angle="180"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+
+                    <!-- 折叠内容：Collapsed 时不占高度；折叠状态由 GlobalPanelExpanded 持久化 -->
+                    <Border>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding GlobalPanelExpanded}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
+                        <StackPanel Margin="16,2,16,14">
+                            <Grid Height="26">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="56"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="44"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="压暗强度" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                                <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="100" SmallChange="1" LargeChange="5"
+                                        Value="{Binding GlobalAlpha, Mode=TwoWay}"/>
+                                <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
+                                        BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding GlobalAlphaText}" FontSize="10" Foreground="{StaticResource Text2}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+
+                            <Grid Height="26" Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="56"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="44"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="圆角半径" FontSize="10" Foreground="{StaticResource Text3}" VerticalAlignment="Center"/>
+                                <Slider Grid.Column="1" Margin="12,0" Minimum="0" Maximum="32" SmallChange="1" LargeChange="4"
+                                        Value="{Binding GlobalCorner, Mode=TwoWay}"/>
+                                <Border Grid.Column="2" Height="22" CornerRadius="5" Background="{StaticResource InsetBg}"
+                                        BorderBrush="{StaticResource LineSoftHover}" BorderThickness="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding GlobalCornerText}" FontSize="10" Foreground="{StaticResource Text2}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="只作用于仍跟随全局的卡片；已自定义的卡片不受影响"
+                                           FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="全部恢复跟随全局" Margin="8,0,0,0"
+                                        Command="{Binding ResetAllToGlobalCommand}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource LinkButton}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasCustomized}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══ ⑤ 底栏 64 ═══ -->
+            <Grid Grid.Row="4" Background="{StaticResource FooterBg}">
                 <Border Height="1" Background="{StaticResource LineSoft}" VerticalAlignment="Top"/>
                 <Grid Margin="16,0">
                     <Grid.ColumnDefinitions>
