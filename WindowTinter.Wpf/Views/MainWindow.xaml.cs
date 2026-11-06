@@ -20,8 +20,8 @@ namespace WindowTinter.Views
         private readonly MainViewModel _vm;
         private TrayService _tray;
 
-        // ── 圆角调参（Ctrl+Alt+方向键，±1px；默认值与正式版一致）──
-        private int _cornerOuter = 14;   // 窗口外轮廓（HRGN / WindowChrome）
+        // ── 圆角参数（定稿 23/14/13/0；快捷键可再微调，±1px）──
+        private int _cornerOuter = 23;   // 窗口外轮廓（HRGN / WindowChrome）
         private int _cornerFrame = 14;   // 根 Border 描边弧（与外轮廓分开，才能对齐角上的差）
         private int _cornerClip = 13;    // 根内容裁切
         private int _cornerInset;        // 裁切矩形相对窗口边缘的内缩
@@ -47,16 +47,15 @@ namespace WindowTinter.Views
             Loaded += (_, _) => { ApplyCornerDebug(); UpdateCornerDebugReadout(); };
         }
 
-        /// <summary>读入上次调过的圆角参数（无该段 → 保持正式默认 14/13/0，不创建对象）。</summary>
+        /// <summary>读入正式圆角参数（无该字段 → 仍是初始化器里的 23/14/13/0）。</summary>
         private void LoadCornerDebugSettings()
         {
-            var dbg = _vm.GetSettings().DebugCorner;
-            if (dbg == null) return;
-            _cornerOuter = Math.Clamp(dbg.OuterRadius, 0, 32);
-            _cornerFrame = Math.Clamp(dbg.FrameRadius, 0, 32);
-            _cornerClip = Math.Clamp(dbg.ClipRadius, 0, 32);
-            _cornerInset = Math.Clamp(dbg.BorderInset, 0, 6);
-            _cornerDebugVisible = true;
+            var s = _vm.GetSettings();
+            _cornerOuter = Math.Clamp(s.CornerOuter, 0, 32);
+            _cornerFrame = Math.Clamp(s.CornerFrame, 0, 32);
+            _cornerClip = Math.Clamp(s.CornerClip, 0, 32);
+            _cornerInset = Math.Clamp(s.CornerInset, 0, 6);
+            _cornerDebugVisible = s.CornerTuned;
         }
 
         /// <summary>把调试值同步到 WindowChrome 与根 Border/裁切，并重画窗口区域。</summary>
@@ -157,17 +156,15 @@ namespace WindowTinter.Views
             return true;
         }
 
-        /// <summary>调过的值写入独立 debug 段（默认 null 不写盘）；下次启动沿用。</summary>
+        /// <summary>调过的值写入正式圆角字段；下次启动沿用，底栏读数同时出现。</summary>
         private void PersistCornerDebug()
         {
             var s = _vm.GetSettings();
-            s.DebugCorner = new DebugCornerSettings
-            {
-                OuterRadius = _cornerOuter,
-                FrameRadius = _cornerFrame,
-                ClipRadius = _cornerClip,
-                BorderInset = _cornerInset
-            };
+            s.CornerOuter = _cornerOuter;
+            s.CornerFrame = _cornerFrame;
+            s.CornerClip = _cornerClip;
+            s.CornerInset = _cornerInset;
+            s.CornerTuned = true;
             s.Save();
         }
 

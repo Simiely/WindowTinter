@@ -7,7 +7,7 @@
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}">
 
-    <Border Margin="16" Background="#26262A" BorderBrush="#29FFFFFF" BorderThickness="1" CornerRadius="14">
+    <Border Margin="16" Background="#26262A" BorderBrush="#29FFFFFF" BorderThickness="1" CornerRadius="23">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="28" ShadowDepth="8" Opacity="0.6"/>
         </Border.Effect>

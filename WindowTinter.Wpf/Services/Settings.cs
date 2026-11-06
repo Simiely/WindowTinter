@@ -78,7 +78,14 @@ namespace WindowTinter
         public int CardsPerRow { get; set; } = 1;
         // 底部「全局默认」折叠面板的展开状态。旧配置无此字段 → 默认折叠。
         public bool GlobalPanelExpanded { get; set; } = false;
-        // 圆角调试参数：只有用户按快捷键调过才创建；为 null 时不写盘（正式用户配置里看不到）。
+        // 窗口圆角正式参数（调参定稿：外轮廓 23 / 根 Border 描边弧 14 / 内容裁切 13 / 裁切内缩 0）
+        public int CornerOuter { get; set; } = 23;
+        public int CornerFrame { get; set; } = 14;
+        public int CornerClip { get; set; } = 13;
+        public int CornerInset { get; set; } = 0;
+        // 是否用快捷键调过圆角；只有调过才在底栏显示读数
+        public bool CornerTuned { get; set; } = false;
+        // 旧调参版专用：仅用于迁移读取，迁移后置空、不再写入
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public DebugCornerSettings DebugCorner { get; set; }
         // 旧字段：仅用于旧格式迁移读取，不再写入
@@ -191,6 +198,24 @@ namespace WindowTinter
                     migratedExe = true;
                 }
             }
+            // 调参版迁移：DebugCorner 段的四个值升为正式字段，并清空该段（随本次保存从 json 消失）。
+            // 读数开关不置 true：这组值已是正式默认，正常使用不应再显示底栏读数。
+            if (s.DebugCorner != null)
+            {
+                s.CornerOuter = s.DebugCorner.OuterRadius;
+                s.CornerFrame = s.DebugCorner.FrameRadius;
+                s.CornerClip = s.DebugCorner.ClipRadius;
+                s.CornerInset = s.DebugCorner.BorderInset;
+                s.DebugCorner = null;
+                migratedExe = true;
+            }
+
+            // 兜底：圆角参数不接受越界值（旧配置缺失时由初始化器给 23/14/13/0）
+            s.CornerOuter = Math.Clamp(s.CornerOuter, 0, 32);
+            s.CornerFrame = Math.Clamp(s.CornerFrame, 0, 32);
+            s.CornerClip = Math.Clamp(s.CornerClip, 0, 32);
+            s.CornerInset = Math.Clamp(s.CornerInset, 0, 6);
+
             if (migratedExe) s.Save();
 
             // 迁移/兜底：每行卡片数只接受 1 或 2（旧配置缺失时由初始化器给 1）
@@ -235,10 +260,10 @@ namespace WindowTinter
         }
     }
 
-    /// <summary>圆角调试参数（快捷键调参）：默认值与正式版一致；用户调过后写盘，下次启动沿用。</summary>
+    /// <summary>旧调参版的圆角参数（仅迁移读取用）：值转入 Settings.Corner* 后清空。</summary>
     internal class DebugCornerSettings
     {
-        public int OuterRadius { get; set; } = 14;   // 窗口外轮廓（HRGN / WindowChrome）半径，DIP
+        public int OuterRadius { get; set; } = 23;   // 窗口外轮廓（HRGN / WindowChrome）半径，DIP
         public int FrameRadius { get; set; } = 14;   // 根 Border 描边弧半径，DIP（与外轮廓分开才能对齐）
         public int ClipRadius { get; set; } = 13;    // 根内容裁切半径，DIP
         public int BorderInset { get; set; } = 0;    // 裁切矩形相对窗口边缘的内缩，px

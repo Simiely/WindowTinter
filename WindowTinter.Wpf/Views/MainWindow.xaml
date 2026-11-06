@@ -13,7 +13,7 @@
         FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}">
 
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="14"
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="23"
                             GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
@@ -71,7 +71,7 @@
 
         <!-- 卡片：正常 / 未找到 / 暂停三态 + 选中内联展开 -->
         <DataTemplate x:Key="TargetCardTemplate">
-            <Border Margin="0" CornerRadius="14" BorderThickness="1" Focusable="True" Cursor="Hand"
+            <Border Margin="0" CornerRadius="23" BorderThickness="1" Focusable="True" Cursor="Hand"
                     PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp" KeyDown="Card_KeyDown">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -638,7 +638,7 @@
                     </Grid.Style>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400">
                         <Canvas Width="132" Height="104" HorizontalAlignment="Center">
-                            <Border Canvas.Left="14" Canvas.Top="14" Width="96" Height="70" CornerRadius="14"
+                            <Border Canvas.Left="14" Canvas.Top="14" Width="96" Height="70" CornerRadius="23"
                                     Background="#1A1D24" BorderBrush="#1FFFFFFF" BorderThickness="1"/>
                             <Rectangle Canvas.Left="30" Canvas.Top="34" Width="40" Height="4" RadiusX="2" RadiusY="2" Fill="#33FFFFFF"/>
                             <Rectangle Canvas.Left="30" Canvas.Top="46" Width="56" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="#1FFFFFFF"/>
