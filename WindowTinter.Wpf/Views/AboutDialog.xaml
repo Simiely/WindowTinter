@@ -4,7 +4,7 @@
         Title="关于" Width="360" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" Background="{StaticResource Bg}"
         ShowInTaskbar="False" UseLayoutRounding="True">
-    <Border Background="{StaticResource Card}" CornerRadius="10" Margin="12" Padding="18,16">
+    <Border Background="{StaticResource Card}" CornerRadius="14" Margin="12" Padding="18,16">
         <StackPanel>
             <StackPanel Orientation="Horizontal">
                 <Border Width="38" Height="38" CornerRadius="9" Background="{StaticResource TealDark}">

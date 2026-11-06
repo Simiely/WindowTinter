@@ -28,7 +28,7 @@
                     Margin="20,12,20,0" Padding="12,10">
                 <StackPanel>
                     <TextBlock Text="压暗强度与圆角半径" FontSize="11.5" FontWeight="SemiBold"/>
-                    <TextBlock Text="已移至主窗口底部「全局默认」面板：那里调整只作用于仍跟随全局的卡片；已自定义的卡片保持自己的值，不再跟随。"
+                    <TextBlock Text="已移至主窗口底部「全局默认」面板：那里调整只作用于仍跟随全局的卡片；已自定义的卡片保持自己的值，不再跟随。推荐 14 px（Windows 11 观感最佳）。"
                                FontSize="9.5" Foreground="{StaticResource Text2}" TextWrapping="Wrap" Margin="0,3,0,0"/>
                 </StackPanel>
             </Border>

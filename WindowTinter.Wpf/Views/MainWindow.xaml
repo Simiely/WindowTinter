@@ -13,7 +13,7 @@
         FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}">
 
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="12"
+        <shell:WindowChrome CaptionHeight="48" ResizeBorderThickness="6" CornerRadius="14"
                             GlassFrameThickness="0" UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
@@ -71,7 +71,7 @@
 
         <!-- 卡片：正常 / 未找到 / 暂停三态 + 选中内联展开 -->
         <DataTemplate x:Key="TargetCardTemplate">
-            <Border Margin="0" CornerRadius="10" BorderThickness="1" Focusable="True" Cursor="Hand"
+            <Border Margin="0" CornerRadius="14" BorderThickness="1" Focusable="True" Cursor="Hand"
                     PreviewMouseLeftButtonUp="Card_PreviewMouseLeftButtonUp" KeyDown="Card_KeyDown">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -386,8 +386,8 @@
         </DataTemplate>
     </Window.Resources>
 
-    <Border Background="{StaticResource WinBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12">
-        <Grid>
+    <Border x:Name="RootFrame" Background="{StaticResource WinBg}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14">
+        <Grid x:Name="RootContent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="48"/>
                 <RowDefinition Height="56"/>
@@ -638,7 +638,7 @@
                     </Grid.Style>
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="400">
                         <Canvas Width="132" Height="104" HorizontalAlignment="Center">
-                            <Border Canvas.Left="14" Canvas.Top="14" Width="96" Height="70" CornerRadius="10"
+                            <Border Canvas.Left="14" Canvas.Top="14" Width="96" Height="70" CornerRadius="14"
                                     Background="#1A1D24" BorderBrush="#1FFFFFFF" BorderThickness="1"/>
                             <Rectangle Canvas.Left="30" Canvas.Top="34" Width="40" Height="4" RadiusX="2" RadiusY="2" Fill="#33FFFFFF"/>
                             <Rectangle Canvas.Left="30" Canvas.Top="46" Width="56" Height="3" RadiusX="1.5" RadiusY="1.5" Fill="#1FFFFFFF"/>
@@ -750,7 +750,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="只作用于仍跟随全局的卡片；已自定义的卡片不受影响"
+                                <TextBlock Text="推荐 14 px · 只作用于仍跟随全局的卡片"
                                            FontSize="9.5" Foreground="{StaticResource Text3}" VerticalAlignment="Center"
                                            TextTrimming="CharacterEllipsis"/>
                                 <Button Grid.Column="1" Content="全部恢复跟随全局" Margin="8,0,0,0"

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using WindowTinter.ViewModels;
 
 namespace WindowTinter.Views
@@ -30,6 +31,27 @@ namespace WindowTinter.Views
             _vm.Targets.CollectionChanged += (_, _) => AdaptEmptyHeight();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
             WindowTheme.EnableDarkTitleBar(this);
+            // 主窗圆角唯一来源：根 Border 14px；内容按内圆角裁切，最大化时窗口为直角则同步取消
+            RootContent.SizeChanged += (_, _) => UpdateFrameClip();
+            StateChanged += (_, _) => UpdateFrameClip();
+            Loaded += (_, _) => UpdateFrameClip();
+        }
+
+        /// <summary>
+        /// 圆角收口：根 Border（14）画外轮廓与 1px 描边，根内容 Grid 按内圆角 13 裁切，
+        /// 避免标题栏/底栏的矩形底色越过 1px 弧线（这是四角看起来“断开/发直”的根因）。
+        /// 最大化时 WindowChrome 用直角窗口区域，内容裁切同步取消，避免在方形窗口里挖圆角。
+        /// </summary>
+        private void UpdateFrameClip()
+        {
+            if (RootFrame == null || RootContent == null) return;
+            bool maximized = WindowState == WindowState.Maximized;
+            RootFrame.CornerRadius = new CornerRadius(maximized ? 0 : 14);
+            if (maximized || RootContent.ActualWidth <= 0 || RootContent.ActualHeight <= 0)
+                RootContent.Clip = null;
+            else
+                RootContent.Clip = new RectangleGeometry(
+                    new Rect(0, 0, RootContent.ActualWidth, RootContent.ActualHeight), 13, 13);
         }
 
         /// <summary>从 Settings 恢复窗口位置/尺寸/最大化（SourceInitialized 时调用，确保 DPI/屏幕信息就绪）。</summary>
