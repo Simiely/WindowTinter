@@ -905,8 +905,8 @@ namespace WindowTinter.ViewModels
 
         /// <summary>
         /// 点击卡片：切换展开态——未展开 → 展开并带到前台；已展开 → 收起（再次点击同一张卡）。
-        /// 全局统一模式（透明度和圆角都走全局）下同样允许选中——新版卡片是「选中即内联展开」，
-        /// 选中态是唯一的展开入口；此时卡片内的滑块改的就是全局值（BackgroundAlpha/CornerRadius 的 getter 已按模式取值）。
+        /// 新版卡片是「选中即内联展开」，选中态是唯一的展开入口；
+        /// 卡片内滑块改的是这张卡自己的参数（首次改动即置「已自定义」，此后不再跟随全局）。
         /// </summary>
         public void SelectTarget(TargetViewModel vm)
         {
