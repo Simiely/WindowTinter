@@ -21,6 +21,7 @@ namespace WindowTinter.Views
         private IntPtr _lastHwnd = IntPtr.Zero;
         private IntPtr _selfHwnd = IntPtr.Zero;
         private DateTime _lastMoveCheck = DateTime.MinValue;
+        private bool _cancelled;   // Esc / 右键 / HUD「取消」只执行一次
 
         public WindowPickerWindow()
         {
@@ -130,6 +131,8 @@ namespace WindowTinter.Views
         {
             if (e.ChangedButton == MouseButton.Right)
             {
+                // 右键只取消拾取：不取目标、不绑定，也不走左键的取窗口逻辑
+                e.Handled = true;
                 CancelPicker();
                 return;
             }
@@ -154,12 +157,13 @@ namespace WindowTinter.Views
             Close();
         }
 
-        private void OnKeyDown(object sender, KeyEventArgs e)
+        private void OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
-                CancelPicker();
+                // 拾取期间 Esc 只归拾取器：隧道阶段吞掉，不再传给任何后续窗口
                 e.Handled = true;
+                CancelPicker();
             }
         }
 
@@ -175,6 +179,8 @@ namespace WindowTinter.Views
 
         private void CancelPicker()
         {
+            if (_cancelled) return;
+            _cancelled = true;
             ClearHighlight();
             DialogResult = false;
             Close();

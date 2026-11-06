@@ -5,7 +5,8 @@
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         FontFamily="Microsoft YaHei UI" Foreground="{StaticResource Text1}"
-        MouseMove="OnMouseMove" MouseLeftButtonUp="OnMouseClick" KeyDown="OnKeyDown">
+        MouseMove="OnMouseMove" MouseLeftButtonUp="OnMouseClick" MouseRightButtonUp="OnMouseClick"
+        PreviewKeyDown="OnPreviewKeyDown">
 
     <!--
         根层铺 1/255 不透明黑（视觉上不可见）：AllowsTransparency 的分层窗口按像素 alpha 做命中测试，
@@ -119,7 +120,7 @@
                                 Height="28" FontSize="10.5" Margin="8,0,0,0" Click="OnConfirmHud" IsEnabled="False"/>
                     </Grid>
 
-                    <TextBlock Text="单击窗口任意位置确认 · Esc 取消" FontSize="9" Foreground="{StaticResource Text3}"
+                    <TextBlock Text="单击窗口任意位置确认 · 右键 / Esc 取消" FontSize="9" Foreground="{StaticResource Text3}"
                                HorizontalAlignment="Center"/>
                     <TextBlock Text="仅作用于所选窗口" FontSize="9" Foreground="{StaticResource Text3}"
                                HorizontalAlignment="Center" Margin="0,2,0,0"/>
