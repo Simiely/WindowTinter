@@ -3,6 +3,7 @@ bin/
 obj/
 publish/
 dist/
+.staging/
 
 # Visual Studio / Rider
 .vs/
@@ -12,6 +13,9 @@ dist/
 
 # Logs
 *.log
+
+# Local app config (per-user, written next to the exe at runtime)
+*.settings.json
 
 # OS
 Thumbs.db
