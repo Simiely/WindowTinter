@@ -6,6 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Shell;
 using WindowTinter.ViewModels;
 
 namespace WindowTinter.Views
@@ -19,11 +20,19 @@ namespace WindowTinter.Views
         private readonly MainViewModel _vm;
         private TrayService _tray;
 
+        // ── 圆角调参（Ctrl+Alt+方向键，±1px；默认值与正式版一致）──
+        private int _cornerOuter = 14;   // 窗口外轮廓（HRGN / WindowChrome）
+        private int _cornerFrame = 14;   // 根 Border 描边弧（与外轮廓分开，才能对齐角上的差）
+        private int _cornerClip = 13;    // 根内容裁切
+        private int _cornerInset;        // 裁切矩形相对窗口边缘的内缩
+        private bool _cornerDebugVisible;
+
         public MainWindow()
         {
             InitializeComponent();
             _vm = new MainViewModel();
             DataContext = _vm;
+            LoadCornerDebugSettings();
             Closing += OnClosing;
             // 加载 → 恢复窗口状态 → 构建托盘
             SourceInitialized += (_, _) => { RestoreWindowState(); InstallMaximizeClamp(); };
@@ -34,24 +43,141 @@ namespace WindowTinter.Views
             // 主窗圆角唯一来源：根 Border 14px；内容按内圆角裁切，最大化时窗口为直角则同步取消
             RootContent.SizeChanged += (_, _) => UpdateFrameClip();
             StateChanged += (_, _) => UpdateFrameClip();
-            Loaded += (_, _) => UpdateFrameClip();
+            DpiChanged += (_, _) => UpdateFrameClip();
+            Loaded += (_, _) => { ApplyCornerDebug(); UpdateCornerDebugReadout(); };
+        }
+
+        /// <summary>读入上次调过的圆角参数（无该段 → 保持正式默认 14/13/0，不创建对象）。</summary>
+        private void LoadCornerDebugSettings()
+        {
+            var dbg = _vm.GetSettings().DebugCorner;
+            if (dbg == null) return;
+            _cornerOuter = Math.Clamp(dbg.OuterRadius, 0, 32);
+            _cornerFrame = Math.Clamp(dbg.FrameRadius, 0, 32);
+            _cornerClip = Math.Clamp(dbg.ClipRadius, 0, 32);
+            _cornerInset = Math.Clamp(dbg.BorderInset, 0, 6);
+            _cornerDebugVisible = true;
+        }
+
+        /// <summary>把调试值同步到 WindowChrome 与根 Border/裁切，并重画窗口区域。</summary>
+        private void ApplyCornerDebug()
+        {
+            var chrome = WindowChrome.GetWindowChrome(this);
+            if (chrome != null) chrome.CornerRadius = new CornerRadius(_cornerOuter);
+            UpdateFrameClip();
         }
 
         /// <summary>
-        /// 圆角收口：根 Border（14）画外轮廓与 1px 描边，根内容 Grid 按内圆角 13 裁切，
-        /// 避免标题栏/底栏的矩形底色越过 1px 弧线（这是四角看起来“断开/发直”的根因）。
-        /// 最大化时 WindowChrome 用直角窗口区域，内容裁切同步取消，避免在方形窗口里挖圆角。
+        /// 圆角收口：根 Border 画外轮廓与 1px 描边，根内容 Grid 按内圆角裁切，
+        /// 避免标题栏/底栏的矩形底色越过 1px 弧线。最大化时切直角并取消裁切。
         /// </summary>
         private void UpdateFrameClip()
         {
             if (RootFrame == null || RootContent == null) return;
             bool maximized = WindowState == WindowState.Maximized;
-            RootFrame.CornerRadius = new CornerRadius(maximized ? 0 : 14);
-            if (maximized || RootContent.ActualWidth <= 0 || RootContent.ActualHeight <= 0)
+            RootFrame.CornerRadius = new CornerRadius(maximized ? 0 : _cornerFrame);
+
+            double w = RootContent.ActualWidth, h = RootContent.ActualHeight;
+            double inset = maximized ? 0 : _cornerInset;
+            if (maximized || w <= 0 || h <= 0 || w - inset * 2 <= 0 || h - inset * 2 <= 0)
+            {
                 RootContent.Clip = null;
+            }
             else
+            {
                 RootContent.Clip = new RectangleGeometry(
-                    new Rect(0, 0, RootContent.ActualWidth, RootContent.ActualHeight), 13, 13);
+                    new Rect(inset, inset, w - inset * 2, h - inset * 2), _cornerClip, _cornerClip);
+            }
+
+            ApplyOuterRegion(maximized);
+        }
+
+        /// <summary>
+        /// 直接 SetWindowRgn 重画外轮廓，让调参即时生效。
+        /// WindowChrome 的 CornerRadius 运行时改动只触发重绘：_SetRoundingRegion 在窗口状态未变时
+        /// 直接 return，不会重建 HRGN，所以这里按 WindowChromeWorker 的同一算法自己重建。
+        /// 最大化仍交给 WindowChrome 的直角区域，避免在满屏窗口里挖圆角。
+        /// </summary>
+        private void ApplyOuterRegion(bool maximized)
+        {
+            if (maximized || WindowState == WindowState.Minimized) return;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero || ActualWidth <= 0 || ActualHeight <= 0) return;
+
+            var dpi = VisualTreeHelper.GetDpi(this);
+            int pw = (int)Math.Ceiling(ActualWidth * dpi.DpiScaleX);
+            int ph = (int)Math.Ceiling(ActualHeight * dpi.DpiScaleY);
+            int r = (int)Math.Ceiling(_cornerOuter * dpi.DpiScaleX);
+            // 与 WindowChromeWorker 一致：右下各补 1px，半径按设备像素取整
+            IntPtr rgn = Native.CreateRoundRectRgn(0, 0, pw + 1, ph + 1, r, r);
+            if (rgn == IntPtr.Zero) return;
+            if (Native.SetWindowRgn(hwnd, rgn, true) == 0)
+                Native.DeleteObject(rgn);   // 失败时区域仍归我们；成功由系统接管
+        }
+
+        /// <summary>Ctrl+Alt+↑/↓ 外轮廓、←/→ 裁切；再加 Shift+↑/↓ 调内缩。命中返回 true。</summary>
+        private bool HandleCornerDebugKeys(KeyEventArgs e)
+        {
+            var mods = Keyboard.Modifiers;
+            const ModifierKeys need = ModifierKeys.Control | ModifierKeys.Alt;
+            if ((mods & need) != need) return false;
+
+            int step;
+            switch (e.Key)
+            {
+                case Key.Up: step = 1; break;
+                case Key.Down: step = -1; break;
+                case Key.Left: step = -1; break;
+                case Key.Right: step = 1; break;
+                default: return false;
+            }
+
+            if ((mods & ModifierKeys.Shift) != 0)
+            {
+                // Shift：↑↓ 调内缩，←→ 调根 Border 描边弧
+                if (e.Key == Key.Up || e.Key == Key.Down)
+                    _cornerInset = Math.Clamp(_cornerInset + step, 0, 6);
+                else
+                    _cornerFrame = Math.Clamp(_cornerFrame + step, 0, 32);
+            }
+            else if (e.Key == Key.Up || e.Key == Key.Down)
+            {
+                _cornerOuter = Math.Clamp(_cornerOuter + step, 0, 32);
+            }
+            else
+            {
+                _cornerClip = Math.Clamp(_cornerClip + step, 0, 32);
+            }
+
+            _cornerDebugVisible = true;
+            PersistCornerDebug();
+            ApplyCornerDebug();
+            UpdateCornerDebugReadout();
+            e.Handled = true;
+            return true;
+        }
+
+        /// <summary>调过的值写入独立 debug 段（默认 null 不写盘）；下次启动沿用。</summary>
+        private void PersistCornerDebug()
+        {
+            var s = _vm.GetSettings();
+            s.DebugCorner = new DebugCornerSettings
+            {
+                OuterRadius = _cornerOuter,
+                FrameRadius = _cornerFrame,
+                ClipRadius = _cornerClip,
+                BorderInset = _cornerInset
+            };
+            s.Save();
+        }
+
+        private void UpdateCornerDebugReadout()
+        {
+            if (CornerDebugText == null) return;
+            // “外 14”是 DIP 设定值，“/18px”是实际下发给 HRGN 的设备像素半径（取整后）
+            int device = (int)Math.Ceiling(_cornerOuter * VisualTreeHelper.GetDpi(this).DpiScaleX);
+            CornerDebugText.Text = $"外 {_cornerOuter}/{device}px · 框 {_cornerFrame} · 裁 {_cornerClip} · 缩 {_cornerInset}";
+            CornerDebugText.Visibility = _cornerDebugVisible ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>从 Settings 恢复窗口位置/尺寸/最大化（SourceInitialized 时调用，确保 DPI/屏幕信息就绪）。</summary>
@@ -139,6 +265,7 @@ namespace WindowTinter.Views
         /// <summary>Esc 收起当前展开卡片；滑块拖动中先释放捕获结束拖动（本次不收起）。</summary>
         private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (HandleCornerDebugKeys(e)) return;
             if (e.Key != Key.Escape) return;
             if (Mouse.Captured is Thumb)
             {

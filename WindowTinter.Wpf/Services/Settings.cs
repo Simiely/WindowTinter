@@ -78,6 +78,9 @@ namespace WindowTinter
         public int CardsPerRow { get; set; } = 1;
         // 底部「全局默认」折叠面板的展开状态。旧配置无此字段 → 默认折叠。
         public bool GlobalPanelExpanded { get; set; } = false;
+        // 圆角调试参数：只有用户按快捷键调过才创建；为 null 时不写盘（正式用户配置里看不到）。
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public DebugCornerSettings DebugCorner { get; set; }
         // 旧字段：仅用于旧格式迁移读取，不再写入
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string TargetProcessName { get; set; } = "";
@@ -230,6 +233,15 @@ namespace WindowTinter
             }
             catch { }
         }
+    }
+
+    /// <summary>圆角调试参数（快捷键调参）：默认值与正式版一致；用户调过后写盘，下次启动沿用。</summary>
+    internal class DebugCornerSettings
+    {
+        public int OuterRadius { get; set; } = 14;   // 窗口外轮廓（HRGN / WindowChrome）半径，DIP
+        public int FrameRadius { get; set; } = 14;   // 根 Border 描边弧半径，DIP（与外轮廓分开才能对齐）
+        public int ClipRadius { get; set; } = 13;    // 根内容裁切半径，DIP
+        public int BorderInset { get; set; } = 0;    // 裁切矩形相对窗口边缘的内缩，px
     }
 }
 

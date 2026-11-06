@@ -804,6 +804,10 @@
                                    VerticalAlignment="Center" Margin="8,0,0,0"/>
                         <TextBlock Text="{Binding MissingSummary}" FontSize="10.5" Foreground="{StaticResource Warn}"
                                    VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <!-- 圆角调参读数：只有调过才出现（DebugCorner 段落盘后），正常用户看不到 -->
+                        <TextBlock x:Name="CornerDebugText" FontSize="9.5" Foreground="{StaticResource Text3}"
+                                   VerticalAlignment="Center" Margin="14,0,0,0" Visibility="Collapsed"
+                                   ToolTip="圆角调试：Ctrl+Alt+↑↓ 外轮廓 · ←→ 裁切 · 再加 Shift+↑↓ 内缩 / ←→ 描边弧（±1px，即时生效）"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
