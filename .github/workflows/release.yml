@@ -34,9 +34,6 @@ jobs:
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Resolve version from tag or dispatch input
         id: ver
         shell: pwsh
@@ -54,6 +51,11 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           Write-Host "Version: $version (tag: $tag, dry_run: $env:DRY_RUN)"
+
+      - name: Checkout tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ver.outputs.tag }}
 
       - name: Verify csproj and CHANGELOG versions
         shell: pwsh
