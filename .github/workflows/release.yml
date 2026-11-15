@@ -57,6 +57,13 @@ jobs:
         with:
           ref: ${{ steps.ver.outputs.tag }}
 
+      - name: Checkout release packaging assets from workflow ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: packaging
+          path: ci-assets
+
       - name: Verify csproj and CHANGELOG versions
         shell: pwsh
         run: |
@@ -100,7 +107,11 @@ jobs:
           Copy-Item "publish/ci/WindowTinter.exe" $stage
           Copy-Item "publish/ci/WindowTinter.pdb" $stage
           if (Test-Path (Join-Path $stage "WindowTinter.settings.json")) { throw "settings.json must not be packaged" }
-          $usage = Get-Content "packaging/USAGE.template.txt" -Raw -Encoding UTF8
+          $usage = $null
+          foreach ($template in @("ci-assets/packaging/USAGE.template.txt", "packaging/USAGE.template.txt")) {
+            if (Test-Path $template) { $usage = Get-Content $template -Raw -Encoding UTF8; break }
+          }
+          if ($null -eq $usage) { throw "packaging/USAGE.template.txt not found" }
           $usage = $usage.Replace("{{VERSION}}", $version)
           Set-Content -Path (Join-Path $stage "使用说明.txt") -Value $usage -Encoding utf8NoBOM
           $zip = "packaging/WindowTinter-v$version-win-x64.zip"
