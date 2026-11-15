@@ -169,7 +169,9 @@ jobs:
           $notes = "${{ steps.notes.outputs.notes }}"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists; uploading asset with --clobber"
+            Write-Host "Release $tag already exists; syncing notes and uploading asset with --clobber"
+            gh release edit $tag --title "$tag · 暗幕 WPF 正式版" --notes-file $notes
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed" }
             gh release upload $tag $zip --clobber
             if ($LASTEXITCODE -ne 0) { throw "gh release upload failed" }
           } else {
