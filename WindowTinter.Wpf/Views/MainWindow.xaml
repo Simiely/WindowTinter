@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:views="clr-namespace:WindowTinter.Views"
-        Title="暗幕 v7.2.0" Width="640" Height="720" MinWidth="616" MinHeight="560"
+        Title="暗幕 v7.3.1" Width="640" Height="720" MinWidth="616" MinHeight="560"
         Background="{StaticResource WinBg}"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -405,7 +405,12 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="16,0,8,0">
-                    <TextBlock Text="暗幕" FontSize="13" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="暗幕" FontSize="13" FontWeight="SemiBold"/>
+                        <!-- 版本号：构造函数里从程序集版本读取，避免每次发版改 XAML -->
+                        <TextBlock x:Name="VersionText" FontSize="9.5" Foreground="{StaticResource Text3}"
+                                   VerticalAlignment="Bottom" Margin="6,0,0,2"/>
+                    </StackPanel>
                     <TextBlock Text="{Binding TargetSubtitle}" FontSize="9.5" Foreground="{StaticResource Text3}"
                                Margin="0,2,0,0"/>
                 </StackPanel>

@@ -1,6 +1,6 @@
 # 已知限制与不支持项
 
-> 对应版本 7.2.0。分三类：**代码里明确不支持**、**受 Windows 机制限制**、**尚未验证**。不要把「未验证」当成「支持」。
+> 对应版本 7.3.1。分三类：**代码里明确不支持**、**受 Windows 机制限制**、**尚未验证**。不要把「未验证」当成「支持」。
 
 ## 1. 明确不支持 / 未实现
 
@@ -8,8 +8,6 @@
 |---|---|---|
 | 桌面（图标层）压暗 | 拾取器显式排除 `Progman` / `WorkerW`；没有其它压暗桌面的入口 | `Views/WindowPickerWindow.xaml.cs` 的目标过滤 |
 | 任务栏压暗 | 拾取器排除 `Shell_TrayWnd` / `Shell_SecondaryTrayWnd` | 同上 |
-| 开机自启静默启动 | 自启项写入 `"exe" /startup`，但 WPF 版**没有解析 `/startup`**，开机与手动启动一样会显示主窗口 | `App.xaml.cs` 无命令行解析；`Settings.ApplyStartWithWindows()` 只负责写注册表 |
-| 第二个实例唤起第一个 | 单实例 Mutex 冲突时直接 `Shutdown()`，不激活已有窗口 | `App.OnStartup` |
 | 全局热键 | 没有 `RegisterHotKey`；快捷键只在主窗口有焦点时生效 | `Views/MainWindow.xaml.cs` 的 `PreviewKeyDown` |
 | 圆角快捷键同步到卡片/对话框 | 快捷键只改主窗轮廓（`Corner*`）；卡片、空态、关于/设置对话框固定 `CornerRadius=23` | XAML 中硬编码 23 |
 | 自动更新 / 安装器 | 无。升级靠替换 exe | — |

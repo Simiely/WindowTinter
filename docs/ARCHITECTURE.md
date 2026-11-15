@@ -1,12 +1,12 @@
 # 架构与主线
 
-> 对应版本 7.2.0。所有结论来自 `WindowTinter.Wpf/` 现有代码；本机未运行验证的部分会单独标注「未验证」。
+> 对应版本 7.3.1。所有结论来自 `WindowTinter.Wpf/` 现有代码；本机未运行验证的部分会单独标注「未验证」。
 
 ## 1. 项目边界
 
 | 路径 | 说明 |
 |---|---|
-| `WindowTinter.Wpf/WindowTinter.Wpf.csproj` | **当前应用**。`net6.0-windows`、`WinExe`、`AssemblyName=WindowTinter`、`x64`、`Version=7.2.0`、`PublishSingleFile=true` |
+| `WindowTinter.Wpf/WindowTinter.Wpf.csproj` | **当前应用**。`net6.0-windows`、`WinExe`、`AssemblyName=WindowTinter`、`x64`、`Version=7.3.1`、`PublishSingleFile=true` |
 | `WindowTinter.Wpf/Services/*` | Win32 封装与领域服务：`Native`、`BlackPlate`、`TargetTracker`、`SnapshotService`、`Settings`、`Elevation`、`TrayService`、`WindowTheme` |
 | `WindowTinter.Wpf/ViewModels/*` | `MainViewModel`（领域逻辑主体）、`TargetViewModel`（单卡 UI 状态）、`ObservableObject` |
 | `WindowTinter.Wpf/Views/*` | `MainWindow`、`WindowPickerWindow`、`SettingsDialog`、`RenameDialog`、`AboutDialog`、`CardsPanel` |
@@ -16,7 +16,8 @@
 
 ## 2. 启动与生命周期
 
-- `App.OnStartup`：先 `Native.EnableDarkMenus()`（决定 Win32 原生菜单是否跟随系统深色），再创建命名 Mutex `WindowTinter.Wpf` 做单实例；第二个实例直接 `Shutdown()`（不会激活已有窗口）。
+- `App.OnStartup`：先 `Native.EnableDarkMenus()`（决定 Win32 原生菜单是否跟随系统深色），再创建命名 Mutex `WindowTinter.Wpf` 做单实例。第二个实例通过命名事件 `WindowTinter.Wpf.ShowWindow` 请求已有实例显示主窗口后 `Shutdown()`（带 `/startup` 的重复启动则静默退出）。
+- 参数 `/startup`（兼容 `/silent`、`/minimized`、`/background`、`/tray`）：创建主窗口与托盘但从不 `Show()`，压暗效果由 `MainViewModel` 自行绑定生效；托盘构建因此提前到 `MainWindow` 构造函数，不再依赖 `Loaded`。
 - `MainViewModel` 构造：加载配置 → `ApplyStartWithWindows()` → 先建卡片 VM（占位）→ 按配置批量 `BindTarget` → 启动 3 秒自动重绑定时器 → 启动 200ms 保存防抖 → 安装 WinEvent 钩子 → `SyncUI()`。
 - `WindowTinter` 的关闭语义：`Closing` 事件里若「最小化到托盘」开启则取消关闭并隐藏（效果继续）；真实退出（托盘退出 / 关闭该选项）才释放所有目标并保存窗口状态。
 - 窗口状态（位置/尺寸/最大化）在 `SourceInitialized` 恢复，并在真实退出时保存；空列表自动收缩到 560 高，且收缩后的高度不写入配置。

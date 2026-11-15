@@ -1,4 +1,4 @@
-# 暗幕 WindowTinter 7.2.0
+# 暗幕 WindowTinter 7.3.1
 
 给任意 Windows 窗口设置透明度（压暗），并在窗口正下方垫一层纯黑底板，让半透明窗口稳定呈现为「压暗」，而不是透出背后的桌面和其它窗口。
 
@@ -16,11 +16,11 @@
 - **自动重绑**：目标窗口关闭再启动后，按「进程 + 窗口类名 / 标题」重新绑定（3 秒兜底 + WinEvent 即时响应）
 - **快照**：绑定与窗口首次出现时自动抓图，也可点刷新按钮；抓不到的窗口显示占位
 - **托盘驻留**：关闭主窗口即最小化到托盘，效果持续；托盘菜单为深色自绘菜单
-- **开机自启**：写入 `HKCU\...\Run`
+- **开机自启**：写入 `HKCU\...\Run`，自启时静默驻留托盘（不显示主窗口）
 
 ## 下载与运行
 
-从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.2.0-win-x64.zip`，解压后直接运行 `WindowTinter.exe`。
+从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.3.1-win-x64.zip`，解压后直接运行 `WindowTinter.exe`。
 
 **前提**：
 
@@ -51,7 +51,7 @@
 
 圆角快捷键改的是「窗口自身外形」的调试参数，改动即时生效（自己 `SetWindowRgn` 重建区域，不重启），并立即写入配置；调过之后底栏才会出现读数（`外 N/Npx · 框 N · 裁 N · 缩 N`，括号内是实际下发给系统的设备像素半径）。正常使用看不到这块读数。
 
-**开机自启行为（如实说明）**：勾选后会写入注册表命令 `"<exe路径>" /startup`。当前 WPF 版**没有解析 `/startup`**：开机自启与手动双击行为相同，都会显示主窗口。旧 WinForms 版「自启只驻留托盘」的行为在 WPF 版尚未实现（见 [docs/LIMITATIONS.md](./docs/LIMITATIONS.md)）。
+**开机自启行为**：勾选后会写入注册表命令 `"<exe路径>" /startup`。带 `/startup` 启动时只驻留托盘——不创建可见窗口、不占任务栏按钮，压暗效果照常生效；双击托盘图标或再次运行 exe 都会打开主窗口。手动双击 exe（不带参数）仍正常显示主窗口。
 
 ## 常见问题
 
@@ -61,7 +61,6 @@
 - **调整某个窗口没反应**：目标以管理员权限运行时，本程序也必须「以管理员身份运行」（跨完整性级别调用会静默失败，程序会弹窗提示）。
 - **桌面 / 任务栏选不中**：拾取器显式排除 `Progman` / `WorkerW` / `Shell_TrayWnd`，桌面层不支持压暗。
 - **关闭主窗口后程序还在**：默认「最小化到托盘」，托盘右键可退出；也可在设置里关闭该选项。
-- **开机会弹出主窗口**：见上节 `/startup` 说明，属于当前未实现项。
 
 ## 构建
 
@@ -70,7 +69,7 @@
 ```powershell
 cd WindowTinter.Wpf
 dotnet build -c Release
-dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-v7.2.0-win-x64
+dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-v7.3.1-win-x64
 ```
 
 详细步骤、产物说明与发布流程见 [docs/BUILD.md](./docs/BUILD.md)。

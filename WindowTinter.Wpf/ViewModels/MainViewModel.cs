@@ -66,8 +66,12 @@ namespace WindowTinter.ViewModels
 
         private bool _elevationWarned;
 
-        public MainViewModel()
+        /// <summary>静默启动（/startup）：启动绑定阶段不弹模态框，避免开机被提权警告打断；窗口打开后复位。</summary>
+        public bool SilentStartup { get; set; }
+
+        public MainViewModel(bool silentStartup = false)
         {
+            SilentStartup = silentStartup;
             TargetsView = CollectionViewSource.GetDefaultView(Targets);
             TargetsView.Filter = FilterTarget;
 
@@ -359,7 +363,7 @@ namespace WindowTinter.ViewModels
 
             if (refreshUI) SyncUI();
 
-            if (!_elevationWarned && !Elevation.IsCurrentProcessElevated())
+            if (!SilentStartup && !_elevationWarned && !Elevation.IsCurrentProcessElevated())
             {
                 bool? elevated = Elevation.IsTargetElevated(h);
                 if (elevated == true)
@@ -1279,9 +1283,14 @@ namespace WindowTinter.ViewModels
         public void ExitApplication()
         {
             ReallyQuit = true;
-            var w = Application.Current.MainWindow;
-            if (w != null) w.Close();
-            else { Shutdown(); Application.Current.Shutdown(); }
+            // 走主窗口的统一退出入口：窗口从未显示过时不能依赖 Close() 的 Closing 链路
+            if (Application.Current.MainWindow is WindowTinter.Views.MainWindow mw)
+            {
+                mw.RequestQuit();
+                return;
+            }
+            Shutdown();
+            Application.Current.Shutdown();
         }
 
         /// <summary>窗体关闭兜底（MainWindow.Closing）：不托盘时直接退出；托盘逻辑 D 阶段接入。</summary>

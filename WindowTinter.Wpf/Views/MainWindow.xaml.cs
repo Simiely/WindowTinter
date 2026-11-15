@@ -27,16 +27,27 @@ namespace WindowTinter.Views
         private int _cornerInset;        // 裁切矩形相对窗口边缘的内缩
         private bool _cornerDebugVisible;
 
-        public MainWindow()
+        public MainWindow(bool startHidden = false)
         {
             InitializeComponent();
-            _vm = new MainViewModel();
+
+            // 标题栏左上角版本号：跟随程序集版本（csproj 的 Version），发版只改一处
+            var ver = typeof(MainWindow).Assembly.GetName().Version;
+            VersionText.Text = ver != null ? $"v{ver.Major}.{ver.Minor}.{ver.Build}" : "";
+
+            _vm = new MainViewModel(startHidden);
             DataContext = _vm;
             LoadCornerDebugSettings();
             Closing += OnClosing;
             // 加载 → 恢复窗口状态 → 构建托盘
             SourceInitialized += (_, _) => { RestoreWindowState(); InstallMaximizeClamp(); };
-            Loaded += (_, _) => { BuildTray(); AdaptEmptyHeight(); };
+            // 托盘必须在这里建：静默启动时窗口从不 Show，Loaded 永不到达，托盘图标不能依赖它
+            BuildTray();
+            Loaded += (_, _) =>
+            {
+                _vm.SilentStartup = false;   // 窗口已打开：之后重新绑定恢复提权提示
+                AdaptEmptyHeight();
+            };
             _vm.Targets.CollectionChanged += (_, _) => AdaptEmptyHeight();
             // 标题栏深色（immersive dark mode），与背景 #1E2024 协调，消除默认白条
             WindowTheme.EnableDarkTitleBar(this);
@@ -350,11 +361,47 @@ namespace WindowTinter.Views
             }
             else
             {
-                ShowInTaskbar = true;
-                Show();
-                WindowState = WindowState.Normal;
-                Activate();
+                ShowFromTray();
             }
+        }
+
+        /// <summary>
+        /// 从托盘打开主窗口：只把「最小化」还原为普通态，保留上次最大化的还原状态。
+        /// 静默启动后首次 Show 时，RestoreWindowState 会在 SourceInitialized 里设最大化，不能在这里无条件改写。
+        /// </summary>
+        private void ShowFromTray()
+        {
+            ShowInTaskbar = true;
+            Show();
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Activate();
+        }
+
+        /// <summary>第二实例（用户又双击了 exe）请求显示主窗口。</summary>
+        public void ShowFromSecondInstance()
+        {
+            if (IsWindowOpen())
+            {
+                Activate();
+                return;
+            }
+            ShowFromTray();
+        }
+
+        /// <summary>
+        /// 退出请求（托盘「退出」）。窗口从未显示过时 IsLoaded=false，Close() 的 Closing 链路不可依赖，
+        /// 这里直接完成同一套释放流程，避免进程残留或目标窗口状态没还原。
+        /// </summary>
+        public void RequestQuit()
+        {
+            if (IsLoaded)
+            {
+                Close();
+                return;
+            }
+            try { _tray?.Dispose(); } catch { }
+            _vm.Shutdown();   // 内含 SaveSettings + 释放全部目标
+            Application.Current.Shutdown();
         }
 
         private void OnClosing(object sender, CancelEventArgs e)
