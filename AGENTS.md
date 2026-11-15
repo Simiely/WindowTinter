@@ -9,7 +9,7 @@
 - 黑底板渲染：`UpdateLayeredWindow`（纯黑位图 × alpha，DWM 硬件合成）——不用 Magnifier API。
 - 窗口操作：Win32 P/Invoke（SetWindowLong / SetLayeredWindowAttributes / SetWinEventHook / EnumWindows）。
 - 托盘：`Hardcodet.NotifyIcon.Wpf`（深色自绘菜单）。
-- 发布：单文件、框架依赖（需要 .NET 6 Desktop Runtime）。**当前仓库没有 `.github/workflows`**，打 `v*` tag 不会自动发布；按 [docs/BUILD.md](docs/BUILD.md) 人工构建 + `gh release create`。
+- 发布：单文件、框架依赖（需要 .NET 6 Desktop Runtime）。`.github/workflows/release.yml` 在推送 `v*` tag 时自动校验版本 / CHANGELOG、0 警告构建并创建/更新 Release；手动验证用 `workflow_dispatch`（版本 + `dry_run=true`）。
 
 ## 关键坑
 
@@ -42,5 +42,5 @@
   `cd WindowTinter.Wpf; dotnet build -c Release`
 - 单文件发布：
   `dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-vX.Y.Z-win-x64`
-- 发布流程：`docs/BUILD.md` §5–§7（打 zip、`git tag`、`gh release create`、发布前检查清单）
-- 版本号：只改 `WindowTinter.Wpf.csproj` 的 `Version` / `AssemblyVersion` / `FileVersion`
+- 发布流程：推 `v*` tag 自动触发 [.github/workflows/release.yml](.github/workflows/release.yml)；手动验证用 `gh workflow run release.yml -f version=X.Y.Z -f dry_run=true`；人工兜底步骤见 `docs/BUILD.md` §5–§7
+- 版本号：只改 `WindowTinter.Wpf.csproj` 的 `Version` / `AssemblyVersion` / `FileVersion`；同时必须在 `CHANGELOG.md` 增加 `## vX.Y.Z` 段落，否则 CI 拒绝发布

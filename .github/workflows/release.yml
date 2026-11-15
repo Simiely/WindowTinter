@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, e.g. 7.3.2 (without leading v)"
+        required: true
+        type: string
+      dry_run:
+        description: "Build and verify only (do not create/update the GitHub Release)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag or dispatch input
+        id: ver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            $tag = $env:GITHUB_REF_NAME
+            if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') { throw "Tag must look like vX.Y.Z, got: $tag" }
+            $version = $Matches[1]
+          } else {
+            $version = "${{ inputs.version }}".Trim().TrimStart("v")
+            if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version input: $version" }
+            $tag = "v$version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version (tag: $tag, dry_run: $env:DRY_RUN)"
+
+      - name: Verify csproj and CHANGELOG versions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $want = "${{ steps.ver.outputs.version }}"
+          [xml]$proj = Get-Content "WindowTinter.Wpf/WindowTinter.Wpf.csproj" -Raw
+          $pg = $proj.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1
+          if (-not $pg) { throw "csproj is missing <Version>" }
+          if ($pg.Version.Trim() -ne $want) { throw "csproj Version=$($pg.Version) != $want" }
+          if ($pg.AssemblyVersion.Trim() -ne "$want.0") { throw "AssemblyVersion=$($pg.AssemblyVersion) != $want.0" }
+          if ($pg.FileVersion.Trim() -ne "$want.0") { throw "FileVersion=$($pg.FileVersion) != $want.0" }
+          $changelog = Get-Content "CHANGELOG.md" -Raw
+          $pattern = '(?m)^##\s+v' + [regex]::Escape($want) + '\b'
+          if ($changelog -notmatch $pattern) { throw "CHANGELOG.md is missing a '## v$want' section" }
+          Write-Host "Version checks passed: $want"
+
+      - name: Setup .NET 6 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "6.0.x"
+
+      - name: Build with warnings as errors
+        shell: pwsh
+        run: dotnet build "WindowTinter.Wpf/WindowTinter.Wpf.csproj" -c Release -p:TreatWarningsAsErrors=true
+
+      - name: Publish single-file
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet publish "WindowTinter.Wpf/WindowTinter.Wpf.csproj" -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o "publish/ci"
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+
+      - name: Package release zip
+        id: pkg
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = "${{ steps.ver.outputs.version }}"
+          $stage = "packaging/v$version"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "publish/ci/WindowTinter.exe" $stage
+          Copy-Item "publish/ci/WindowTinter.pdb" $stage
+          if (Test-Path (Join-Path $stage "WindowTinter.settings.json")) { throw "settings.json must not be packaged" }
+          $usage = Get-Content "packaging/USAGE.template.txt" -Raw -Encoding UTF8
+          $usage = $usage.Replace("{{VERSION}}", $version)
+          Set-Content -Path (Join-Path $stage "使用说明.txt") -Value $usage -Encoding utf8NoBOM
+          $zip = "packaging/WindowTinter-v$version-win-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $stagePath = (Resolve-Path $stage).Path
+          [System.IO.Compression.ZipFile]::CreateFromDirectory($stagePath, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false, [System.Text.Encoding]::UTF8)
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          $names = @($archive.Entries | ForEach-Object { $_.FullName })
+          $archive.Dispose()
+          if ($names.Count -ne 3) { throw "Zip must contain exactly 3 files, got: $($names -join ', ')" }
+          foreach ($required in @("WindowTinter.exe", "WindowTinter.pdb")) {
+            if ($names -notcontains $required) { throw "Zip is missing $required" }
+          }
+          if (-not ($names | Where-Object { $_ -like "*.txt" })) { throw "Zip is missing the usage txt" }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          Write-Host "Zip: $zip ($((Get-Item $zip).Length) bytes)"
+          Write-Host "SHA256: $hash"
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = "${{ steps.ver.outputs.version }}"
+          $lines = Get-Content "CHANGELOG.md"
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match ('^##\s+v' + [regex]::Escape($version) + '\b')) { $start = $i; break }
+          }
+          if ($start -lt 0) { throw "CHANGELOG section v$version not found" }
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^##\s+v') { $end = $i; break }
+          }
+          $section = $lines[$start..($end - 1)]
+          $extra = @(
+            "",
+            "---",
+            "",
+            "### 安装",
+            "",
+            "1. 下载 WindowTinter-v$version-win-x64.zip，解压到可写目录。",
+            "2. 安装 .NET 6 Desktop Runtime (x64)。",
+            "3. 运行 WindowTinter.exe；首次运行会在同目录生成 WindowTinter.settings.json。"
+          )
+          $body = (($section + $extra) -join "`n")
+          Set-Content -Path "release-notes.md" -Value $body -Encoding utf8NoBOM
+          "notes=release-notes.md" >> $env:GITHUB_OUTPUT
+          Write-Host "Release notes written."
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WindowTinter-v${{ steps.ver.outputs.version }}-win-x64
+          path: packaging/WindowTinter-v${{ steps.ver.outputs.version }}-win-x64.zip
+          retention-days: 7
+
+      - name: Create or update GitHub Release
+        if: ${{ env.DRY_RUN != 'true' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ steps.ver.outputs.tag }}"
+          $zip = "${{ steps.pkg.outputs.zip }}"
+          $notes = "${{ steps.notes.outputs.notes }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists; uploading asset with --clobber"
+            gh release upload $tag $zip --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed" }
+          } else {
+            Write-Host "Creating release $tag"
+            gh release create $tag $zip --title "$tag · 暗幕 WPF 正式版" --notes-file $notes --verify-tag
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+          }
+          gh release view $tag --json url,assets

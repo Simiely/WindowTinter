@@ -74,6 +74,25 @@ Compress-Archive -Path $dir\* -DestinationPath "<发布目录>\WindowTinter-v7.3
 
 ## 6. 发布到 GitHub
 
+### 自动发布（推荐）
+
+推送 `v*` tag 会触发 [.github/workflows/release.yml](../.github/workflows/release.yml)，在 `windows-latest` 上执行：
+
+1. 校验 tag 形如 `vX.Y.Z`，且与 `WindowTinter.Wpf.csproj` 的 `Version` / `AssemblyVersion` / `FileVersion` 完全一致
+2. 校验 `CHANGELOG.md` 存在对应的 `## vX.Y.Z` 段落（发布说明从该段落自动生成）
+3. `dotnet build -c Release -p:TreatWarningsAsErrors=true`（0 警告）
+4. 单文件发布，打包 zip：只含 `WindowTinter.exe` / `WindowTinter.pdb` / `使用说明.txt`，并校验 zip 条目
+5. 创建或更新 GitHub Release 并上传 zip；构建产物同时作为 Actions artifact 保留 7 天
+
+```powershell
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+手动验证（不发布）：Actions → `Release` → `Run workflow`，填版本号，`dry_run` 保持 `true`（只构建、校验、上传 artifact）。
+
+### 手动发布（CI 不可用时）
+
 ```powershell
 git tag v7.3.2
 git push origin v7.3.2
