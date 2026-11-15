@@ -1,6 +1,6 @@
 # 构建与发布
 
-> 对应版本 7.3.1。
+> 对应版本 7.3.2。
 
 ## 1. 前提
 
@@ -19,14 +19,14 @@ cd WindowTinter.Wpf
 dotnet build -c Release
 ```
 
-验收标准：**0 警告 0 错误**。7.3.1 的基线构建结果就是 0/0。
+验收标准：**0 警告 0 错误**。7.3.2 的基线构建结果就是 0/0。
 
 ## 4. 单文件发布
 
 ```powershell
 cd WindowTinter.Wpf
 dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true `
-  -o ..\publish\WindowTinter-v7.3.1-win-x64
+  -o ..\publish\WindowTinter-v7.3.2-win-x64
 ```
 
 说明：
@@ -36,14 +36,14 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 - 默认会同时生成 `WindowTinter.pdb`（约 42 KB）。不想要调试符号可加 `-p:DebugType=None -p:DebugSymbols=false`
 - 不会复制 `settings.json`：配置在运行时首次生成在 exe 同目录
 
-7.3.1 的发布产物基线：
+7.3.2 的发布产物基线：
 
 | 文件 | 字节数 |
 |---|---|
-| `WindowTinter.exe` | 796,830 |
-| `WindowTinter.pdb` | 43,188 |
+| `WindowTinter.exe` | 797,342 |
+| `WindowTinter.pdb` | 43,240 |
 
-`FileVersion = 7.3.1.0`，`ProductVersion = 7.3.1`。
+`FileVersion = 7.3.2.0`，`ProductVersion = 7.3.2`。
 
 ### exe 正在运行时覆盖失败
 
@@ -58,11 +58,11 @@ Windows 会锁住正在运行的 exe。两种处理：
 
 ```powershell
 # 在仓库外准备干净目录
-$dir = "<发布目录>\v7.3.1"
+$dir = "<发布目录>\v7.3.2"
 Copy-Item <publish>\WindowTinter.exe $dir
 Copy-Item <publish>\WindowTinter.pdb $dir
 # 手写一份 使用说明.txt 放进去
-Compress-Archive -Path $dir\* -DestinationPath "<发布目录>\WindowTinter-v7.3.1-win-x64.zip"
+Compress-Archive -Path $dir\* -DestinationPath "<发布目录>\WindowTinter-v7.3.2-win-x64.zip"
 ```
 
 校验：
@@ -75,9 +75,9 @@ Compress-Archive -Path $dir\* -DestinationPath "<发布目录>\WindowTinter-v7.3
 ## 6. 发布到 GitHub
 
 ```powershell
-git tag v7.3.1
-git push origin v7.3.1
-gh release create v7.3.1 <zip> --title "v7.3.1 · 暗幕 WPF 正式版" --notes-file <说明文件>
+git tag v7.3.2
+git push origin v7.3.2
+gh release create v7.3.2 <zip> --title "v7.3.2 · 暗幕 WPF 正式版" --notes-file <说明文件>
 ```
 
 凭据走环境变量（`$env:GH_TOKEN`），**不要**写进 `.git/config`、remote URL、脚本或文档；用完立即清空。

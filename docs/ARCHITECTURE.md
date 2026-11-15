@@ -1,12 +1,12 @@
 # 架构与主线
 
-> 对应版本 7.3.1。所有结论来自 `WindowTinter.Wpf/` 现有代码；本机未运行验证的部分会单独标注「未验证」。
+> 对应版本 7.3.2。所有结论来自 `WindowTinter.Wpf/` 现有代码；本机未运行验证的部分会单独标注「未验证」。
 
 ## 1. 项目边界
 
 | 路径 | 说明 |
 |---|---|
-| `WindowTinter.Wpf/WindowTinter.Wpf.csproj` | **当前应用**。`net6.0-windows`、`WinExe`、`AssemblyName=WindowTinter`、`x64`、`Version=7.3.1`、`PublishSingleFile=true` |
+| `WindowTinter.Wpf/WindowTinter.Wpf.csproj` | **当前应用**。`net6.0-windows`、`WinExe`、`AssemblyName=WindowTinter`、`x64`、`Version=7.3.2`、`PublishSingleFile=true` |
 | `WindowTinter.Wpf/Services/*` | Win32 封装与领域服务：`Native`、`BlackPlate`、`TargetTracker`、`SnapshotService`、`Settings`、`Elevation`、`TrayService`、`WindowTheme` |
 | `WindowTinter.Wpf/ViewModels/*` | `MainViewModel`（领域逻辑主体）、`TargetViewModel`（单卡 UI 状态）、`ObservableObject` |
 | `WindowTinter.Wpf/Views/*` | `MainWindow`、`WindowPickerWindow`、`SettingsDialog`、`RenameDialog`、`AboutDialog`、`CardsPanel` |

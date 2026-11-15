@@ -31,9 +31,11 @@ namespace WindowTinter.Views
         {
             InitializeComponent();
 
-            // 标题栏左上角版本号：跟随程序集版本（csproj 的 Version），发版只改一处
+            // 版本展示统一从程序集读取（csproj 是唯一来源，禁止在 XAML/代码里硬编码版本号）
             var ver = typeof(MainWindow).Assembly.GetName().Version;
-            VersionText.Text = ver != null ? $"v{ver.Major}.{ver.Minor}.{ver.Build}" : "";
+            string verText = ver != null ? $"v{ver.Major}.{ver.Minor}.{ver.Build}" : "";
+            VersionText.Text = verText;
+            Title = string.IsNullOrEmpty(verText) ? "暗幕" : $"暗幕 {verText}";
 
             _vm = new MainViewModel(startHidden);
             DataContext = _vm;

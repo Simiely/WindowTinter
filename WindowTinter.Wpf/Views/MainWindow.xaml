@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:views="clr-namespace:WindowTinter.Views"
-        Title="暗幕 v7.3.1" Width="640" Height="720" MinWidth="616" MinHeight="560"
+        Title="暗幕" Width="640" Height="720" MinWidth="616" MinHeight="560"
         Background="{StaticResource WinBg}"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"

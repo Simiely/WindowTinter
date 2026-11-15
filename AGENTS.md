@@ -1,13 +1,15 @@
 # AGENTS.md · 项目规则
 
-> 给 AI / 未来的你：只记代码里看不出的关键信息。详细问题记录见 [DEV.md](DEV.md)（26 条一坑一篇）。
+> 给 AI / 未来的你：只记代码里看不出的关键信息。详细问题记录见 [DEV.md](DEV.md)（WinForms 时代资料）。
 
 ## 技术栈
 
-- C# WinForms + .NET 6.0（`net6.0-windows`，目标框架必须匹配用户运行时——用户机器只有 .NET 6，SDK 版本可更高）
-- 窗口渲染：UpdateLayeredWindow（纯黑位图 × alpha，DWM 硬件合成）——不用 Magnifier API
-- 窗口操作：Win32 P/Invoke（SetWindowLong / SetLayeredWindowAttributes / SetWinEventHook / EnumWindows）
-- CI：GitHub Actions 打 `v*` tag 自动构建发布 zip；落地页 `simiely.github.io/WindowTinter/`
+- **当前应用：WPF / .NET 6.0**（`WindowTinter.Wpf/WindowTinter.Wpf.csproj`，`net6.0-windows`）。根目录的 `WindowTinter.csproj`、`MainForm*.cs` 是 WinForms 历史源码，仅归档，**不要构建**。
+- 目标框架必须匹配用户运行时——用户机器只有 .NET 6，SDK 版本可更高。
+- 黑底板渲染：`UpdateLayeredWindow`（纯黑位图 × alpha，DWM 硬件合成）——不用 Magnifier API。
+- 窗口操作：Win32 P/Invoke（SetWindowLong / SetLayeredWindowAttributes / SetWinEventHook / EnumWindows）。
+- 托盘：`Hardcodet.NotifyIcon.Wpf`（深色自绘菜单）。
+- 发布：单文件、框架依赖（需要 .NET 6 Desktop Runtime）。**当前仓库没有 `.github/workflows`**，打 `v*` tag 不会自动发布；按 [docs/BUILD.md](docs/BUILD.md) 人工构建 + `gh release create`。
 
 ## 关键坑
 
@@ -15,23 +17,30 @@
 2. **WinEvent 回调死循环**：改窗口样式触发 EVENT_OBJECT_LOCATIONCHANGE → 回调再改 → 回环。守卫：Refresh 不变不触发 + OnUpdate 内 alpha 不变不调 SetTargetAlpha
 3. **BeginInvoke 闭包变量过期**：执行时加 `IsWindow + GetForegroundWindow` 守卫检查
 4. **hwnd 回收复用风险**：操作前必须 `IsWindow(hwnd)`（两次 Win32 调用之间有 TOCTOU 窗口）
-5. **`FormClosing` 必须检查 `CloseReason`**——用户关闭/系统关机/任务管理器是三种语义，无条件 `e.Cancel=true` 会阻止关机
+5. **WPF `Closing` 没有 `CloseReason`**：取消关闭后必须 `Hide()` + `ShowInTaskbar=false`；真实退出用 `ReallyQuit` 标记，二者不能混
 6. **托盘常驻程序**：设置变更即时 `Save()`（不能依赖"退出时保存"）；启动时做状态修复（杀进程残留的 WS_EX_LAYERED 用 RedrawWindow 清）
 7. **便携工具配置与 exe 同目录**（`Path.GetDirectoryName(Environment.ProcessPath)`）——`%AppData%` 会造成"换目录配置丢失"
-8. **资源路径用绝对路径**——开机自启工作目录 ≠ exe 目录，相对路径 `app.ico` 会崩
-9. **持久化格式变更必须加迁移代码**（如 .exe 后缀剥离），否则存量用户全挂
-10. **Dispose 顺序**：依赖方先停用再释放共享资源（`_appIcon.Dispose()` 必须在 `_tray.Visible=false` 之后）
-11. **窗口拾取**：用 `EnumWindows` 按 Z 序遍历 + PtInRect，不用 ShowWindow 显隐（DWM 过渡动画闪烁）
-12. **跨完整性级别静默失败**：目标提权而本程序未提权时设透明度无反应——主动探测 TokenElevation 并提示用户
+8. **静默启动不 `Show()` 主窗**（`/startup`）：托盘必须在 `MainWindow` 构造函数里创建，不能放 `Loaded`（`Loaded` 只有窗口显示才触发）
+9. **窗口从未显示过时的退出**：走 `MainWindow.RequestQuit()`，不要依赖 `Close()` 的 `Closing` 链路，否则可能残留进程
+10. **持久化格式变更必须加迁移代码**（如 .exe 后缀剥离），否则存量用户全挂
+11. **Dispose 顺序**：依赖方先停用再释放共享资源（托盘先隐藏/释放，再释放图标）
+12. **窗口拾取**：用 `EnumWindows` 按 Z 序遍历 + PtInRect，不用 ShowWindow 显隐（DWM 过渡动画闪烁）
+13. **跨完整性级别静默失败**：目标提权而本程序未提权时设透明度无反应——主动探测 TokenElevation 并提示用户
+14. **第二实例**：命名 Mutex 冲突时，手动启动通过命名事件 `WindowTinter.Wpf.ShowWindow` 唤起已有主窗；带 `/startup` 的重复启动静默退出
+15. **版本号禁止硬编码**：唯一来源是 `WindowTinter.Wpf.csproj` 的 `Version`；窗口标题、标题栏、关于页、托盘提示一律从 `Assembly.GetName().Version` 读取
 
 ## 约定
 
 - 前台蒙版 + 后台透明（WS_EX_LAYERED alpha）策略；KeepTransparency 模式统一走 SetLayeredWindowAttributes
 - 全屏/单窗口透明度开关：关闭全局时把当前值写入每个目标避免跳变
-- 发布 zip 打整个 `publish/` 目录（exe + dll + deps.json + runtimeconfig.json + app.ico），不是只挑 exe
+- **Release zip 只含**：`WindowTinter.exe` + `WindowTinter.pdb` + `使用说明.txt`；**不要**包含 `WindowTinter.settings.json`、staging 目录、日志（单文件发布，不再有 dll / deps.json）
+- CHANGELOG 只写真实提交里的改动，不写计划；性能/耗时数字必须注明测试条件与样本量
 
 ## 常用命令
 
-- 构建：`dotnet publish -c Release -r win-x64 --self-contained false`（依赖框架模式）
-- 打包：整个 publish/ 目录 + app.ico → zip
-- 版本号：csproj 中 Version
+- 构建（必须在 WPF 目录）：
+  `cd WindowTinter.Wpf; dotnet build -c Release`
+- 单文件发布：
+  `dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-vX.Y.Z-win-x64`
+- 发布流程：`docs/BUILD.md` §5–§7（打 zip、`git tag`、`gh release create`、发布前检查清单）
+- 版本号：只改 `WindowTinter.Wpf.csproj` 的 `Version` / `AssemblyVersion` / `FileVersion`

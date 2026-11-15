@@ -1,10 +1,10 @@
 # 安装、升级与卸载
 
-> 对应版本 7.3.1。程序是绿色单文件，没有安装器。
+> 对应版本 7.3.2。程序是绿色单文件，没有安装器。
 
 ## 1. 安装
 
-1. 从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.3.1-win-x64.zip`。
+1. 从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.3.2-win-x64.zip`。
 2. 解压到**可写目录**（例如 `%USERPROFILE%\Tools\WindowTinter`）。不要放在 `Program Files` 或只读共享盘——配置写不进去且不会报错。
 3. 安装 [.NET 6 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/6.0)。缺少运行时时，Windows 会提示下载。
 4. 双击 `WindowTinter.exe`。首次运行生成 `WindowTinter.settings.json`。

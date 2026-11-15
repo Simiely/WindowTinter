@@ -1,4 +1,4 @@
-# 暗幕 WindowTinter 7.3.1
+# 暗幕 WindowTinter 7.3.2
 
 给任意 Windows 窗口设置透明度（压暗），并在窗口正下方垫一层纯黑底板，让半透明窗口稳定呈现为「压暗」，而不是透出背后的桌面和其它窗口。
 
@@ -20,7 +20,7 @@
 
 ## 下载与运行
 
-从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.3.1-win-x64.zip`，解压后直接运行 `WindowTinter.exe`。
+从 [Releases](https://github.com/Simiely/WindowTinter/releases) 下载 `WindowTinter-v7.3.2-win-x64.zip`，解压后直接运行 `WindowTinter.exe`。
 
 **前提**：
 
@@ -69,7 +69,7 @@
 ```powershell
 cd WindowTinter.Wpf
 dotnet build -c Release
-dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-v7.3.1-win-x64
+dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o ..\publish\WindowTinter-v7.3.2-win-x64
 ```
 
 详细步骤、产物说明与发布流程见 [docs/BUILD.md](./docs/BUILD.md)。

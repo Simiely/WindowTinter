@@ -9,6 +9,10 @@ namespace WindowTinter.Views
         public AboutDialog()
         {
             InitializeComponent();
+            var ver = typeof(AboutDialog).Assembly.GetName().Version;
+            VersionText.Text = ver != null
+                ? $"暗幕 v{ver.Major}.{ver.Minor}.{ver.Build}"
+                : "暗幕";
             WindowTheme.EnableDarkTitleBar(this);
         }
 
