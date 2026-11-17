@@ -1,7 +1,7 @@
 # AGENTS.md · 项目规则
 
 > 📌 **文档基线**：2026-11-17（commit `c4121b4`）接入单项目规范机器层（link-only）
-> 给 AI / 未来的你：只记代码里看不出的关键信息。详细问题记录见 [DEV.md](DEV.md)（WinForms 时代资料）。
+> 给 AI / 未来的你：只记代码里看不出的关键信息。开发入口见 [DEVELOPMENT.md](DEVELOPMENT.md)；WinForms 时代记录见 [docs/history/](docs/history/README.md)。
 
 ## 技术栈
 

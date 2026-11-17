@@ -1,6 +1,6 @@
 # CHANGELOG.md · 版本记录
 
-> 按版本从新到旧。完整问题记录见 [DEV.md](DEV.md)。
+> 按版本从新到旧。开发入口见 [DEVELOPMENT.md](DEVELOPMENT.md)；更早的问题记录见 [docs/history/](docs/history/README.md)。
 > 版本号说明：WPF 重写阶段内部曾以「v11」指代；自 7.2.0 起统一使用 csproj 里的语义化版本。
 
 ## 文档维护 · 2026-11-17

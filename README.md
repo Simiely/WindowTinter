@@ -94,7 +94,8 @@ dotnet publish -c Release -r win-x64 --self-contained false -p:PublishSingleFile
 | [docs/DECISIONS.md](./docs/DECISIONS.md) | 「不值得做 / 不要做」的结论，避免重复劳动 |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更记录 |
 | [AGENTS.md](./AGENTS.md) | 给 AI / 维护者的关键坑与约定 |
-| [DEV.md](./DEV.md) | WinForms 时代的问题记录（历史资料） |
+| [DEVELOPMENT.md](./DEVELOPMENT.md) | 开发入口：代码组织、改动路径、提交前检查、发布 |
+| [docs/history/](./docs/history/README.md) | WinForms 时代的问题记录与历次改造计划（历史资料） |
 
 ## 许可
 

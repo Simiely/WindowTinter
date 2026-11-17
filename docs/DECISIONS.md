@@ -12,7 +12,7 @@
 | WGC + Direct2D | 需要 Win10 1903+ 与大量 WinRT/D3D11 基础设施，引入 SharpDX 级依赖；本工具只需要一张纯黑位图 |
 | 给目标窗口加 `WS_EX_TRANSPARENT` 遮挡层 | `WS_EX_TRANSPARENT`（穿透）与接收鼠标事件互斥；曾用极短时间切换样式的方案，时序脆弱，已弃用 |
 
-依据：`DEV.md` 第 1 节；当前 `Services/BlackPlate.cs` 用 `UpdateLayeredWindow`。
+依据：`docs/history/winforms-notes-v1-v3.9.md` 第 1 节；当前 `Services/BlackPlate.cs` 用 `UpdateLayeredWindow`。
 
 ## 2. 不要重写为「全量 MVVM 框架 + DI 容器」
 
@@ -26,7 +26,7 @@
 
 ## 4. 不要用「显示/隐藏窗口」解决点击穿透与拾取
 
-`ShowWindow` 触发 DWM 过渡动画，既闪又慢。拾取器改用 `EnumWindows` + `PtInRect`；需要让 `WindowFromPoint` 忽略自身时用 `WS_DISABLED`（`Enabled=false`），不要用 `ShowWindow`。依据：`DEV.md` 的拾取器章节与 `WindowPickerWindow` 现有实现。
+`ShowWindow` 触发 DWM 过渡动画，既闪又慢。拾取器改用 `EnumWindows` + `PtInRect`；需要让 `WindowFromPoint` 忽略自身时用 `WS_DISABLED`（`Enabled=false`），不要用 `ShowWindow`。依据：`docs/history/winforms-notes-v1-v3.9.md` 的拾取器章节与 `WindowPickerWindow` 现有实现。
 
 ## 5. 不要把配置迁到 `%LOCALAPPDATA%` / 注册表 / 数据库
 
