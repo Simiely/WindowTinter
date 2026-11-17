@@ -477,9 +477,9 @@ jobs:
           files: WindowTinter-release.zip
 ```
 
-### GitHub Pages 落地页
+### 对外展示
 
-产品落地页 (`index.html`) 基于 hub-world 全屏滚动模板，部署在 `https://simiely.github.io/WindowTinter/`。Pages 从 main 分支根目录自动构建，每次 push 自动更新。
+落地页已于 2026-11 移除；下载与说明以 README + GitHub Releases 为准。
 
 ---
 
