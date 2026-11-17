@@ -3,6 +3,15 @@
 > 按版本从新到旧。完整问题记录见 [DEV.md](DEV.md)。
 > 版本号说明：WPF 重写阶段内部曾以「v11」指代；自 7.2.0 起统一使用 csproj 里的语义化版本。
 
+## 文档维护 · 2026-11-17
+
+- 接入 knowledge-base 的**单项目规范**（spec 2.1.3 / repo-kit 2.7.2，profile `link-only`）
+- 新增 `schema/taxonomy.json`、`tools/repo-kit/`、`tools/update-repo-kit.ps1`、`schema/kit.lock.json` 与 CI
+- 只查链接与入口，**不要求 frontmatter**
+- 16 个相对链接纳入检查
+- 文档结构（两份开发笔记、根目录计划/报告）另行重构
+- 验收：`REPO CHECK: PASS`（ERROR=0）、`KIT LOCK: PASS (v2.7.2, spec=2.1.3)`
+
 ## v7.3.2 — 2026-11-15
 
 - 版本展示统一从程序集版本读取（窗口标题、标题栏、关于页、托盘提示），版本号唯一来源仍是 csproj，消除硬编码版本号的漂移风险
